@@ -1,0 +1,32 @@
+{
+	"ProductionInputs": {
+		"potato": {
+			"laborTime": 10
+		},
+		"apple": {
+			"laborTime": 3
+		}
+	},
+	"UtilityFunctions": {
+		"potato": {
+			"BaseUtility": {
+				"mean": 5,
+				"stdDev": 0.5
+			},
+			"DiminishingFactor": {
+				"mean": 0.5,
+				"stdDev": 0.1
+			}
+		},
+		"apple": {
+			"BaseUtility": {
+				"mean": 15,
+				"stdDev": 1
+			},
+			"DiminishingFactor": {
+				"mean": 1.5,
+				"stdDev": 0.2
+			}
+		}
+	}
+}
