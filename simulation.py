@@ -5,12 +5,15 @@ import os
 import numpy as np
 import logging
 import time
+import sys
 
 from PersonAgent import *
-from TransactionNetwork import *
+from ConnectionNetwork import *
+import utils
 
-
-logging.basicConfig(format='%(asctime)s.%(msecs)03d\t%(levelname)s:\t%(name)s:\t%(message)s', level=logging.DEBUG, datefmt='%m/%d/%Y %H:%M:%S')
+#logPath = os.path.join("LOGS", "simulation_{}.log".format(time.time()))
+#logging.basicConfig(format='%(asctime)s.%(msecs)03d\t%(levelname)s:\t%(name)s:\t%(message)s', level=logging.DEBUG, datefmt='%m/%d/%Y %H:%M:%S', filename=logPath)
+#logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
 #Congregate item into into a single dict
 allItemsDict = {}
@@ -27,10 +30,15 @@ for fileName in os.listdir("Items"):
 
 
 def launchAgents(launchDict, allAgentList, procName, managementPipe):
-	logger = logging.getLogger("{}:{}".format(__name__, procName))
+	logger = utils.getLogger("{}:{}".format(__name__, procName))
 
-	logger.debug("Starting launchAgents()")
+	logger.debug("launchAgents() start")
+	logger.debug("launchDict = {}".format(launchDict))
+	logger.debug("allAgentList = {}".format(allAgentList))
+	logger.debug("procName = {}".format(procName))
+	logger.debug("managementPipe = {}".format(managementPipe))
 
+	logger.info("Instantiating agents")
 	procAgentDict = {}
 	for agentId in launchDict:
 		agentObj = PersonAgent(agentId=agentId, itemDict=allItemsDict, networkLink=launchDict[agentId]["agentPipe"])
@@ -42,6 +50,7 @@ def launchAgents(launchDict, allAgentList, procName, managementPipe):
 	procAgentList = list(procAgentDict.keys())
 
 	#Send random transactions to other agents
+	logger.info("Sending random transactions")
 	numXact = 5
 	transfersCents = sample(range(0, 500), numXact)
 	#transfersCents = [20, 6, 80, 33, 49]
@@ -58,6 +67,7 @@ def launchAgents(launchDict, allAgentList, procName, managementPipe):
 		senderAgent.sendCurrency(cents=amount, recipientId=recipientId)
 
 	#Send kill commands for all pipes connected to this batch of agents
+	time.sleep(10)  #temp fix until we can track status of other managers
 	logger.info("Sending kill commands to agents")
 	for agentId in procAgentDict:
 		killPacket = NetworkPacket(senderId=procName, destinationId=agentId, msgType="KILL_PIPE_AGENT")
@@ -93,7 +103,7 @@ if __name__ == "__main__":
 		spawnDict[procNum][agentId] = {"agentId": agentId, "networkPipe": networkPipe, "agentPipe": agentPipe}
 	
 	#Instantiate network
-	xactNetwork = TransactionNetwork()
+	xactNetwork = ConnectionNetwork()
 	for procNum in spawnDict:
 		for agentId in spawnDict[procNum]:
 			xactNetwork.addConnection(agentId=agentId, networkPipe=spawnDict[procNum][agentId]["networkPipe"])

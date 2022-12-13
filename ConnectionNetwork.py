@@ -1,8 +1,9 @@
 import multiprocessing
 import threading
 import hashlib
-import logging
 import time
+
+import utils
 
 
 class NetworkPacket:
@@ -19,9 +20,9 @@ class NetworkPacket:
 	def __str__(self):
 		return "({}, {}, {}, {})".format(self.msgType, self.destinationId, self.transactionId, self.hash)
 
-class TransactionNetwork:
+class ConnectionNetwork:
 	def __init__(self):
-		self.logger = logging.getLogger("{}".format(__name__))
+		self.logger = utils.getLogger("{}".format(__name__))
 		self.lockTimeout = 5
 
 		self.agentConnections = {}
@@ -59,11 +60,13 @@ class TransactionNetwork:
 						break
 
 			elif (destinationId in self.agentConnections):
+				#Foward packet to destination
 				outboundLink = self.agentConnections[destinationId]
 				self.logger.info("OUTBOUND {}".format(incommingPacket))
 				outboundLink.send(incommingPacket)
 
 			else:
+				#Invalid packet destination
 				errorMsg = "Destination \"{}\" not connected to network".format(destinationId)
 				responsePacket = NetworkPacket(senderId="TransactionNetwork", destinationId=incommingPacket.senderId, msgType="ERROR", payload=errorMsg, transactionId=incommingPacket.transactionId)
 				agentLink.send(responsePacket)

@@ -1,28 +1,16 @@
-from random import random, seed, randrange, choice
-import numpy as np
 import math
 import threading
 import logging
 import time
 
-from TransactionNetwork import *
-
-
-def getNormalSample(mean, std, onlyPositive=True):
-	'''
-	Returns a single sample from a normal distribution
-	'''
-	sample = np.random.normal(mean, std, 1)[0]
-	if (onlyPositive):
-		while (sample < 0):
-			sample = np.random.normal(mean, std, 1)[0]
-	return sample
+from ConnectionNetwork import *
+import utils
 
 
 class UtilityFunction:
 	def __init__(self, baseUtility, baseStdDev, diminishingFactor, diminStdDev):
-		self.baseUtility = float(getNormalSample(baseUtility, baseStdDev))
-		self.diminishingFactor = float(getNormalSample(diminishingFactor, diminStdDev))
+		self.baseUtility = float(utils.getNormalSample(baseUtility, baseStdDev))
+		self.diminishingFactor = float(utils.getNormalSample(diminishingFactor, diminStdDev))
 
 	def getMarginalUtility(self, quantity):
 		'''
@@ -71,7 +59,9 @@ class UtilityFunction:
 class PersonAgent:
 	def __init__(self, agentId, itemDict, networkLink=None):
 		self.agentId = agentId
-		self.logger = logging.getLogger("{}:{}".format(__name__, self.agentId))
+		self.logger = utils.getLogger("{}:{}".format(__name__, self.agentId))
+		self.logger.debug("{} instantiated".format(agentId))
+
 		self.lockTimeout = 5
 
 		#Keep track of hunger
@@ -139,14 +129,20 @@ class PersonAgent:
 				responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType="PAYMENT_ACK", payload=respPayload, transactionId=incommingPacket.transactionId)
 				self.networkLink.send(responsePacket)
 
+		self.logger.info("Ending networkLink monitor".format(self.networkLink))
+
 
 	def receiveCurrency(self, cents):
 		'''
 		Returns True if transfer was succesful, 0 if not
 		'''
+		self.logger.debug("{}.receiveCurrency({}) start".format(self.agentId, cents))
+
 		if (cents < 0):
+			self.logger.debug("{}.receiveCurrency({}) return {}".format(self.agentId, cents, False))
 			return False
 		if (cents == 0):
+			self.logger.debug("{}.receiveCurrency({}) return {}".format(self.agentId, cents, True))
 			return True
 
 		self.logger.debug("Lock \"currencyBalanceLock\" requested")
@@ -157,15 +153,21 @@ class PersonAgent:
 			self.logger.debug("Lock \"currencyBalanceLock\" release")
 			self.currencyBalanceLock.release()
 
+			self.logger.debug("{}.receiveCurrency({}) return {}".format(self.agentId, cents, True))
 			return True
 		else:
 			self.logger.error("Lock \"currencyBalanceLock\" acquisition timeout")
+			self.logger.debug("{}.receiveCurrency({}) return {}".format(self.agentId, cents, False))
 			return False
 
 	def sendCurrency(self, cents, recipientId):
+		self.logger.debug("{}.sendCurrency({}, {}) start".format(self.agentId, cents, recipientId))
+
 		if (cents == 0):
+			self.logger.debug("{}.sendCurrency({}, {}) return {}".format(self.agentId, cents, recipientId, False))
 			return True
 		if (recipientId == self.agentId):
+			self.logger.debug("{}.sendCurrency({}, {}) return {}".format(self.agentId, cents, recipientId, True))
 			return True
 
 		transferSuccess = False
@@ -206,13 +208,16 @@ class PersonAgent:
 					self.responseBufferLock.release()
 				else:
 					self.logger.error("Lock \"responseBufferLock\" acquisition timeout")
+					self.logger.debug("{}.sendCurrency({}, {}) return {}".format(self.agentId, cents, recipientId, False))
 					return False
 
 			self.logger.debug("Lock \"currencyBalanceLock\" release")
 			self.currencyBalanceLock.release()
 			
+			self.logger.debug("{}.sendCurrency({}, {}) return {}".format(self.agentId, cents, recipientId, transferSuccess))
 			return transferSuccess
 		else:
 			self.logger.error("Lock \"currencyBalanceLock\" acquisition timeout")
+			self.logger.debug("{}.sendCurrency({}, {}) return {}".format(self.agentId, cents, recipientId, False))
 			return False
 
