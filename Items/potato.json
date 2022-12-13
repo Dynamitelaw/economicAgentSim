@@ -1,0 +1,16 @@
+{
+	"id": "potato",
+	"ProductionInputs": {
+		"laborTime": 10
+	},
+	"UtilityFunctions": {
+		"BaseUtility": {
+			"mean": 5,
+			"stdDev": 0.5
+		},
+		"DiminishingFactor": {
+			"mean": 0.5,
+			"stdDev": 0.1
+		}
+	}
+}

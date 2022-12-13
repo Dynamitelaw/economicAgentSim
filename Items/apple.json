@@ -1,0 +1,16 @@
+{
+	"id": "apple",
+	"ProductionInputs": {
+		"laborTime": 3
+	},
+	"UtilityFunctions": {
+		"BaseUtility": {
+			"mean": 15,
+			"stdDev": 1
+		},
+		"DiminishingFactor": {
+			"mean": 1.5,
+			"stdDev": 0.2
+		}
+	}
+}
