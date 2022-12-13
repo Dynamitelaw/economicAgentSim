@@ -4,7 +4,7 @@ import logging
 import os
 
 
-def getLogger(name, console="WARNING", outputdir="LOGS\\testFolder1\\testFolder2"):
+def getLogger(name, console="WARNING", outputdir="LOGS"):
 	'''
 	Returns logger object
 	'''
