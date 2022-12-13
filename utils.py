@@ -4,15 +4,26 @@ import logging
 import os
 
 
-def getLogger(name, console="WARNING"):
+def getLogger(name, console="WARNING", outputdir="LOGS\\testFolder1\\testFolder2"):
 	'''
 	Returns logger object
 	'''
+
+	#Make sure output dir exists
+	outputHier = os.path.normpath(outputdir)
+	outputHierList = outputHier.split(os.sep)
+	currentPath = ""
+	for folder in outputHierList:
+		currentPath = os.path.join(currentPath, folder)
+		if not (os.path.exists(currentPath)):
+			os.mkdir(currentPath)
+
+	#Instantiate logger
 	logger = logging.getLogger(name)
 	logger.setLevel(logging.DEBUG)
 
 	# create file handler which logs even debug messages
-	logPath = os.path.join("LOGS", "{}.log".format(name).replace(":", "_"))
+	logPath = os.path.join(outputdir, "{}.log".format(name).replace(":", "_"))
 	fh = logging.FileHandler(logPath, mode="w")
 	fh.setLevel(logging.DEBUG)
 
