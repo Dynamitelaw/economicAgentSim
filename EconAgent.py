@@ -50,13 +50,13 @@ class UtilityFunction:
 		return totalUtility
 
 	def __str__(self):
-		return "(BaseUtility: {}, DiminishingFactor: {})".format(self.baseUtility, self.diminishingFactor)
+		return "UF(BaseUtility: {}, DiminishingFactor: {})".format(self.baseUtility, self.diminishingFactor)
 
 	def __repr__(self):
 		return str(self)
 
 
-class InventoryEntry:
+class ItemContainer:
 	def __init__(self, itemId, itemQuantity):
 		self.id = itemId
 		self.quantity = itemQuantity
@@ -65,7 +65,7 @@ class InventoryEntry:
 		return str(self)
 
 	def __str__(self):
-		return "InventoryEntry(ID={}, Quant={})".format(self.id, self.quantity)
+		return "ItemContainer(ID={}, Quant={})".format(self.id, self.quantity)
 
 	def __add__(self, other):
 		typeOther = type(other)
@@ -74,10 +74,10 @@ class InventoryEntry:
 			if (self.id != otherId):
 				raise ValueError("Cannot add inventory entries of different items {} and {}".format(self.id, otherId))
 
-			newEntry = InventoryEntry(self.id, self.quantity+other.quantity)
+			newEntry = ItemContainer(self.id, self.quantity+other.quantity)
 			return newEntry
 		elif ((typeOther == int) or (typeOther == float)):
-			newEntry = InventoryEntry(self.id, self.quantity+other)
+			newEntry = ItemContainer(self.id, self.quantity+other)
 			return newEntry
 		else:
 			raise ValueError("Cannot add {} and {}".format(typeOther, type(self)))
@@ -89,10 +89,10 @@ class InventoryEntry:
 			if (self.id != otherId):
 				raise ValueError("Cannot add inventory entries of different items {} and {}".format(self.id, otherId))
 
-			newEntry = InventoryEntry(self.id, self.quantity-other.quantity)
+			newEntry = ItemContainer(self.id, self.quantity-other.quantity)
 			return newEntry
 		elif ((typeOther == int) or (typeOther == float)):
-			newEntry = InventoryEntry(self.id, self.quantity-other)
+			newEntry = ItemContainer(self.id, self.quantity-other)
 			return newEntry
 		else:
 			raise ValueError("Cannot subtract {} and {}".format(typeOther, type(self)))
@@ -128,6 +128,19 @@ class InventoryEntry:
 			raise ValueError("Cannot subtract {} and {}".format(typeOther, type(self)))
 
 
+class TradeRequest:
+	def __init__(self, sellerId, buyerId, currencyAmount, itemPackage):
+		self.sellerId = sellerId
+		self.buyerId = buyerId
+		self.currencyAmount = currencyAmount
+		self.itemPackage = itemPackage
+		self.reqId = "TradeReq{seller={}, buyerId={}, currency={}, item={}}_{}".format(sellerId, buyerId, currencyAmount, itemPackage, time.time())
+
+		self.hash = hashlib.sha256(self.reqId.encode('utf-8')).hexdigest()[:8 ]
+
+	def __str__(self):
+		return self.reqId
+
 class AgentInfo:
 	def __init__(self, agentId, agentType):
 		self.agentId = agentId
@@ -135,6 +148,18 @@ class AgentInfo:
 
 	def __str__(self):
 		return "AgentInfo(ID={}, Type={})".format(self.agentId, self.agentType)
+
+
+def getAgentController(agentInfo):
+	if (agentInfo.agentType == "human"):
+		#Return AI human controller
+		pass
+	if (agentInfo.agentType == "company"):
+		#Return AI company controller
+		pass
+
+	#Unhandled agent type. Return default controller
+	return None
 
 
 class Agent:
@@ -166,6 +191,9 @@ class Agent:
 		for itemName in itemDict:
 			itemFunctionParams = itemDict[itemName]["UtilityFunctions"]
 			self.utilityFunctions[itemName] = UtilityFunction(itemFunctionParams["BaseUtility"]["mean"], itemFunctionParams["BaseUtility"]["stdDev"], itemFunctionParams["DiminishingFactor"]["mean"], itemFunctionParams["DiminishingFactor"]["stdDev"])
+
+		#Instantiate AI agent controller
+		self.controller = getAgentController(agentInfo)
 
 		#Launch network link monitor
 		if (self.networkLink):
@@ -227,7 +255,7 @@ class Agent:
 
 
 	#########################
-	# Currency functions
+	# Currency transfer functions
 	#########################
 	def receiveCurrency(self, cents, incommingPacket=None):
 		'''
@@ -285,6 +313,7 @@ class Agent:
 			self.logger.debug("{}.sendCurrency({}, {}) return {}".format(self.agentId, cents, recipientId, True))
 			return True
 		if (cents > self.currencyBalance):
+			self.logger.error("Balance too small ({}). Cannot send {}".format(self.currencyBalance, cents))
 			self.logger.debug("{}.sendCurrency({}, {}) return {}".format(self.agentId, cents, recipientId, False))
 			return False
 
@@ -339,7 +368,7 @@ class Agent:
 		return transferSuccess
 
 	#########################
-	# Trading functions
+	# Item transfer functions
 	#########################
 	def receiveItem(self, itemPackage, incommingPacket=None):
 		'''
@@ -448,6 +477,92 @@ class Agent:
 		#Return status
 		self.logger.debug("{}.sendItem({}, {}) return {}".format(self.agentId, itemPackage, recipientId, transferSuccess))
 		return transferSuccess
+
+
+	#########################
+	# Trading functions
+	#########################
+	def executeTrade(self, request):
+		'''
+		Execute a trade request.
+		Returns True if trade is completed, False if not
+		'''
+		tradeCompleted = False
+
+		if (self.agentId == request.buyerId):
+			#We are the buyer. Send money
+			moneySent = self.sendCurrency(request.currencyAmount, request.sellerId, transactionId=request.reqId)
+			if (not moneySent):
+				self.logger.error("Money transfer failed {}".format(request))
+				
+			tradeCompleted = moneySent
+
+		if (self.agentId == request.sellerId):
+			#We are the seller. Send item package
+			itemSent = self.sendItem(request.itemPackage, request.buyerId, transactionId=request.reqId)
+			if (not itemSent):
+				self.logger.error("Item transfer failed {}".format(request))
+				
+			tradeCompleted = itemSent
+
+		return tradeCompleted
+
+	def receiveTradeRequest(self, request, senderId):
+		'''
+		Will pass along trade request to agent controller for approval. Will execute trade if approved.
+		Returns True if trade is completed, False if not
+		'''
+		tradeCompleted = False
+
+		#Evaluate offer
+		self.logger.debug("Fowarding {} to controller {}".format(request, self.controller.name))
+		offerAccepted = self.controller.evalTradeRequest(request)
+
+		#Notify counter party of response
+		respPayload = {"tradeRequest": request, "accepted": offerAccepted}
+		responsePacket = NetworkPacket(senderId=self.agentId, destinationId=senderId, msgType="TRADE_REQ_ACK", payload=respPayload, transactionId=request.reqId)
+		self.sendPacket(responsePacket)
+
+		#Execute trade if offer accepted
+		if (offerAccepted):
+			self.logger.debug("{} accepted".format(request))
+			tradeCompleted = self.executeTrade(request)
+		else:
+			self.logger.debug("{} rejected".format(request))
+
+		return tradeCompleted
+		
+
+	def sendTradeRequest(self, request, recipientId):
+		'''
+		Send a trade request to another agent. Will execute trade if accepted by recipient.
+		Returns True if the trade completed. Returns False if not
+		'''
+		self.logger.debug("{}.sendTradeRequest({}, {}) start".format(self.agentId, request, recipientId))
+		tradeCompleted = False
+
+		#Send trade offer
+		tradeId = request.reqId
+		tradePacket = NetworkPacket(senderId=self.agentId, destinationId=recipientId, msgType="TRADE_REQ", payload=request, transactionId=tradeId)
+		self.sendPacket(transferPacket)
+		
+		#Wait for trade response
+		while not (tradeId in self.responseBuffer):
+			time.sleep(0.00001)
+			pass
+		responsePacket = self.responseBuffer[tradeId]
+
+		#Execute trade if request accepted
+		offerAccepted = bool(responsePacket.payload["accepted"])
+		if (offerAccepted):
+			#Execute trade
+			tradeCompleted = self.executeTrade(request)
+		else:
+			self.logger.info("{} was rejected".format(request))
+			tradeCompleted = offerAccepted
+
+		self.logger.debug("{}.sendTradeRequest({}, {}) return {}".format(self.agentId, request, recipientId, tradeCompleted))
+		return tradeCompleted
 
 	#########################
 	# Utility functions

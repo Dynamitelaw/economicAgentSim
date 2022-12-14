@@ -41,7 +41,7 @@ class ConnectionNetwork:
 		self.logger.info("Monitoring {} link {}".format(agentId, agentLink))
 		while True:
 			incommingPacket = agentLink.recv()
-			self.logger.info("INBOUND {}".format(incommingPacket))
+			self.logger.info("INBOUND {} {}".format(agentId, incommingPacket))
 			destinationId = incommingPacket.destinationId
 
 			if (incommingPacket.msgType == "KILL_PIPE_NETWORK"):
@@ -59,7 +59,7 @@ class ConnectionNetwork:
 			elif (destinationId in self.agentConnections):
 				#Foward packet to destination
 				outboundLink = self.agentConnections[destinationId]
-				self.logger.info("OUTBOUND {}".format(incommingPacket))
+				self.logger.info("OUTBOUND {} {}".format(destinationId, incommingPacket))
 				outboundLink.send(incommingPacket)
 
 			else:

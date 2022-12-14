@@ -48,8 +48,8 @@ def launchAgents(launchDict, allAgentList, procName, managementPipe):
 		agentObj.receiveCurrency(1000000)
 
 		#Start each agent off with 100 apples and 200 potatos
-		startingApples = InventoryEntry("apple", 100)
-		startingPotatos = InventoryEntry("potato", 100)
+		startingApples = ItemContainer("apple", 100)
+		startingPotatos = ItemContainer("potato", 100)
 
 		agentObj.receiveItem(startingApples)
 		agentObj.receiveItem(startingPotatos)
@@ -72,8 +72,8 @@ def launchAgents(launchDict, allAgentList, procName, managementPipe):
 		senderId = senderAgent.agentId
 		recipientId = transfersRecipients[i]
 		amount = transfersCents[i]
-		applePackage = InventoryEntry("apple", transfersApples[i])
-		potatoPackage = InventoryEntry("potato", transfersPotatos[i])
+		applePackage = ItemContainer("apple", transfersApples[i])
+		potatoPackage = ItemContainer("potato", transfersPotatos[i])
 
 		logger.debug("Sending funds ({}, {}, ${})".format(senderId, recipientId, amount))
 		senderAgent.sendCurrency(cents=amount, recipientId=recipientId)
