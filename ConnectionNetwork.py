@@ -47,13 +47,10 @@ class ConnectionNetwork:
 			if (incommingPacket.msgType == "KILL_PIPE_NETWORK"):
 					#We've received a kill command for this pipe. Remove destPipe from connections, then kill this monitor thread
 					self.logger.info("Killing pipe {} {}".format(agentId, agentLink))
-					self.logger.debug("monitorLink() Lock \"agentConnectionsLock\" requested")
-					acquired_agentConnectionsLock = self.agentConnectionsLock.acquire(timeout=self.lockTimeout)
+					acquired_agentConnectionsLock = self.agentConnectionsLock.acquire(timeout=self.lockTimeout)  #<== acquire agentConnectionsLock
 					if (acquired_agentConnectionsLock):
-						self.logger.debug("monitorLink() Lock \"agentConnectionsLock\" acquired")
 						del self.agentConnections[destinationId]
-						self.logger.debug("monitorLink() Lock \"agentConnectionsLock\" release")
-						self.agentConnectionsLock.release()
+						self.agentConnectionsLock.release()  #<== release agentConnectionsLock
 						break
 					else:
 						self.logger.error("monitorLink() Lock \"agentConnectionsLock\" acquisition timeout")

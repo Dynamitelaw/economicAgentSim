@@ -56,7 +56,7 @@ class UtilityFunction:
 		return str(self)
 
 
-class PersonAgent:
+class Agent:
 	def __init__(self, agentId, itemDict, networkLink=None):
 		self.agentId = agentId
 		self.logger = utils.getLogger("{}:{}".format(__name__, self.agentId))
@@ -70,14 +70,12 @@ class PersonAgent:
 		#Keep track of agent assets
 		self.currencyBalance = 0  #(int) cents  #This prevents accounting errors due to float arithmetic (plus it's faster)
 		self.currencyBalanceLock = threading.Lock()
-		self.sendLock = threading.Lock()
-		self.possesions = {}
 
 		#Pipe connections to the transaction supervisor
 		self.networkLink = networkLink
 		self.responseBuffer = {}
 		self.responseBufferLock = threading.Lock()
-
+		
 		#Instantiate agent preferences (utility functions)
 		self.utilityFunctions = {}
 		for itemName in itemDict:
@@ -97,21 +95,17 @@ class PersonAgent:
 			if (incommingPacket.msgType == "KILL_PIPE_AGENT"):
 				#Kill the network pipe before exiting monitor
 				killPacket = NetworkPacket(senderId=self.agentId, destinationId=self.agentId, msgType="KILL_PIPE_NETWORK")
-				self.logger.info("OUTBOUND {}".format(killPacket))
-				self.networkLink.send(killPacket)
+				self.sendPacket(killPacket)
 				self.logger.info("Killing networkLink {}".format(self.networkLink))
 				break
 
 			#Handle incoming acks
 			if ("_ACK" in incommingPacket.msgType):
 				#Place incoming acks into the response buffer
-				self.logger.debug("monitorNetworkLink() Lock \"responseBufferLock\" requested")
-				acquired_responseBufferLock = self.responseBufferLock.acquire(timeout=self.lockTimeout)
+				acquired_responseBufferLock = self.responseBufferLock.acquire(timeout=self.lockTimeout)  #<== acquire responseBufferLock
 				if (acquired_responseBufferLock):
-					self.logger.debug("monitorNetworkLink() Lock \"responseBufferLock\" acquired")
 					self.responseBuffer[incommingPacket.transactionId] = incommingPacket
-					self.logger.debug("monitorNetworkLink() Lock \"responseBufferLock\" release")
-					self.responseBufferLock.release()
+					self.responseBufferLock.release()  #<== release responseBufferLock
 				else:
 					self.logger.error("monitorNetworkLink() Lock \"responseBufferLock\" acquisition timeout")
 					break
@@ -123,101 +117,115 @@ class PersonAgent:
 			#Handle incoming payments
 			if (incommingPacket.msgType == "PAYMENT"):
 				amount = incommingPacket.payload["cents"]
-				transferSuccess = self.receiveCurrency(amount)
-
-				respPayload = {"paymentId": incommingPacket.payload["paymentId"], "transferSuccess": transferSuccess}
-				responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType="PAYMENT_ACK", payload=respPayload, transactionId=incommingPacket.transactionId)
-				self.networkLink.send(responsePacket)
+				transferThread =  threading.Thread(target=self.receiveCurrency, args=(amount, incommingPacket))
+				transferThread.start()
 
 		self.logger.info("Ending networkLink monitor".format(self.networkLink))
 
 
-	def receiveCurrency(self, cents):
+	def sendPacket(self, packet):
+		self.logger.info("OUTBOUND {}".format(packet))
+		self.networkLink.send(packet)
+
+
+	def receiveCurrency(self, cents, incommingPacket=None):
 		'''
-		Returns True if transfer was succesful, 0 if not
+		Returns True if transfer was succesful, False if not
 		'''
 		self.logger.debug("{}.receiveCurrency({}) start".format(self.agentId, cents))
 
+		#Check if transfer is valid
+		transferSuccess = False
+		transferComplete = False
 		if (cents < 0):
-			self.logger.debug("{}.receiveCurrency({}) return {}".format(self.agentId, cents, False))
-			return False
+			transferSuccess =  False
+			transferComplete = True
 		if (cents == 0):
-			self.logger.debug("{}.receiveCurrency({}) return {}".format(self.agentId, cents, True))
-			return True
+			transferSuccess =  True
+			transferComplete = True
 
-		self.logger.debug("receiveCurrency() Lock \"currencyBalanceLock\" requested")
-		acquired_currencyBalanceLock = self.currencyBalanceLock.acquire(timeout=self.lockTimeout)  #wait to aquire balance lock
-		if (acquired_currencyBalanceLock):
-			self.logger.debug("receiveCurrency() Lock \"currencyBalanceLock\" acquired")
-			self.currencyBalance = self.currencyBalance + int(cents)
-			self.logger.debug("receiveCurrency() Lock \"currencyBalanceLock\" release")
-			self.currencyBalanceLock.release()
+		#If transfer is valid, handle transfer
+		if (not transferComplete):
+			acquired_currencyBalanceLock = self.currencyBalanceLock.acquire(timeout=self.lockTimeout)  #<== acquire currencyBalanceLock
+			if (acquired_currencyBalanceLock):
+				#Lock acquired. Increment balance
+				self.currencyBalance = self.currencyBalance + int(cents)
+				self.currencyBalanceLock.release()  #<== release currencyBalanceLock
 
-			self.logger.debug("{}.receiveCurrency({}) return {}".format(self.agentId, cents, True))
-			return True
-		else:
-			self.logger.error("receiveCurrency() Lock \"currencyBalanceLock\" acquisition timeout")
-			self.logger.debug("{}.receiveCurrency({}) return {}".format(self.agentId, cents, False))
-			return False
+				transferSuccess = True
+			else:
+				#Lock timeout
+				self.logger.error("receiveCurrency() Lock \"currencyBalanceLock\" acquisition timeout")
+				transferSuccess = False
+
+		#Send PAYMENT_ACK
+		if (incommingPacket):
+			respPayload = {"paymentId": incommingPacket.payload["paymentId"], "transferSuccess": transferSuccess}
+			responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType="PAYMENT_ACK", payload=respPayload, transactionId=incommingPacket.transactionId)
+			self.sendPacket(responsePacket)
+
+		#Return transfer status
+		self.logger.debug("{}.receiveCurrency({}) return {}".format(self.agentId, cents, transferSuccess))
+		return transferSuccess
+
 
 	def sendCurrency(self, cents, recipientId):
 		self.logger.debug("{}.sendCurrency({}, {}) start".format(self.agentId, cents, recipientId))
 
+		#Check for valid transfers
 		if (cents == 0):
 			self.logger.debug("{}.sendCurrency({}, {}) return {}".format(self.agentId, cents, recipientId, False))
 			return True
 		if (recipientId == self.agentId):
 			self.logger.debug("{}.sendCurrency({}, {}) return {}".format(self.agentId, cents, recipientId, True))
 			return True
-
-		transferSuccess = False
-
-		self.logger.debug("sendCurrency() Lock \"currencyBalanceLock\" requested")
-		acquired_currencyBalanceLock = self.currencyBalanceLock.acquire(timeout=self.lockTimeout)
-		if (acquired_currencyBalanceLock):
-			self.logger.debug("sendCurrency() Lock \"currencyBalanceLock\" acquired")
-			currencyBalanceTemp = self.currencyBalance - int(cents)
-			if (currencyBalanceTemp < 0):
-				transferSuccess = False
-			else:
-				#Send payment packet
-				paymentId = "{}_{}_{}".format(self.agentId, recipientId, cents)
-				transferPayload = {"paymentId": paymentId, "cents": cents}
-				transferPacket = NetworkPacket(senderId=self.agentId, destinationId=recipientId, msgType="PAYMENT", payload=transferPayload, transactionId=paymentId)
-				self.logger.info("OUTBOUND {}".format(transferPacket))
-				self.networkLink.send(transferPacket)
-
-				#Wait for transaction response
-				while not (paymentId in self.responseBuffer):
-					time.sleep(0.0001)
-					pass
-				responsePacket = self.responseBuffer[paymentId]
-
-				#Modify balance if successful
-				transferSuccess = bool(responsePacket.payload["transferSuccess"])
-				if (transferSuccess):
-					self.currencyBalance = currencyBalanceTemp
-
-				#Remove transaction from response buffer
-				self.logger.debug("sendCurrency() Lock \"responseBufferLock\" requested")
-				acquired_responseBufferLock = self.responseBufferLock.acquire(timeout=self.lockTimeout)
-				if (acquired_responseBufferLock):
-					self.logger.debug("sendCurrency() Lock \"responseBufferLock\" acquired")
-					del self.responseBuffer[paymentId]
-					self.logger.debug("sendCurrency() Lock \"responseBufferLock\" release")
-					self.responseBufferLock.release()
-				else:
-					self.logger.error("sendCurrency() Lock \"responseBufferLock\" acquisition timeout")
-					self.logger.debug("{}.sendCurrency({}, {}) return {}".format(self.agentId, cents, recipientId, False))
-					return False
-
-			self.logger.debug("sendCurrency() Lock \"currencyBalanceLock\" release")
-			self.currencyBalanceLock.release()
-			
-			self.logger.debug("{}.sendCurrency({}, {}) return {}".format(self.agentId, cents, recipientId, transferSuccess))
-			return transferSuccess
-		else:
-			self.logger.error("sendCurrency() Lock \"currencyBalanceLock\" acquisition timeout")
+		if (cents > self.currencyBalance):
 			self.logger.debug("{}.sendCurrency({}, {}) return {}".format(self.agentId, cents, recipientId, False))
 			return False
+
+		#Start transfer
+		transferSuccess = False
+
+		acquired_currencyBalanceLock = self.currencyBalanceLock.acquire(timeout=self.lockTimeout)  #<== acquire currencyBalanceLock
+		if (acquired_currencyBalanceLock):
+			#Decrement balance
+			self.currencyBalance -= int(cents)
+			self.currencyBalanceLock.release()  #<== release currencyBalanceLock
+
+			#Send payment packet
+			paymentId = "{}_{}_{}".format(self.agentId, recipientId, cents)
+			transferPayload = {"paymentId": paymentId, "cents": cents}
+			transferPacket = NetworkPacket(senderId=self.agentId, destinationId=recipientId, msgType="PAYMENT", payload=transferPayload, transactionId=paymentId)
+			self.sendPacket(transferPacket)
+
+			#Wait for transaction response
+			while not (paymentId in self.responseBuffer):
+				time.sleep(0.0001)
+				pass
+			responsePacket = self.responseBuffer[paymentId]
+
+			#Undo balance change if not successful
+			transferSuccess = bool(responsePacket.payload["transferSuccess"])
+			if (not transferSuccess):
+				self.logger.error("{} {}".format(responsePacket, responsePacket.payload))
+				self.logger.error("Undoing balance change of -{}".format(cents))
+				self.currencyBalanceLock.acquire()  #<== acquire currencyBalanceLock
+				self.currencyBalance += cents
+				self.currencyBalanceLock.release()  #<== acquire currencyBalanceLock
+
+			#Remove transaction from response buffer
+			acquired_responseBufferLock = self.responseBufferLock.acquire(timeout=self.lockTimeout)  #<== acquire responseBufferLock
+			if (acquired_responseBufferLock):
+				del self.responseBuffer[paymentId]
+				self.responseBufferLock.release()  #<== release responseBufferLock
+			else:
+				self.logger.error("sendCurrency() Lock \"responseBufferLock\" acquisition timeout")
+				transferSuccess = False
+			
+		else:
+			self.logger.error("sendCurrency() Lock \"currencyBalanceLock\" acquisition timeout")
+			transferSuccess = False
+
+		self.logger.debug("{}.sendCurrency({}, {}) return {}".format(self.agentId, cents, recipientId, False))
+		return transferSuccess
 

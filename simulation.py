@@ -7,7 +7,7 @@ import logging
 import time
 import sys
 
-from PersonAgent import *
+from EconAgent import *
 from ConnectionNetwork import *
 import utils
 
@@ -30,7 +30,7 @@ for fileName in os.listdir("Items"):
 
 
 def launchAgents(launchDict, allAgentList, procName, managementPipe):
-	logger = utils.getLogger("{}:{}".format(__name__, procName))
+	logger = utils.getLogger("{}:{}".format(__name__, procName), console="INFO")
 
 	logger.debug("launchAgents() start")
 	logger.debug("launchDict = {}".format(launchDict))
@@ -41,18 +41,19 @@ def launchAgents(launchDict, allAgentList, procName, managementPipe):
 	logger.info("Instantiating agents")
 	procAgentDict = {}
 	for agentId in launchDict:
-		agentObj = PersonAgent(agentId=agentId, itemDict=allItemsDict, networkLink=launchDict[agentId]["agentPipe"])
+		agentObj = Agent(agentId=agentId, itemDict=allItemsDict, networkLink=launchDict[agentId]["agentPipe"])
 		procAgentDict[agentId] = agentObj
 
 		#Start each agent off with $100
-		agentObj.currencyBalance = 100000
+		agentObj.currencyBalance = 1000000
 
 	procAgentList = list(procAgentDict.keys())
+	time.sleep(2)
 
 	#Send random transactions to other agents
 	logger.info("Sending random transactions")
-	numXact = 5
-	transfersCents = sample(range(0, 500), numXact)
+	numXact = 1000
+	transfersCents = sample(range(0, 1001), numXact)
 	#transfersCents = [20, 6, 80, 33, 49]
 	transfersRecipients = np.random.choice(allAgentList, size=numXact, replace=True)
 	transferSenders = np.random.choice(procAgentList, size=numXact, replace=True)
@@ -63,7 +64,7 @@ def launchAgents(launchDict, allAgentList, procName, managementPipe):
 		recipientId = transfersRecipients[i]
 		amount = transfersCents[i]
 
-		logger.info("Sending funds ({}, {}, ${})".format(senderId, recipientId, amount))
+		logger.debug("Sending funds ({}, {}, ${})".format(senderId, recipientId, amount))
 		senderAgent.sendCurrency(cents=amount, recipientId=recipientId)
 
 	#Send kill commands for all pipes connected to this batch of agents
@@ -71,13 +72,14 @@ def launchAgents(launchDict, allAgentList, procName, managementPipe):
 	logger.info("Sending kill commands to agents")
 	for agentId in procAgentDict:
 		killPacket = NetworkPacket(senderId=procName, destinationId=agentId, msgType="KILL_PIPE_AGENT")
-		logger.info("OUTBOUND {}".format(killPacket))
+		logger.debug("OUTBOUND {}".format(killPacket))
 		managementPipe.send(killPacket)
 
 	#Send kill command for management pipe
+	logger.info("Killing network connection")
 	time.sleep(1)
 	killPacket = NetworkPacket(senderId=procName, destinationId=procName, msgType="KILL_PIPE_NETWORK")
-	logger.info("OUTBOUND {}".format(killPacket))
+	logger.debug("OUTBOUND {}".format(killPacket))
 	managementPipe.send(killPacket)
 	time.sleep(1)
 
