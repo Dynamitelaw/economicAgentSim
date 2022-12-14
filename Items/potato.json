@@ -5,7 +5,7 @@
 	},
 	"UtilityFunctions": {
 		"BaseUtility": {
-			"mean": 5,
+			"mean": 500,
 			"stdDev": 0.5
 		},
 		"DiminishingFactor": {

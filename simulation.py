@@ -10,13 +10,14 @@ import traceback
 
 from EconAgent import *
 from ConnectionNetwork import *
+from TradeClasses import *
 import utils
 
 #logPath = os.path.join("LOGS", "simulation_{}.log".format(time.time()))
 #logging.basicConfig(format='%(asctime)s.%(msecs)03d\t%(levelname)s:\t%(name)s:\t%(message)s', level=logging.DEBUG, datefmt='%m/%d/%Y %H:%M:%S', filename=logPath)
 #logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
-#Congregate item into into a single dict
+#Congregate items into into a single dict
 allItemsDict = {}
 for fileName in os.listdir("Items"):
 	try:
@@ -45,18 +46,8 @@ def launchAgents(launchDict, allAgentList, procName, managementPipe):
 		logger.info("Instantiating agents")
 		procAgentDict = {}
 		for agentId in launchDict:
-			logFile = None
-			if ("logFile" in launchDict[agentId]):
-				logFile = launchDict[agentId]["logFile"]
-			agentObj = Agent(agentInfo=launchDict[agentId]["agentInfo"], itemDict=allItemsDict, networkLink=launchDict[agentId]["agentPipe"], logFile=logFile)
+			agentObj = launchDict[agentId].spawnAgent()
 			procAgentDict[agentId] = agentObj
-
-			#Start each agent off with $100
-			agentObj.receiveCurrency(1000000)
-
-			#Start each agent off with 10000 apples
-			startingApples = ItemContainer("apple", 10000)
-			agentObj.receiveItem(startingApples)
 
 		procAgentList = list(procAgentDict.keys())
 		agentsInstantiated = True
@@ -65,12 +56,14 @@ def launchAgents(launchDict, allAgentList, procName, managementPipe):
 		logger.error("Error while instantiating agents")
 		logger.error(traceback.format_exc())
 
+
+	'''
 	#Send random trades between agents
 	if (agentsInstantiated):
 		try:
 			logger.info("Initiating random trades")
 
-			repeats = 100
+			repeats = 2
 			for i in range(repeats):
 				numXact = 50
 				transfersCents = sample(range(0, 1001), numXact)
@@ -97,6 +90,15 @@ def launchAgents(launchDict, allAgentList, procName, managementPipe):
 		except Exception as e:
 			logger.error("Error while sending trades")
 			logger.error(traceback.format_exc())
+	'''
+	#Start agent controllers
+	controllerStartBroadcast = NetworkPacket(senderId=procName, msgType="CONTROLLER_START_BROADCAST")
+	managementPipe.sendPipe.send(controllerStartBroadcast)
+
+	#Wait while agents trade amongst themselves
+	waitTime = 60
+	logger.info("Waiting {} min {} sec for trading to continue".format(int(waitTime/60), waitTime%60))
+	time.sleep(waitTime)
 
 	#Send kill commands for all pipes connected to this batch of agents
 	try:
@@ -104,7 +106,7 @@ def launchAgents(launchDict, allAgentList, procName, managementPipe):
 		logger.info("Broadcasting kill command")
 		killPacket = NetworkPacket(senderId=procName, msgType="KILL_ALL_BROADCAST")
 		logger.debug("OUTBOUND {}".format(killPacket))
-		managementPipe.send(killPacket)
+		managementPipe.sendPipe.send(killPacket)
 	except Exception as e:
 		logger.error("Error while sending kill commands to agents")
 		logger.error(traceback.format_exc())
@@ -115,7 +117,7 @@ def launchAgents(launchDict, allAgentList, procName, managementPipe):
 		time.sleep(1)
 		killPacket = NetworkPacket(senderId=procName, destinationId=procName, msgType="KILL_PIPE_NETWORK")
 		logger.debug("OUTBOUND {}".format(killPacket))
-		managementPipe.send(killPacket)
+		managementPipe.sendPipe.send(killPacket)
 		time.sleep(1)
 	except Exception as e:
 		logger.error("Error while killing network link")
@@ -133,29 +135,42 @@ if __name__ == "__main__":
 		spawnDict[procNum] = {}
 
 	allAgentList = []
-	numAgents = 7
-	for i in range(numAgents):
-		agentId = "agent_{}".format(i)
+	#Spawn buyers
+	numBuyers = 10
+	for i in range(numBuyers):
+		agentId = "buyer_{}".format(i)
 		allAgentList.append(agentId)
-		networkPipe, agentPipe = multiprocessing.Pipe(duplex=True)
 		procNum = i%numProcess
 
-		spawnDict[procNum][agentId] = {"agentInfo": AgentInfo(agentId, "pushover"), "networkPipe": networkPipe, "agentPipe": agentPipe, "logFile": True}
+		spawnDict[procNum][agentId] = AgentSeed(agentId, "TestBuyer", itemDict=allItemsDict)
+
+	#Spawn sellers
+	numSellers = 10
+	for i in range(numSellers):
+		agentId = "seller_{}".format(i)
+		allAgentList.append(agentId)
+		procNum = i%numProcess
+
+		spawnDict[procNum][agentId] = AgentSeed(agentId, "TestSeller", itemDict=allItemsDict)
 	
 	#Instantiate network
 	xactNetwork = ConnectionNetwork()
 	for procNum in spawnDict:
 		for agentId in spawnDict[procNum]:
-			xactNetwork.addConnection(agentId=agentId, networkPipe=spawnDict[procNum][agentId]["networkPipe"])
+			xactNetwork.addConnection(agentId=agentId, networkLink=spawnDict[procNum][agentId].networkLink)
 
 	#Spawn subprocesses
 	for procNum in spawnDict:
 		procName = "Simulation_Proc{}".format(procNum)
 
-		managementPipe_manager, managementPipe_network = multiprocessing.Pipe(duplex=True)
-		xactNetwork.addConnection(agentId=procName, networkPipe=managementPipe_network)
+		networkPipeRecv, managementPipeSend = multiprocessing.Pipe()
+		managementPipeRecv, networkPipeSend = multiprocessing.Pipe()
+		networkLink = Link(sendPipe=networkPipeSend, recvPipe=networkPipeRecv)
+		managementLink = Link(sendPipe=managementPipeSend, recvPipe=managementPipeRecv)
 
-		proc = multiprocessing.Process(target=launchAgents, args=(spawnDict[procNum], allAgentList, procName, managementPipe_manager))
+		xactNetwork.addConnection(agentId=procName, networkLink=networkLink)
+
+		proc = multiprocessing.Process(target=launchAgents, args=(spawnDict[procNum], allAgentList, procName, managementLink))
 		proc.start()
 
 	#Launch network

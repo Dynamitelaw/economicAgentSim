@@ -5,6 +5,7 @@ import time
 
 from ConnectionNetwork import *
 from BasicControllers import *
+from TradeClasses import *
 import utils
 
 
@@ -55,6 +56,20 @@ class UtilityFunction:
 
 	def __repr__(self):
 		return str(self)
+
+
+class ItemListing:
+	def __init__(self, sellerId, itemId, unitPrice, maxQuantity):
+		self.sellerId = sellerId
+		self.itemId = itemId
+		self.unitPrice = unitPrice
+		self.maxQuantity = maxQuantity
+
+		self.listingStr = "ItemListing(seller={}, item={}, price={}, max={})".format(sellerId, itemId, unitPrice, maxQuantity)
+		self.hash = hashlib.sha256(self.listingStr.encode('utf-8')).hexdigest()[:8 ]
+
+	def __str__(self):
+		return self.listingStr
 
 
 class ItemContainer:
@@ -142,6 +157,7 @@ class TradeRequest:
 	def __str__(self):
 		return self.reqId
 
+
 class AgentInfo:
 	def __init__(self, agentId, agentType):
 		self.agentId = agentId
@@ -154,12 +170,35 @@ class AgentInfo:
 def getAgentController(agent, logFile=True):
 	agentInfo = agent.info
 
-	if (agentInfo.agentType == "pushover"):
-		#Return AI human controller
+	if (agentInfo.agentType == "PushoverController"):
+		#Return pushover controller
 		return PushoverController(agent, logFile=logFile)
+	if (agentInfo.agentType == "TestSeller"):
+		#Return pushover controller
+		return TestSeller(agent, logFile=logFile)
+	if (agentInfo.agentType == "TestBuyer"):
+		#Return pushover controller
+		return TestBuyer(agent, logFile=logFile)
 
 	#Unhandled agent type. Return default controller
 	return None
+
+
+class AgentSeed:
+	def __init__(self, agentId, agentType, itemDict=None, allAgentDict=None, logFile=True):
+		self.agentInfo = AgentInfo(agentId, agentType)
+		self.itemDict = itemDict
+		self.allAgentDict = allAgentDict
+		self.logFile = logFile
+
+		networkPipeRecv, agentPipeSend = multiprocessing.Pipe()
+		agentPipeRecv, networkPipeSend = multiprocessing.Pipe()
+
+		self.networkLink = Link(sendPipe=networkPipeSend, recvPipe=networkPipeRecv)
+		self.agentLink = Link(sendPipe=agentPipeSend, recvPipe=agentPipeRecv)
+
+	def spawnAgent(self):
+		return Agent(self.agentInfo, itemDict=self.itemDict, allAgentDict=self.allAgentDict, networkLink=self.agentLink, logFile=self.logFile)
 
 
 class Agent:
@@ -175,25 +214,39 @@ class Agent:
 		#Keep track of other agents
 		self.allAgentDict = allAgentDict
 
+		#Marketplaces
+		self.itemMarket = {}
+		self.itemMarketLock = threading.Lock()
+		if (itemDict):
+			for itemName in itemDict:
+				self.itemMarket[itemName] = {}
+
 		#Keep track of agent assets
 		self.currencyBalance = 0  #(int) cents  #This prevents accounting errors due to float arithmetic (plus it's faster)
 		self.currencyBalanceLock = threading.Lock()
 		self.inventory = {}
 		self.inventoryLock = threading.Lock()
+		self.debtBalance = 0
+		self.debtBalanceLock = threading.Lock()
 
 		#Pipe connections to the transaction supervisor
 		self.networkLink = networkLink
+		self.networkSendLock = threading.Lock()
 		self.responseBuffer = {}
 		self.responseBufferLock = threading.Lock()
 		
 		#Instantiate agent preferences (utility functions)
 		self.utilityFunctions = {}
-		for itemName in itemDict:
-			itemFunctionParams = itemDict[itemName]["UtilityFunctions"]
-			self.utilityFunctions[itemName] = UtilityFunction(itemFunctionParams["BaseUtility"]["mean"], itemFunctionParams["BaseUtility"]["stdDev"], itemFunctionParams["DiminishingFactor"]["mean"], itemFunctionParams["DiminishingFactor"]["stdDev"])
+		if (itemDict):
+			for itemName in itemDict:
+				itemFunctionParams = itemDict[itemName]["UtilityFunctions"]
+				self.utilityFunctions[itemName] = UtilityFunction(itemFunctionParams["BaseUtility"]["mean"], itemFunctionParams["BaseUtility"]["stdDev"], itemFunctionParams["DiminishingFactor"]["mean"], itemFunctionParams["DiminishingFactor"]["stdDev"])
 
 		#Instantiate AI agent controller
 		self.controller = getAgentController(self, logFile=logFile)
+		if (not self.controller):
+			self.logger.warning("No controller was instantiated")
+		self.controllerStart = False
 
 		#Launch network link monitor
 		if (self.networkLink):
@@ -210,7 +263,7 @@ class Agent:
 		'''
 		self.logger.info("Monitoring networkLink {}".format(self.networkLink))
 		while True:
-			incommingPacket = self.networkLink.recv()
+			incommingPacket = self.networkLink.recvPipe.recv()
 			self.logger.info("INBOUND {}".format(incommingPacket))
 			if ((incommingPacket.msgType == "KILL_PIPE_AGENT") or (incommingPacket.msgType == "KILL_ALL_BROADCAST")):
 				#Kill the network pipe before exiting monitor
@@ -234,6 +287,18 @@ class Agent:
 			if ("ERROR" in incommingPacket.msgType):
 				self.logger.error("{} {}".format(incommingPacket, incommingPacket.payload))
 
+			#Handle controller messages
+			if ((incommingPacket.msgType == "CONTROLLER_START") or (incommingPacket.msgType == "CONTROLLER_START_BROADCAST")):
+				if (self.controller):
+					if (not self.controllerStart):
+						self.controllerStart = True
+						controllerThread =  threading.Thread(target=self.controller.controllerStart, args=(incommingPacket, ))
+						controllerThread.start()
+				else:
+					warning = "Agent does not have controller to start"
+					self.logger.warning(warning)
+					responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType="ERROR_CONTROLLER_START", payload=warning)
+
 			#Handle incoming payments
 			if (incommingPacket.msgType == "CURRENCY_TRANSFER"):
 				amount = incommingPacket.payload["cents"]
@@ -252,12 +317,27 @@ class Agent:
 				transferThread =  threading.Thread(target=self.receiveTradeRequest, args=(tradeRequest, incommingPacket.senderId))
 				transferThread.start()
 
+			#Handle incoming item marketplace updates
+			if (incommingPacket.msgType == "ITEM_MARKET_UPDATE_BROADCAST"):
+				itemListing = incommingPacket.payload
+				updateThread =  threading.Thread(target=self.updateItemListing, args=(itemListing, incommingPacket))
+				updateThread.start()
+			if (incommingPacket.msgType == "ITEM_MARKET_REMOVE_BROADCAST"):
+				itemListing = incommingPacket.payload
+				updateThread =  threading.Thread(target=self.removeItemListing, args=(itemListing, incommingPacket))
+				updateThread.start()
+
 		self.logger.info("Ending networkLink monitor".format(self.networkLink))
 
 
 	def sendPacket(self, packet):
-		self.logger.info("OUTBOUND {}".format(packet))
-		self.networkLink.send(packet)
+		acquired_networkSendLock = self.networkSendLock.acquire(timeout=self.lockTimeout)
+		if (acquired_networkSendLock):
+			self.logger.info("OUTBOUND {}".format(packet))
+			self.networkLink.sendPipe.send(packet)
+			self.networkSendLock.release()
+		else:
+			self.logger.error("{}.sendPacket() Lock networkSendLock acquire timeout".format(self.agentId))
 
 
 	#########################
@@ -621,7 +701,86 @@ class Agent:
 			raise ValueError("sendTradeRequest() Exception")
 
 	#########################
+	# Market functions
+	#########################
+	def updateItemListing(self, itemListing, incommingPacket=None):
+		'''
+		Update the item marketplace.
+		Returns True if succesful, False otherwise
+		'''
+		self.logger.debug("{}.updateItemListing({}) start".format(self.agentId, itemListing))
+
+		updateSuccess = False
+		
+		#Update local item market with listing
+		acquired_itemMarketLock = self.itemMarketLock.acquire(timeout=self.lockTimeout)  # <== itemMarketLock acquire
+		if (acquired_itemMarketLock):
+			if not (itemListing.itemId in self.itemMarket):
+				self.itemMarket[itemListing.itemId] = {}
+			self.itemMarket[itemListing.itemId][itemListing.sellerId] = itemListing
+
+			self.itemMarketLock.release()  # <== itemMarketLock release
+			updateSuccess = True
+		else:
+			self.logger.error("updateItemListing() Lock \"itemMarketLock\" acquisition timeout")
+			updateSuccess = False
+
+		#If we're the seller, send out update broadcast to other agents
+		if ((itemListing.sellerId == self.agentId) and (incommingPacket==None)):
+			updatePacket = NetworkPacket(senderId=self.agentId, msgType="ITEM_MARKET_UPDATE_BROADCAST", payload=itemListing)
+			self.sendPacket(updatePacket)
+
+		#Return status
+		self.logger.debug("{}.updateItemListing({}) return {}".format(self.agentId, itemListing, updateSuccess))
+		return updateSuccess
+
+	def removeItemListing(self, itemListing, incommingPacket=None):
+		'''
+		Remove a listing from the item marketplace
+		Returns True if succesful, False otherwise
+		'''
+		self.logger.debug("{}.removeItemListing({}) start".format(self.agentId, itemListing))
+
+		updateSuccess = False
+		
+		#Update local item market with listing
+		acquired_itemMarketLock = self.itemMarketLock.acquire(timeout=self.lockTimeout)  # <== itemMarketLock acquire
+		if (acquired_itemMarketLock):
+			if (itemListing.itemId in self.itemMarket):
+				del self.itemMarket[itemListing.itemId][itemListing.sellerId]
+
+			self.itemMarketLock.release()  # <== itemMarketLock release
+			updateSuccess = True
+		else:
+			self.logger.error("removeItemListing() Lock \"itemMarketLock\" acquisition timeout")
+			updateSuccess = False
+
+		#If we're the seller, and this is not a rebound broadcast, send out update broadcast to other agents
+		if ((itemListing.sellerId == self.agentId) and (incommingPacket==None)):
+			updatePacket = NetworkPacket(senderId=self.agentId, msgType="ITEM_MARKET_REMOVE_BROADCAST", payload=itemListing)
+			self.sendPacket(tradePacket)
+
+		#Return status
+		self.logger.debug("{}.removeItemListing({}) return {}".format(self.agentId, itemListing, updateSuccess))
+		return updateSuccess
+
+	#########################
 	# Utility functions
+	#########################
+	def getMarginalUtility(self, itemId):
+		'''
+		Returns the current marginal utility of an itemId
+		'''
+		quantity = 1
+		if (itemId in self.inventory):
+			quantity = self.inventory[itemId].quantity
+
+		utilityFunction = self.utilityFunctions[itemId]
+
+		return utilityFunction.getMarginalUtility(quantity)
+
+	#########################
+	# Misc functions
 	#########################
 	def __str__(self):
 		return "Agent(ID={}, Type={})".format(self.agentId, self.agentType)
