@@ -45,7 +45,10 @@ def launchAgents(launchDict, allAgentList, procName, managementPipe):
 		logger.info("Instantiating agents")
 		procAgentDict = {}
 		for agentId in launchDict:
-			agentObj = Agent(agentInfo=launchDict[agentId]["agentInfo"], itemDict=allItemsDict, networkLink=launchDict[agentId]["agentPipe"])
+			logFile = None
+			if ("logFile" in launchDict[agentId]):
+				logFile = launchDict[agentId]["logFile"]
+			agentObj = Agent(agentInfo=launchDict[agentId]["agentInfo"], itemDict=allItemsDict, networkLink=launchDict[agentId]["agentPipe"], logFile=logFile)
 			procAgentDict[agentId] = agentObj
 
 			#Start each agent off with $100
@@ -137,7 +140,7 @@ if __name__ == "__main__":
 		networkPipe, agentPipe = multiprocessing.Pipe(duplex=True)
 		procNum = i%numProcess
 
-		spawnDict[procNum][agentId] = {"agentInfo": AgentInfo(agentId, "pushover"), "networkPipe": networkPipe, "agentPipe": agentPipe}
+		spawnDict[procNum][agentId] = {"agentInfo": AgentInfo(agentId, "pushover"), "networkPipe": networkPipe, "agentPipe": agentPipe, "logFile": True}
 	
 	#Instantiate network
 	xactNetwork = ConnectionNetwork()

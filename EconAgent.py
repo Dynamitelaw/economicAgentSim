@@ -151,23 +151,23 @@ class AgentInfo:
 		return "AgentInfo(ID={}, Type={})".format(self.agentId, self.agentType)
 
 
-def getAgentController(agent):
+def getAgentController(agent, logFile=True):
 	agentInfo = agent.info
 
 	if (agentInfo.agentType == "pushover"):
 		#Return AI human controller
-		return PushoverController(agent)
+		return PushoverController(agent, logFile=logFile)
 
 	#Unhandled agent type. Return default controller
 	return None
 
 
 class Agent:
-	def __init__(self, agentInfo, itemDict=None, allAgentDict=None, networkLink=None):
+	def __init__(self, agentInfo, itemDict=None, allAgentDict=None, networkLink=None, logFile=True):
 		self.info = agentInfo
 		self.agentId = agentInfo.agentId
 		self.agentType = agentInfo.agentType
-		self.logger = utils.getLogger("{}:{}".format(__name__, self.agentId))
+		self.logger = utils.getLogger("{}:{}".format(__name__, self.agentId), logFile=logFile)
 		self.logger.debug("{} instantiated".format(self.info))
 
 		self.lockTimeout = 5
@@ -193,7 +193,7 @@ class Agent:
 			self.utilityFunctions[itemName] = UtilityFunction(itemFunctionParams["BaseUtility"]["mean"], itemFunctionParams["BaseUtility"]["stdDev"], itemFunctionParams["DiminishingFactor"]["mean"], itemFunctionParams["DiminishingFactor"]["stdDev"])
 
 		#Instantiate AI agent controller
-		self.controller = getAgentController(self)
+		self.controller = getAgentController(self, logFile=logFile)
 
 		#Launch network link monitor
 		if (self.networkLink):

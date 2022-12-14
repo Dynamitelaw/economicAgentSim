@@ -5,12 +5,12 @@ class PushoverController:
 	'''
 	This controller will accept all valid trade requests, and will not take any other action. Used for testing.
 	'''
-	def __init__(self, agent):
+	def __init__(self, agent, logFile=True):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.name = "{}_PushoverController".format(agent.agentId)
 
-		self.logger = utils.getLogger("{}:{}".format(__name__, self.agentId))
+		self.logger = utils.getLogger("{}:{}".format(__name__, self.agentId), logFile=logFile)
 
 		#Keep track of other agents
 		self.allAgentDict = agent.allAgentDict

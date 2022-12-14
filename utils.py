@@ -4,7 +4,7 @@ import logging
 import os
 
 
-def getLogger(name, console="WARNING", outputdir="LOGS"):
+def getLogger(name, console="WARNING", outputdir="LOGS", logFile=True):
 	'''
 	Returns logger object
 	'''
@@ -23,9 +23,11 @@ def getLogger(name, console="WARNING", outputdir="LOGS"):
 	logger.setLevel(logging.DEBUG)
 
 	# create file handler which logs even debug messages
-	logPath = os.path.join(outputdir, "{}.log".format(name).replace(":", "_"))
-	fh = logging.FileHandler(logPath, mode="w")
-	fh.setLevel(logging.DEBUG)
+	fh = None
+	if (logFile):
+		logPath = os.path.join(outputdir, "{}.log".format(name).replace(":", "_"))
+		fh = logging.FileHandler(logPath, mode="w")
+		fh.setLevel(logging.DEBUG)
 
 	# create console handler with a higher log level
 	ch = logging.StreamHandler()
@@ -43,11 +45,13 @@ def getLogger(name, console="WARNING", outputdir="LOGS"):
 
 	# create formatter and add it to the handlers
 	formatter = logging.Formatter('%(asctime)s.%(msecs)03d\t%(levelname)s:\t%(name)s:\t%(message)s', datefmt='%m/%d/%Y %H:%M:%S')
-	fh.setFormatter(formatter)
+	if (logFile):
+		fh.setFormatter(formatter)
 	ch.setFormatter(formatter)
 
 	# add the handlers to the logger
-	logger.addHandler(fh)
+	if (logFile):
+		logger.addHandler(fh)
 	logger.addHandler(ch)
 
 	return logger

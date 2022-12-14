@@ -21,8 +21,8 @@ class NetworkPacket:
 		return "({}, {}, {}, {})".format(self.msgType, self.destinationId, self.transactionId, self.hash)
 
 class ConnectionNetwork:
-	def __init__(self):
-		self.logger = utils.getLogger("{}".format(__name__))
+	def __init__(self, logFile=True):
+		self.logger = utils.getLogger("{}".format(__name__), logFile=logFile)
 		self.lockTimeout = 5
 
 		self.agentConnections = {}
