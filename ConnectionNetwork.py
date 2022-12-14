@@ -7,7 +7,7 @@ import utils
 
 
 class NetworkPacket:
-	def __init__(self, senderId, destinationId, msgType, payload=None, transactionId=None):
+	def __init__(self, senderId, msgType, destinationId=None, payload=None, transactionId=None):
 		self.msgType = msgType
 		self.payload = payload
 		self.senderId = senderId
@@ -55,6 +55,11 @@ class ConnectionNetwork:
 					else:
 						self.logger.error("monitorLink() Lock \"agentConnectionsLock\" acquisition timeout")
 						break
+
+			elif ("_BROADCAST" in incommingPacket.msgType):
+					#We've received a broadcast message. Foward to all pipes
+					for pipeId in self.agentConnections:
+						self.agentConnections[pipeId].send(incommingPacket)
 
 			elif (destinationId in self.agentConnections):
 				#Foward packet to destination

@@ -19,8 +19,8 @@ for fileName in os.listdir("Items"):
 
 
 if __name__ == "__main__":
-	apple_5 = InventoryEntry("apple", 5)
-	apple_3 = InventoryEntry("apple", 3)
+	apple_5 = ItemContainer("apple", 5)
+	apple_3 = ItemContainer("apple", 3)
 
 	person1 = Agent(agentInfo=AgentInfo("person1", "human"), itemDict=allItemsDict)
 

@@ -6,6 +6,7 @@ import numpy as np
 import logging
 import time
 import sys
+import traceback
 
 from EconAgent import *
 from ConnectionNetwork import *
@@ -38,63 +39,84 @@ def launchAgents(launchDict, allAgentList, procName, managementPipe):
 	logger.debug("procName = {}".format(procName))
 	logger.debug("managementPipe = {}".format(managementPipe))
 
-	logger.info("Instantiating agents")
-	procAgentDict = {}
-	for agentId in launchDict:
-		agentObj = Agent(agentInfo=launchDict[agentId]["agentInfo"], itemDict=allItemsDict, networkLink=launchDict[agentId]["agentPipe"])
-		procAgentDict[agentId] = agentObj
+	#Instantiate agents
+	agentsInstantiated = False
+	try:
+		logger.info("Instantiating agents")
+		procAgentDict = {}
+		for agentId in launchDict:
+			agentObj = Agent(agentInfo=launchDict[agentId]["agentInfo"], itemDict=allItemsDict, networkLink=launchDict[agentId]["agentPipe"])
+			procAgentDict[agentId] = agentObj
 
-		#Start each agent off with $100
-		agentObj.receiveCurrency(1000000)
+			#Start each agent off with $100
+			agentObj.receiveCurrency(1000000)
 
-		#Start each agent off with 100 apples and 200 potatos
-		startingApples = ItemContainer("apple", 100)
-		startingPotatos = ItemContainer("potato", 100)
+			#Start each agent off with 10000 apples
+			startingApples = ItemContainer("apple", 10000)
+			agentObj.receiveItem(startingApples)
 
-		agentObj.receiveItem(startingApples)
-		agentObj.receiveItem(startingPotatos)
+		procAgentList = list(procAgentDict.keys())
+		agentsInstantiated = True
+		time.sleep(2)
+	except Exception as e:
+		logger.error("Error while instantiating agents")
+		logger.error(traceback.format_exc())
 
-	procAgentList = list(procAgentDict.keys())
-	time.sleep(2)
+	#Send random trades between agents
+	if (agentsInstantiated):
+		try:
+			logger.info("Initiating random trades")
 
-	#Send random transactions to other agents
-	logger.info("Sending random transactions")
-	numXact = 5
-	transfersCents = sample(range(0, 1001), numXact)
-	transfersApples = sample(range(0, 7), numXact)
-	transfersPotatos = sample(range(0, 14), numXact)
-	
-	transfersRecipients = np.random.choice(allAgentList, size=numXact, replace=True)
-	transferSenders = np.random.choice(procAgentList, size=numXact, replace=True)
+			repeats = 100
+			for i in range(repeats):
+				numXact = 50
+				transfersCents = sample(range(0, 1001), numXact)
+				transfersApples = sample(range(0, 50), numXact)
+				
+				transfersRecipients = np.random.choice(allAgentList, size=numXact, replace=True)
+				transferSenders = np.random.choice(procAgentList, size=numXact, replace=True)
 
-	for i in range(numXact):
-		senderAgent = procAgentDict[transferSenders[i]]
-		senderId = senderAgent.agentId
-		recipientId = transfersRecipients[i]
-		amount = transfersCents[i]
-		applePackage = ItemContainer("apple", transfersApples[i])
-		potatoPackage = ItemContainer("potato", transfersPotatos[i])
+				for i in range(numXact):
+					#Create trade request
+					senderAgent = procAgentDict[transferSenders[i]]
+					senderId = senderAgent.agentId
+					recipientId = transfersRecipients[i]
+					currencyAmount = transfersCents[i]	
+					applePackage = ItemContainer("apple", transfersApples[i])
 
-		logger.debug("Sending funds ({}, {}, ${})".format(senderId, recipientId, amount))
-		senderAgent.sendCurrency(cents=amount, recipientId=recipientId)
-		senderAgent.sendItem(itemPackage=applePackage, recipientId=recipientId)
-		senderAgent.sendItem(itemPackage=potatoPackage, recipientId=recipientId)
+					tradeRequest = TradeRequest(sellerId=recipientId, buyerId=senderId, currencyAmount=currencyAmount, itemPackage=applePackage)
+
+					#Send trade request
+					logger.debug("Sending trade request{}".format(tradeRequest))
+					senderAgent.sendTradeRequest(request=tradeRequest, recipientId=recipientId)
+
+			logger.info("Trading complete")
+		except Exception as e:
+			logger.error("Error while sending trades")
+			logger.error(traceback.format_exc())
 
 	#Send kill commands for all pipes connected to this batch of agents
-	time.sleep(10)  #temp fix until we can track status of other managers
-	logger.info("Sending kill commands to agents")
-	for agentId in procAgentDict:
-		killPacket = NetworkPacket(senderId=procName, destinationId=agentId, msgType="KILL_PIPE_AGENT")
+	try:
+		time.sleep(10)  #temp fix until we can track status of other managers
+		logger.info("Broadcasting kill command")
+		killPacket = NetworkPacket(senderId=procName, msgType="KILL_ALL_BROADCAST")
 		logger.debug("OUTBOUND {}".format(killPacket))
 		managementPipe.send(killPacket)
+	except Exception as e:
+		logger.error("Error while sending kill commands to agents")
+		logger.error(traceback.format_exc())
 
 	#Send kill command for management pipe
-	logger.info("Killing network connection")
-	time.sleep(1)
-	killPacket = NetworkPacket(senderId=procName, destinationId=procName, msgType="KILL_PIPE_NETWORK")
-	logger.debug("OUTBOUND {}".format(killPacket))
-	managementPipe.send(killPacket)
-	time.sleep(1)
+	try:
+		logger.info("Killing network connection")
+		time.sleep(1)
+		killPacket = NetworkPacket(senderId=procName, destinationId=procName, msgType="KILL_PIPE_NETWORK")
+		logger.debug("OUTBOUND {}".format(killPacket))
+		managementPipe.send(killPacket)
+		time.sleep(1)
+	except Exception as e:
+		logger.error("Error while killing network link")
+		logger.error(traceback.format_exc())
 
 	logger.debug("Exiting launchAgents()")
 
@@ -115,7 +137,7 @@ if __name__ == "__main__":
 		networkPipe, agentPipe = multiprocessing.Pipe(duplex=True)
 		procNum = i%numProcess
 
-		spawnDict[procNum][agentId] = {"agentInfo": AgentInfo(agentId, "human"), "networkPipe": networkPipe, "agentPipe": agentPipe}
+		spawnDict[procNum][agentId] = {"agentInfo": AgentInfo(agentId, "pushover"), "networkPipe": networkPipe, "agentPipe": agentPipe}
 	
 	#Instantiate network
 	xactNetwork = ConnectionNetwork()
