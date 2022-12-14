@@ -56,20 +56,105 @@ class UtilityFunction:
 		return str(self)
 
 
-class Agent:
-	def __init__(self, agentId, itemDict, networkLink=None):
+class InventoryEntry:
+	def __init__(self, itemId, itemQuantity):
+		self.id = itemId
+		self.quantity = itemQuantity
+
+	def __repr__(self):
+		return str(self)
+
+	def __str__(self):
+		return "InventoryEntry(ID={}, Quant={})".format(self.id, self.quantity)
+
+	def __add__(self, other):
+		typeOther = type(other)
+		if (typeOther == type(self)):
+			otherId = other.id
+			if (self.id != otherId):
+				raise ValueError("Cannot add inventory entries of different items {} and {}".format(self.id, otherId))
+
+			newEntry = InventoryEntry(self.id, self.quantity+other.quantity)
+			return newEntry
+		elif ((typeOther == int) or (typeOther == float)):
+			newEntry = InventoryEntry(self.id, self.quantity+other)
+			return newEntry
+		else:
+			raise ValueError("Cannot add {} and {}".format(typeOther, type(self)))
+
+	def __sub__(self, other):
+		typeOther = type(other)
+		if (typeOther == type(self)):
+			otherId = other.id
+			if (self.id != otherId):
+				raise ValueError("Cannot add inventory entries of different items {} and {}".format(self.id, otherId))
+
+			newEntry = InventoryEntry(self.id, self.quantity-other.quantity)
+			return newEntry
+		elif ((typeOther == int) or (typeOther == float)):
+			newEntry = InventoryEntry(self.id, self.quantity-other)
+			return newEntry
+		else:
+			raise ValueError("Cannot subtract {} and {}".format(typeOther, type(self)))
+
+	def __iadd__(self, other):
+		typeOther = type(other)
+		if (typeOther == type(self)):
+			otherId = other.id
+			if (self.id != otherId):
+				raise ValueError("Cannot add inventory entries of different items {} and {}".format(self.id, otherId))
+
+			self.quantity += other.quantity
+			return self
+		elif ((typeOther == int) or (typeOther == float)):
+			self.quantity += other
+			return self
+		else:
+			raise ValueError("Cannot add {} and {}".format(typeOther, type(self)))
+
+	def __isub__(self, other):
+		typeOther = type(other)
+		if (typeOther == type(self)):
+			otherId = other.id
+			if (self.id != otherId):
+				raise ValueError("Cannot subtract inventory entries of different items {} and {}".format(self.id, otherId))
+
+			self.quantity -= other.quantity
+			return self
+		elif ((typeOther == int) or (typeOther == float)):
+			self.quantity -= other
+			return self
+		else:
+			raise ValueError("Cannot subtract {} and {}".format(typeOther, type(self)))
+
+
+class AgentInfo:
+	def __init__(self, agentId, agentType):
 		self.agentId = agentId
+		self.agentType = agentType
+
+	def __str__(self):
+		return "AgentInfo(ID={}, Type={})".format(self.agentId, self.agentType)
+
+
+class Agent:
+	def __init__(self, agentInfo, itemDict=None, allAgentDict=None, networkLink=None):
+		self.info = agentInfo
+		self.agentId = agentInfo.agentId
+		self.agentType = agentInfo.agentType
 		self.logger = utils.getLogger("{}:{}".format(__name__, self.agentId))
-		self.logger.debug("{} instantiated".format(agentId))
+		self.logger.debug("{} instantiated".format(self.info))
 
 		self.lockTimeout = 5
 
-		#Keep track of hunger
-		self.foodSatiation = {"satiation": 100}
+		#Keep track of other agents
+		self.allAgentDict = allAgentDict
 
 		#Keep track of agent assets
 		self.currencyBalance = 0  #(int) cents  #This prevents accounting errors due to float arithmetic (plus it's faster)
 		self.currencyBalanceLock = threading.Lock()
+		self.inventory = {}
+		self.inventoryLock = threading.Lock()
 
 		#Pipe connections to the transaction supervisor
 		self.networkLink = networkLink
@@ -87,7 +172,14 @@ class Agent:
 			linkMonitor = threading.Thread(target=self.monitorNetworkLink)
 			linkMonitor.start()
 
+
+	#########################
+	# Network functions
+	#########################
 	def monitorNetworkLink(self):
+		'''
+		Monitor/handle incoming packets on the pipe link to the ConnectionNetork
+		'''
 		self.logger.info("Monitoring networkLink {}".format(self.networkLink))
 		while True:
 			incommingPacket = self.networkLink.recv()
@@ -115,9 +207,15 @@ class Agent:
 				self.logger.error("{} {}".format(incommingPacket, incommingPacket.payload))
 
 			#Handle incoming payments
-			if (incommingPacket.msgType == "PAYMENT"):
+			if (incommingPacket.msgType == "CURRENCY_TRANSFER"):
 				amount = incommingPacket.payload["cents"]
 				transferThread =  threading.Thread(target=self.receiveCurrency, args=(amount, incommingPacket))
+				transferThread.start()
+
+			#Handle incoming items
+			if (incommingPacket.msgType == "ITEM_TRANSFER"):
+				itemPackage = incommingPacket.payload["item"]
+				transferThread =  threading.Thread(target=self.receiveItem, args=(itemPackage, incommingPacket))
 				transferThread.start()
 
 		self.logger.info("Ending networkLink monitor".format(self.networkLink))
@@ -128,6 +226,9 @@ class Agent:
 		self.networkLink.send(packet)
 
 
+	#########################
+	# Currency functions
+	#########################
 	def receiveCurrency(self, cents, incommingPacket=None):
 		'''
 		Returns True if transfer was succesful, False if not
@@ -158,10 +259,10 @@ class Agent:
 				self.logger.error("receiveCurrency() Lock \"currencyBalanceLock\" acquisition timeout")
 				transferSuccess = False
 
-		#Send PAYMENT_ACK
+		#Send CURRENCY_TRANSFER_ACK
 		if (incommingPacket):
 			respPayload = {"paymentId": incommingPacket.payload["paymentId"], "transferSuccess": transferSuccess}
-			responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType="PAYMENT_ACK", payload=respPayload, transactionId=incommingPacket.transactionId)
+			responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType="CURRENCY_TRANSFER_ACK", payload=respPayload, transactionId=incommingPacket.transactionId)
 			self.sendPacket(responsePacket)
 
 		#Return transfer status
@@ -169,7 +270,11 @@ class Agent:
 		return transferSuccess
 
 
-	def sendCurrency(self, cents, recipientId):
+	def sendCurrency(self, cents, recipientId, transactionId=None, delResponse=True):
+		'''
+		Send currency to another agent. 
+		Returns True if transfer was succesful, False if not
+		'''
 		self.logger.debug("{}.sendCurrency({}, {}) start".format(self.agentId, cents, recipientId))
 
 		#Check for valid transfers
@@ -193,9 +298,11 @@ class Agent:
 			self.currencyBalanceLock.release()  #<== release currencyBalanceLock
 
 			#Send payment packet
-			paymentId = "{}_{}_{}".format(self.agentId, recipientId, cents)
+			paymentId = transactionId
+			if (not paymentId):
+				paymentId = "{}_{}_{}".format(self.agentId, recipientId, cents)
 			transferPayload = {"paymentId": paymentId, "cents": cents}
-			transferPacket = NetworkPacket(senderId=self.agentId, destinationId=recipientId, msgType="PAYMENT", payload=transferPayload, transactionId=paymentId)
+			transferPacket = NetworkPacket(senderId=self.agentId, destinationId=recipientId, msgType="CURRENCY_TRANSFER", payload=transferPayload, transactionId=paymentId)
 			self.sendPacket(transferPacket)
 
 			#Wait for transaction response
@@ -214,18 +321,137 @@ class Agent:
 				self.currencyBalanceLock.release()  #<== acquire currencyBalanceLock
 
 			#Remove transaction from response buffer
-			acquired_responseBufferLock = self.responseBufferLock.acquire(timeout=self.lockTimeout)  #<== acquire responseBufferLock
-			if (acquired_responseBufferLock):
-				del self.responseBuffer[paymentId]
-				self.responseBufferLock.release()  #<== release responseBufferLock
-			else:
-				self.logger.error("sendCurrency() Lock \"responseBufferLock\" acquisition timeout")
-				transferSuccess = False
+			if (delResponse):
+				acquired_responseBufferLock = self.responseBufferLock.acquire(timeout=self.lockTimeout)  #<== acquire responseBufferLock
+				if (acquired_responseBufferLock):
+					del self.responseBuffer[paymentId]
+					self.responseBufferLock.release()  #<== release responseBufferLock
+				else:
+					self.logger.error("sendCurrency() Lock \"responseBufferLock\" acquisition timeout")
+					transferSuccess = False
 			
 		else:
+			#Lock acquisition timout
 			self.logger.error("sendCurrency() Lock \"currencyBalanceLock\" acquisition timeout")
 			transferSuccess = False
 
-		self.logger.debug("{}.sendCurrency({}, {}) return {}".format(self.agentId, cents, recipientId, False))
+		self.logger.debug("{}.sendCurrency({}, {}) return {}".format(self.agentId, cents, recipientId, transferSuccess))
 		return transferSuccess
+
+	#########################
+	# Trading functions
+	#########################
+	def receiveItem(self, itemPackage, incommingPacket=None):
+		'''
+		Add an item to agent inventory.
+		Returns True if item was successfully added, False if not
+		'''
+		self.logger.debug("{}.receiveItem({}) start".format(self.agentId, itemPackage))
+		received = False
+
+		acquired_inventoryLock = self.inventoryLock.acquire(timeout=self.lockTimeout)  #<== acquire inventoryLock
+		if (acquired_inventoryLock):
+			itemId = itemPackage.id
+			if not (itemId in self.inventory):
+				self.inventory[itemId] = itemPackage
+			else:
+				self.inventory[itemId] += itemPackage
+
+			self.inventoryLock.release()  #<== release inventoryLock
+
+			received = True
+			#Send ITEM_TRANSFER_ACK
+			if (incommingPacket):
+				respPayload = {"transferId": incommingPacket.payload["transferId"], "transferSuccess": received}
+				responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType="ITEM_TRANSFER_ACK", payload=respPayload, transactionId=incommingPacket.transactionId)
+				self.sendPacket(responsePacket)
+		else:
+			self.logger.error("receiveItem() Lock \"inventoryLock\" acquisition timeout")
+			received = False
+
+		#Return status
+		self.logger.debug("{}.receiveItem({}) return {}".format(self.agentId, itemPackage, received))
+		return received
+
+
+	def sendItem(self, itemPackage, recipientId, transactionId=None, delResponse=True):
+		'''
+		Send an item to another agent.
+		Returns True if item was successfully sent, False if not
+		'''
+		self.logger.debug("{}.sendItem({}, {}) start".format(self.agentId, itemPackage, recipientId))
+
+		transferSuccess = False
+		transferValid = False
+
+		acquired_inventoryLock = self.inventoryLock.acquire(timeout=self.lockTimeout)  #<== acquire inventoryLock
+		if (acquired_inventoryLock):
+			#Ensure we have enough stock to send item
+			itemId = itemPackage.id
+			if not (itemId in self.inventory):
+				self.logger.error("sendItem() {} not in agent inventory".format(itemId))
+				transferSuccess = False
+				transferValid = False
+			else:
+				currentStock = self.inventory[itemId]
+				if(currentStock.quantity < itemPackage.quantity):
+					self.logger.error("sendItem() Current stock {} not sufficient to send {}".format(currentStock, itemPackage))
+					transferSuccess = False
+					transferValid = False
+				else:
+					#We have enough stock. Subtract transfer amount from inventory
+					self.inventory[itemId] -= itemPackage
+					transferValid = True
+
+			self.inventoryLock.release()  #<== release inventoryLock
+
+			#Send items to recipient if transfer valid
+			transferId = transactionId
+			if (not transferId):
+				transferId = "{}_{}_{}_{}".format(self.agentId, recipientId, itemPackage, time.time())
+
+			if (transferValid):
+				transferPayload = {"transferId": transferId, "item": itemPackage}
+				transferPacket = NetworkPacket(senderId=self.agentId, destinationId=recipientId, msgType="ITEM_TRANSFER", payload=transferPayload, transactionId=transferId)
+				self.sendPacket(transferPacket)
+
+			#Wait for transaction response
+			while not (transferId in self.responseBuffer):
+				time.sleep(0.00001)
+				pass
+			responsePacket = self.responseBuffer[transferId]
+
+			#Undo inventory change if not successful
+			transferSuccess = bool(responsePacket.payload["transferSuccess"])
+			if (not transferSuccess):
+				self.logger.error("{} {}".format(responsePacket, responsePacket.payload))
+				self.logger.error("Undoing inventory change ({},{})".format(itemPackage.id, -1*itemPackage.quantity))
+				self.inventoryLock.acquire()  #<== acquire currencyBalanceLock
+				self.inventory[itemId] += itemPackage
+				self.inventoryLock.release()  #<== acquire currencyBalanceLock
+
+			#Remove transaction from response buffer
+			if (delResponse):
+				acquired_responseBufferLock = self.responseBufferLock.acquire(timeout=self.lockTimeout)  #<== acquire responseBufferLock
+				if (acquired_responseBufferLock):
+					del self.responseBuffer[transferId]
+					self.responseBufferLock.release()  #<== release responseBufferLock
+				else:
+					self.logger.error("sendCurrency() Lock \"responseBufferLock\" acquisition timeout")
+					transferSuccess = False
+
+		else:
+			#Lock acquisition timout
+			self.logger.error("sendItem() Lock \"inventoryLock\" acquisition timeout")
+			transferSuccess = False
+
+		#Return status
+		self.logger.debug("{}.sendItem({}, {}) return {}".format(self.agentId, itemPackage, recipientId, transferSuccess))
+		return transferSuccess
+
+	#########################
+	# Utility functions
+	#########################
+	def __str__(self):
+		return "Agent(ID={}, Type={})".format(self.agentId, self.agentType)
 

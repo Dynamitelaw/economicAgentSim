@@ -41,20 +41,29 @@ def launchAgents(launchDict, allAgentList, procName, managementPipe):
 	logger.info("Instantiating agents")
 	procAgentDict = {}
 	for agentId in launchDict:
-		agentObj = Agent(agentId=agentId, itemDict=allItemsDict, networkLink=launchDict[agentId]["agentPipe"])
+		agentObj = Agent(agentInfo=launchDict[agentId]["agentInfo"], itemDict=allItemsDict, networkLink=launchDict[agentId]["agentPipe"])
 		procAgentDict[agentId] = agentObj
 
 		#Start each agent off with $100
-		agentObj.currencyBalance = 1000000
+		agentObj.receiveCurrency(1000000)
+
+		#Start each agent off with 100 apples and 200 potatos
+		startingApples = InventoryEntry("apple", 100)
+		startingPotatos = InventoryEntry("potato", 100)
+
+		agentObj.receiveItem(startingApples)
+		agentObj.receiveItem(startingPotatos)
 
 	procAgentList = list(procAgentDict.keys())
 	time.sleep(2)
 
 	#Send random transactions to other agents
 	logger.info("Sending random transactions")
-	numXact = 1000
+	numXact = 5
 	transfersCents = sample(range(0, 1001), numXact)
-	#transfersCents = [20, 6, 80, 33, 49]
+	transfersApples = sample(range(0, 7), numXact)
+	transfersPotatos = sample(range(0, 14), numXact)
+	
 	transfersRecipients = np.random.choice(allAgentList, size=numXact, replace=True)
 	transferSenders = np.random.choice(procAgentList, size=numXact, replace=True)
 
@@ -63,9 +72,13 @@ def launchAgents(launchDict, allAgentList, procName, managementPipe):
 		senderId = senderAgent.agentId
 		recipientId = transfersRecipients[i]
 		amount = transfersCents[i]
+		applePackage = InventoryEntry("apple", transfersApples[i])
+		potatoPackage = InventoryEntry("potato", transfersPotatos[i])
 
 		logger.debug("Sending funds ({}, {}, ${})".format(senderId, recipientId, amount))
 		senderAgent.sendCurrency(cents=amount, recipientId=recipientId)
+		senderAgent.sendItem(itemPackage=applePackage, recipientId=recipientId)
+		senderAgent.sendItem(itemPackage=potatoPackage, recipientId=recipientId)
 
 	#Send kill commands for all pipes connected to this batch of agents
 	time.sleep(10)  #temp fix until we can track status of other managers
@@ -102,7 +115,7 @@ if __name__ == "__main__":
 		networkPipe, agentPipe = multiprocessing.Pipe(duplex=True)
 		procNum = i%numProcess
 
-		spawnDict[procNum][agentId] = {"agentId": agentId, "networkPipe": networkPipe, "agentPipe": agentPipe}
+		spawnDict[procNum][agentId] = {"agentInfo": AgentInfo(agentId, "human"), "networkPipe": networkPipe, "agentPipe": agentPipe}
 	
 	#Instantiate network
 	xactNetwork = ConnectionNetwork()

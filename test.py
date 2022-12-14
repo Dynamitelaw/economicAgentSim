@@ -1,4 +1,4 @@
-from PersonAgent import *
+from EconAgent import *
 import json
 import random
 import multiprocessing as mp
@@ -17,21 +17,16 @@ for fileName in os.listdir("Items"):
 	except Exception as e:
 		print(e)
 
-person1 = PersonAgent("person1", allItemsDict)
-person2 = PersonAgent("person2", allItemsDict)
 
 if __name__ == "__main__":
-	#Make sure utility functions work as expected
-	print("# Potato")
-	potatoUtilityFunc = person1.utilityFunctions["potato"]
-	for i in range(0, 15):
-		marginalUtility = potatoUtilityFunc.getMarginalUtility(i)
-		totalUtility = potatoUtilityFunc.getTotalUtility(i)
-		print("{} , {} , {}".format(i, totalUtility, marginalUtility))
+	apple_5 = InventoryEntry("apple", 5)
+	apple_3 = InventoryEntry("apple", 3)
 
-	print("\n# Apple")
-	appleUtilityFunc = person1.utilityFunctions["apple"]
-	for i in range(0, 15):
-		marginalUtility = appleUtilityFunc.getMarginalUtility(i)
-		totalUtility = appleUtilityFunc.getTotalUtility(i)
-		print("{} , {} , {}".format(i, totalUtility, marginalUtility))
+	person1 = Agent(agentInfo=AgentInfo("person1", "human"), itemDict=allItemsDict)
+
+	person1.receiveItem(apple_5)
+	print(person1.inventory)
+	person1.receiveItem(apple_3)
+	print(person1.inventory)
+
+	apple_5 += "Hello"
