@@ -2,6 +2,7 @@ import random
 
 import utils
 from TradeClasses import *
+from ConnectionNetwork import *
 
 
 class PushoverController:
@@ -13,7 +14,7 @@ class PushoverController:
 		self.agentId = agent.agentId
 		self.name = "{}_PushoverController".format(agent.agentId)
 
-		self.logger = utils.getLogger("{}:{}".format(__name__, self.agentId), logFile=logFile)
+		self.logger = utils.getLogger("{}:{}".format("PushoverController", self.agentId), logFile=logFile)
 
 		#Keep track of agent assets
 		self.currencyBalance = agent.currencyBalance  #(int) cents  #This prevents accounting errors due to float arithmetic (plus it's faster)
@@ -50,6 +51,35 @@ class PushoverController:
 		return offerAccepted
 
 
+class TestSnooper:
+	'''
+	All this controller does is snoop on trading requests in the network. Used for testing
+	'''
+	def __init__(self, agent, logFile=True):
+		self.agent = agent
+		self.agentId = agent.agentId
+		self.name = "{}_TestSnooper".format(agent.agentId)
+
+		self.logger = utils.getLogger("{}:{}".format("TestSnooper", self.agentId), logFile=logFile)
+
+	def controllerStart(self, incommingPacket):
+		'''
+		Snoop on all TRADE_REQ and TRADE_REQ_ACK packets
+		'''
+		snoopRequest = {"TRADE_REQ": True, "TRADE_REQ_ACK": True}
+		snoopStartPacket = NetworkPacket(senderId=self.agentId, msgType="SNOOP_START", payload=snoopRequest)
+
+		self.logger.info("Sending snoop request {}".format(snoopRequest))
+		self.logger.info("OUTBOUND {}".format(snoopStartPacket))
+		self.agent.sendPacket(snoopStartPacket)
+
+	def receiveMsg(self, incommingPacket):
+		self.logger.debug("INBOUND {}".format(incommingPacket.payload))
+
+	def evalTradeRequest(self, request):
+		return False
+
+
 class TestSeller:
 	'''
 	This controller will sell a random item type for a fixed price. 
@@ -61,7 +91,7 @@ class TestSeller:
 		self.agentId = agent.agentId
 		self.name = "{}_TestSeller".format(agent.agentId)
 
-		self.logger = utils.getLogger("{}:{}".format(__name__, self.agentId), logFile=logFile)
+		self.logger = utils.getLogger("{}:{}".format("TestSeller", self.agentId), logFile=logFile)
 
 		#Keep track of agent assets
 		self.currencyBalance = agent.currencyBalance  #(int) cents  #This prevents accounting errors due to float arithmetic (plus it's faster)
@@ -135,7 +165,7 @@ class TestBuyer:
 		self.agentId = agent.agentId
 		self.name = "{}_TestBuyer".format(agent.agentId)
 
-		self.logger = utils.getLogger("{}:{}".format(__name__, self.agentId), logFile=logFile)
+		self.logger = utils.getLogger("{}:{}".format("TestBuyer", self.agentId), logFile=logFile)
 
 		#Keep track of agent assets
 		self.currencyBalance = agent.currencyBalance  #(int) cents  #This prevents accounting errors due to float arithmetic (plus it's faster)

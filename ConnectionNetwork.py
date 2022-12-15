@@ -76,7 +76,7 @@ class ConnectionNetwork:
 		try:
 			snooperId = incommingPacket.senderId
 			snoopTypeDict = incommingPacket.payload
-			for msgType in snoopTypeList:
+			for msgType in snoopTypeDict:
 				if (not msgType in self.snoopDict):
 					self.snoopDict[msgType] = {}
 
@@ -88,7 +88,7 @@ class ConnectionNetwork:
 
 		self.snoopDictLock.release()  #<== snoopDictLock release
 
-	def handleSnoop(snooperId, incommingPacket):
+	def handleSnoop(self, snooperId, incommingPacket):
 		'''
 		Fowards incomming packet to snooper if snoop criteria are met (currently, there are no criteria set up)
 		'''
@@ -146,7 +146,7 @@ class ConnectionNetwork:
 
 			elif ("SNOOP_START" in incommingPacket.msgType):
 					#We've received a snoop start request. Add to snooping dict
-					snoopStartThread = threading.Thread(target=self.startSnoop, args=(incommingPacket, ))
+					snoopStartThread = threading.Thread(target=self.setupSnoop, args=(incommingPacket, ))
 					snoopStartThread.start()
 
 			elif (destinationId in self.agentConnections):

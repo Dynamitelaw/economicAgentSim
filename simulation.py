@@ -62,7 +62,7 @@ def launchAgents(launchDict, allAgentList, procName, managementPipe):
 	managementPipe.sendPipe.send(controllerStartBroadcast)
 
 	#Wait while agents trade amongst themselves
-	waitTime = 60
+	waitTime = 30
 	logger.info("Waiting {} min {} sec for trading to continue".format(int(waitTime/60), waitTime%60))
 	time.sleep(waitTime)
 
@@ -132,6 +132,10 @@ if __name__ == "__main__":
 		procNum = i%numProcess
 
 		spawnDict[procNum][agentId] = AgentSeed(agentId, "TestSeller", itemDict=allItemsDict)
+
+	#Spawn a snooper agent
+	snooperId = "Snooper0"
+	spawnDict[0][snooperId] = AgentSeed(snooperId, "TestSnooper")
 	
 	#Instantiate network
 	xactNetwork = ConnectionNetwork()

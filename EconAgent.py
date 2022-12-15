@@ -73,6 +73,9 @@ def getAgentController(agent, logFile=True):
 	if (agentInfo.agentType == "PushoverController"):
 		#Return pushover controller
 		return PushoverController(agent, logFile=logFile)
+	if (agentInfo.agentType == "TestSnooper"):
+		#Return TestSnooper controller
+		return TestSnooper(agent, logFile=logFile)
 	if (agentInfo.agentType == "TestSeller"):
 		#Return pushover controller
 		return TestSeller(agent, logFile=logFile)
@@ -199,7 +202,7 @@ class Agent:
 					self.logger.warning(warning)
 					responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType="ERROR_CONTROLLER_START", payload=warning)
 
-			elif ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+			elif ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST") or (incommingPacket.msgType == "SNOOP")):
 				#Foward packet to controller
 				if (self.controller):
 					self.logger.debug("Fowarding msg to controller {}".format(incommingPacket))
