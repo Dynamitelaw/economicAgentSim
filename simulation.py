@@ -210,7 +210,7 @@ if __name__ == "__main__":
 		managerProc = multiprocessing.Process(target=launchSimulation, args=(simManagerSeed,))
 		childProcesses.append(managerProc)
 		managerProc.start()
-		#managerProc.join()
+		#managerProc.join()  #DO NOT use a join statment here, or anywhere else in this function. It breaks interrupt handling
 
 	except KeyboardInterrupt:
 		for proc in childProcesses:
@@ -220,6 +220,4 @@ if __name__ == "__main__":
 				print("### TERMINATED {}".format(proc.name))
 			except Exception as e:
 				print("### FAILED_TERMINANE, error = {}".format(e))
-
-		raise ValueError("WE DIED!")
 
