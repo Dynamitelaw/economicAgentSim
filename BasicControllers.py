@@ -53,7 +53,7 @@ class PushoverController:
 
 class TestSnooper:
 	'''
-	All this controller does is snoop on trading requests in the network. Used for testing
+	All this controller does is snoop on packets in the network. Used for testing
 	'''
 	def __init__(self, agent, logFile=True):
 		self.agent = agent
@@ -64,9 +64,10 @@ class TestSnooper:
 
 	def controllerStart(self, incommingPacket):
 		'''
-		Snoop on all TRADE_REQ and TRADE_REQ_ACK packets
+		Start snoop protocols 
 		'''
-		snoopRequest = {"TRADE_REQ": True, "TRADE_REQ_ACK": True}
+		#snoopRequest = {"TRADE_REQ": True, "TRADE_REQ_ACK": True}
+		snoopRequest = {"INFO_RESP": True}
 		snoopStartPacket = NetworkPacket(senderId=self.agentId, msgType="SNOOP_START", payload=snoopRequest)
 
 		self.logger.info("Sending snoop request {}".format(snoopRequest))
@@ -75,6 +76,9 @@ class TestSnooper:
 
 	def receiveMsg(self, incommingPacket):
 		self.logger.debug("INBOUND {}".format(incommingPacket.payload))
+		if (incommingPacket.payload.msgType == "INFO_RESP"):
+			infoRequest = incommingPacket.payload.payload
+			self.logger.debug("{} balance = ${}".format(infoRequest.agentId, infoRequest.info/100))
 
 	def evalTradeRequest(self, request):
 		return False

@@ -81,6 +81,16 @@ def launchAgents(launchDict, allAgentList, procName, managementPipe):
 		logger.error("Error while sending STOP_TRADING command to agents")
 		logger.error(traceback.format_exc())
 
+	#Send out info requests to all sellers
+	logger.info("Sending out info requests to sellers")
+	for agentId in procAgentDict:
+		if (procAgentDict[agentId].agentType == "TestSeller"):
+			infoRequest = InfoRequest(requesterId=procName, agentId=agentId, infoKey="currencyBalance")
+			reqPacket = NetworkPacket(senderId=procName, destinationId=agentId, msgType="INFO_REQ", payload=infoRequest)
+			logger.debug("OUTBOUND {}".format(reqPacket))
+			managementPipe.sendPipe.send(reqPacket)
+	time.sleep(1)
+
 	#Send kill commands for all pipes connected to this batch of agents
 	try:
 		logger.info("Broadcasting kill command")

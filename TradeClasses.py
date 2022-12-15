@@ -2,6 +2,20 @@ import hashlib
 import time
 
 
+class InfoRequest:
+	def __init__(self, requesterId, agentId, infoKey):
+		self.requesterId = requesterId
+		self.agentId = agentId
+		self.infoKey = infoKey
+		self.info = None
+
+		stringTemp = "{}{}{}".format(requesterId, agentId, infoKey)
+		self.hash = hashlib.sha256(stringTemp.encode('utf-8')).hexdigest()[:8 ]
+		self.reqString = "InfoReq_{}(requesterId={}, agentId={}, infoKey={})".format(self.hash, requesterId, agentId, infoKey)
+
+	def __str__(self):
+		return self.reqString
+
 class ItemListing:
 	def __init__(self, sellerId, itemId, unitPrice, maxQuantity):
 		self.sellerId = sellerId

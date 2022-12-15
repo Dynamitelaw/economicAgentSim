@@ -131,6 +131,7 @@ class Agent:
 		self.inventoryLock = threading.Lock()
 		self.debtBalance = 0
 		self.debtBalanceLock = threading.Lock()
+		self.tradeRequestLock = threading.Lock()
 
 		#Pipe connections to the transaction supervisor
 		self.networkLink = networkLink
@@ -238,6 +239,12 @@ class Agent:
 				itemListing = incommingPacket.payload
 				updateThread =  threading.Thread(target=self.removeItemListing, args=(itemListing, incommingPacket))
 				updateThread.start()
+
+			#Handle incoming information requests
+			elif (incommingPacket.msgType == "INFO_REQ"):
+				infoRequest = incommingPacket.payload
+				infoThread =  threading.Thread(target=self.handleInfoRequest, args=(infoRequest, ))
+				infoThread.start()
 
 			#Unhandled packet type
 			else:
@@ -547,6 +554,8 @@ class Agent:
 		Returns True if trade is completed, False if not
 		'''
 		try:
+			self.tradeRequestLock.acquire()  #<== acquire tradeRequestLock
+
 			tradeCompleted = False
 
 			#Evaluate offer
@@ -571,6 +580,7 @@ class Agent:
 			else:
 				self.logger.debug("{} rejected".format(request))
 
+			self.tradeRequestLock.release()  #<== release tradeRequestLock
 			return tradeCompleted
 
 		except Exception as e:
@@ -585,6 +595,8 @@ class Agent:
 		Returns True if the trade completed. Returns False if not
 		'''
 		try:
+			self.tradeRequestLock.acquire()  #<== acquire tradeRequestLock
+
 			self.logger.debug("{}.sendTradeRequest({}, {}) start".format(self.agentId, request, recipientId))
 			tradeCompleted = False
 
@@ -608,6 +620,7 @@ class Agent:
 				self.logger.info("{} was rejected".format(request))
 				tradeCompleted = offerAccepted
 
+			self.tradeRequestLock.release()  #<== release tradeRequestLock
 			self.logger.debug("{}.sendTradeRequest({}, {}) return {}".format(self.agentId, request, recipientId, tradeCompleted))
 			return tradeCompleted
 
@@ -698,6 +711,21 @@ class Agent:
 	#########################
 	# Misc functions
 	#########################
+	def handleInfoRequest(self, infoRequest):
+		if (self.agentId == infoRequest.agentId):
+			infoKey = infoRequest.infoKey
+			if (infoKey == "currencyBalance"):
+				infoRequest.info = self.currencyBalance
+			if (infoKey == "inventory"):
+				infoRequest.info = self.inventory
+			if (infoKey == "debtBalance"):
+				infoRequest.info = self.debtBalance
+			
+			infoRespPacket = NetworkPacket(senderId=self.agentId, destinationId=infoRequest.requesterId, msgType="INFO_RESP", payload=infoRequest)
+			self.sendPacket(infoRespPacket)
+		else:
+			self.logger.warning("Received infoRequest for another agent {}".format(infoRequest))
+
 	def __str__(self):
 		return "Agent(ID={}, Type={})".format(self.agentId, self.agentType)
 

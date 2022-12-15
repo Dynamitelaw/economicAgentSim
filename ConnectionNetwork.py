@@ -88,7 +88,7 @@ class ConnectionNetwork:
 
 		self.snoopDictLock.release()  #<== snoopDictLock release
 
-	def handleSnoop(self, snooperId, incommingPacket):
+	def handleSnoop(self,snooperId, incommingPacket):
 		'''
 		Fowards incomming packet to snooper if snoop criteria are met (currently, there are no criteria set up)
 		'''
