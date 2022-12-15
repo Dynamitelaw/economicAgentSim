@@ -57,40 +57,6 @@ def launchAgents(launchDict, allAgentList, procName, managementPipe):
 		logger.error(traceback.format_exc())
 
 
-	'''
-	#Send random trades between agents
-	if (agentsInstantiated):
-		try:
-			logger.info("Initiating random trades")
-
-			repeats = 2
-			for i in range(repeats):
-				numXact = 50
-				transfersCents = sample(range(0, 1001), numXact)
-				transfersApples = sample(range(0, 50), numXact)
-				
-				transfersRecipients = np.random.choice(allAgentList, size=numXact, replace=True)
-				transferSenders = np.random.choice(procAgentList, size=numXact, replace=True)
-
-				for i in range(numXact):
-					#Create trade request
-					senderAgent = procAgentDict[transferSenders[i]]
-					senderId = senderAgent.agentId
-					recipientId = transfersRecipients[i]
-					currencyAmount = transfersCents[i]	
-					applePackage = ItemContainer("apple", transfersApples[i])
-
-					tradeRequest = TradeRequest(sellerId=recipientId, buyerId=senderId, currencyAmount=currencyAmount, itemPackage=applePackage)
-
-					#Send trade request
-					logger.debug("Sending trade request{}".format(tradeRequest))
-					senderAgent.sendTradeRequest(request=tradeRequest, recipientId=recipientId)
-
-			logger.info("Trading complete")
-		except Exception as e:
-			logger.error("Error while sending trades")
-			logger.error(traceback.format_exc())
-	'''
 	#Start agent controllers
 	controllerStartBroadcast = NetworkPacket(senderId=procName, msgType="CONTROLLER_START_BROADCAST")
 	managementPipe.sendPipe.send(controllerStartBroadcast)
@@ -100,9 +66,23 @@ def launchAgents(launchDict, allAgentList, procName, managementPipe):
 	logger.info("Waiting {} min {} sec for trading to continue".format(int(waitTime/60), waitTime%60))
 	time.sleep(waitTime)
 
+	#Send commands for all controllers to stop trading
+	try:
+		logger.info("Broadcasting STOP_TRADING command")
+		controllerMsg = NetworkPacket(senderId=procName, msgType="STOP_TRADING")
+		networkPacket = NetworkPacket(senderId=procName, msgType="CONTROLLER_MSG_BROADCAST", payload=controllerMsg)
+		logger.debug("OUTBOUND {}".format(networkPacket))
+		managementPipe.sendPipe.send(networkPacket)
+
+		stopWaitTime = 5
+		logger.info("Waiting {} sec for all trades to finish".format(stopWaitTime))
+		time.sleep(stopWaitTime)
+	except Exception as e:
+		logger.error("Error while sending STOP_TRADING command to agents")
+		logger.error(traceback.format_exc())
+
 	#Send kill commands for all pipes connected to this batch of agents
 	try:
-		time.sleep(10)  #temp fix until we can track status of other managers
 		logger.info("Broadcasting kill command")
 		killPacket = NetworkPacket(senderId=procName, msgType="KILL_ALL_BROADCAST")
 		logger.debug("OUTBOUND {}".format(killPacket))

@@ -22,6 +22,9 @@ class PushoverController:
 	def controllerStart(self, incommingPacket):
 		return
 
+	def receiveMsg(self, incommingPacket):
+		return
+
 	def evalTradeRequest(self, request):
 		'''
 		Accept trade request if it is possible
@@ -91,6 +94,9 @@ class TestSeller:
 	def controllerStart(self, incommingPacket):
 		return
 
+	def receiveMsg(self, incommingPacket):
+		return
+
 	def evalTradeRequest(self, request):
 		'''
 		Accept trade request if it is possible
@@ -141,11 +147,19 @@ class TestBuyer:
 		#Agent preferences
 		self.utilityFunctions = agent.utilityFunctions
 
+		#Initiate thread kill flag to false
+		self.killThreads = False
+
 
 	def controllerStart(self, incommingPacket):
 		#Launch buying loop
 		self.shoppingSpree()
 
+	def receiveMsg(self, incommingPacket):
+		controllerMsg = incommingPacket.payload
+		self.logger.info("INBOUND {}".format(controllerMsg))
+		if (controllerMsg.msgType == "STOP_TRADING"):
+			self.killThreads = True
 		
 	def shoppingSpree(self):
 		'''
@@ -156,6 +170,10 @@ class TestBuyer:
 		numSellerCheck = 3
 		itemsBought = False
 		while True:
+			if (self.killThreads):
+				self.logger.debug("Received kill command")
+				break
+
 			for itemId in self.itemMarket:
 				#Find best price/seller from sample
 				possibeSellers = self.itemMarket[itemId].keys()

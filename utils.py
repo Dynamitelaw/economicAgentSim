@@ -44,7 +44,7 @@ def getLogger(name, console="WARNING", outputdir="LOGS", logFile=True):
 		ch.setLevel(logging.DEBUG)
 
 	# create formatter and add it to the handlers
-	formatter = logging.Formatter('%(asctime)s.%(msecs)03d\t%(levelname)s:\t%(name)s:\t%(message)s', datefmt='%m/%d/%Y %H:%M:%S')
+	formatter = logging.Formatter('%(asctime)s.%(msecs)03d\t--%(levelname)s--\t%(name)s:\t%(message)s', datefmt='%m/%d/%Y %H:%M:%S')
 	if (logFile):
 		fh.setFormatter(formatter)
 	ch.setFormatter(formatter)

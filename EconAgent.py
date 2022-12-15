@@ -58,106 +58,6 @@ class UtilityFunction:
 		return str(self)
 
 
-class ItemListing:
-	def __init__(self, sellerId, itemId, unitPrice, maxQuantity):
-		self.sellerId = sellerId
-		self.itemId = itemId
-		self.unitPrice = unitPrice
-		self.maxQuantity = maxQuantity
-
-		self.listingStr = "ItemListing(seller={}, item={}, price={}, max={})".format(sellerId, itemId, unitPrice, maxQuantity)
-		self.hash = hashlib.sha256(self.listingStr.encode('utf-8')).hexdigest()[:8 ]
-
-	def __str__(self):
-		return self.listingStr
-
-
-class ItemContainer:
-	def __init__(self, itemId, itemQuantity):
-		self.id = itemId
-		self.quantity = itemQuantity
-
-	def __repr__(self):
-		return str(self)
-
-	def __str__(self):
-		return "ItemContainer(ID={}, Quant={})".format(self.id, self.quantity)
-
-	def __add__(self, other):
-		typeOther = type(other)
-		if (typeOther == type(self)):
-			otherId = other.id
-			if (self.id != otherId):
-				raise ValueError("Cannot add inventory entries of different items {} and {}".format(self.id, otherId))
-
-			newEntry = ItemContainer(self.id, self.quantity+other.quantity)
-			return newEntry
-		elif ((typeOther == int) or (typeOther == float)):
-			newEntry = ItemContainer(self.id, self.quantity+other)
-			return newEntry
-		else:
-			raise ValueError("Cannot add {} and {}".format(typeOther, type(self)))
-
-	def __sub__(self, other):
-		typeOther = type(other)
-		if (typeOther == type(self)):
-			otherId = other.id
-			if (self.id != otherId):
-				raise ValueError("Cannot add inventory entries of different items {} and {}".format(self.id, otherId))
-
-			newEntry = ItemContainer(self.id, self.quantity-other.quantity)
-			return newEntry
-		elif ((typeOther == int) or (typeOther == float)):
-			newEntry = ItemContainer(self.id, self.quantity-other)
-			return newEntry
-		else:
-			raise ValueError("Cannot subtract {} and {}".format(typeOther, type(self)))
-
-	def __iadd__(self, other):
-		typeOther = type(other)
-		if (typeOther == type(self)):
-			otherId = other.id
-			if (self.id != otherId):
-				raise ValueError("Cannot add inventory entries of different items {} and {}".format(self.id, otherId))
-
-			self.quantity += other.quantity
-			return self
-		elif ((typeOther == int) or (typeOther == float)):
-			self.quantity += other
-			return self
-		else:
-			raise ValueError("Cannot add {} and {}".format(typeOther, type(self)))
-
-	def __isub__(self, other):
-		typeOther = type(other)
-		if (typeOther == type(self)):
-			otherId = other.id
-			if (self.id != otherId):
-				raise ValueError("Cannot subtract inventory entries of different items {} and {}".format(self.id, otherId))
-
-			self.quantity -= other.quantity
-			return self
-		elif ((typeOther == int) or (typeOther == float)):
-			self.quantity -= other
-			return self
-		else:
-			raise ValueError("Cannot subtract {} and {}".format(typeOther, type(self)))
-
-
-class TradeRequest:
-	def __init__(self, sellerId, buyerId, currencyAmount, itemPackage):
-		self.sellerId = sellerId
-		self.buyerId = buyerId
-		self.currencyAmount = currencyAmount
-		self.itemPackage = itemPackage
-		self.reqId = "TradeReq(seller={}, buyerId={}, currency={}, item={})_{}".format(sellerId, buyerId, currencyAmount, itemPackage, time.time())
-
-		self.hash = hashlib.sha256(self.reqId.encode('utf-8')).hexdigest()[:8 ]
-
-	def __str__(self):
-		return self.reqId
-
-
 class AgentInfo:
 	def __init__(self, agentId, agentType):
 		self.agentId = agentId
@@ -273,7 +173,7 @@ class Agent:
 				break
 
 			#Handle incoming acks
-			if ("_ACK" in incommingPacket.msgType):
+			elif ("_ACK" in incommingPacket.msgType):
 				#Place incoming acks into the response buffer
 				acquired_responseBufferLock = self.responseBufferLock.acquire(timeout=self.lockTimeout)  #<== acquire responseBufferLock
 				if (acquired_responseBufferLock):
@@ -284,11 +184,11 @@ class Agent:
 					break
 
 			#Handle errors
-			if ("ERROR" in incommingPacket.msgType):
+			elif ("ERROR" in incommingPacket.msgType):
 				self.logger.error("{} {}".format(incommingPacket, incommingPacket.payload))
 
 			#Handle controller messages
-			if ((incommingPacket.msgType == "CONTROLLER_START") or (incommingPacket.msgType == "CONTROLLER_START_BROADCAST")):
+			elif ((incommingPacket.msgType == "CONTROLLER_START") or (incommingPacket.msgType == "CONTROLLER_START_BROADCAST")):
 				if (self.controller):
 					if (not self.controllerStart):
 						self.controllerStart = True
@@ -299,33 +199,46 @@ class Agent:
 					self.logger.warning(warning)
 					responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType="ERROR_CONTROLLER_START", payload=warning)
 
+			elif ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+				#Foward packet to controller
+				if (self.controller):
+					self.logger.debug("Fowarding msg to controller {}".format(incommingPacket))
+					controllerThread =  threading.Thread(target=self.controller.receiveMsg, args=(incommingPacket, ))
+					controllerThread.start()
+				else:
+					self.logger.error("Agent {} does not have a controller. Ignoring {}".format(self.agentId, incommingPacket))
+
 			#Handle incoming payments
-			if (incommingPacket.msgType == "CURRENCY_TRANSFER"):
+			elif (incommingPacket.msgType == "CURRENCY_TRANSFER"):
 				amount = incommingPacket.payload["cents"]
 				transferThread =  threading.Thread(target=self.receiveCurrency, args=(amount, incommingPacket))
 				transferThread.start()
 
 			#Handle incoming items
-			if (incommingPacket.msgType == "ITEM_TRANSFER"):
+			elif (incommingPacket.msgType == "ITEM_TRANSFER"):
 				itemPackage = incommingPacket.payload["item"]
 				transferThread =  threading.Thread(target=self.receiveItem, args=(itemPackage, incommingPacket))
 				transferThread.start()
 
 			#Handle incoming trade requests
-			if (incommingPacket.msgType == "TRADE_REQ"):
+			elif (incommingPacket.msgType == "TRADE_REQ"):
 				tradeRequest = incommingPacket.payload
 				transferThread =  threading.Thread(target=self.receiveTradeRequest, args=(tradeRequest, incommingPacket.senderId))
 				transferThread.start()
 
 			#Handle incoming item marketplace updates
-			if (incommingPacket.msgType == "ITEM_MARKET_UPDATE_BROADCAST"):
+			elif (incommingPacket.msgType == "ITEM_MARKET_UPDATE_BROADCAST"):
 				itemListing = incommingPacket.payload
 				updateThread =  threading.Thread(target=self.updateItemListing, args=(itemListing, incommingPacket))
 				updateThread.start()
-			if (incommingPacket.msgType == "ITEM_MARKET_REMOVE_BROADCAST"):
+			elif (incommingPacket.msgType == "ITEM_MARKET_REMOVE_BROADCAST"):
 				itemListing = incommingPacket.payload
 				updateThread =  threading.Thread(target=self.removeItemListing, args=(itemListing, incommingPacket))
 				updateThread.start()
+
+			#Unhandled packet type
+			else:
+				self.logger.error("Received packet type {}. Ignoring packet {}".format(incommingPacket.msgType, incommingPacket))
 
 		self.logger.info("Ending networkLink monitor".format(self.networkLink))
 

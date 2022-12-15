@@ -98,7 +98,7 @@ class TradeRequest:
 		reqString = "TradeReq(seller={}, buyerId={}, currency={}, item={})_{}".format(sellerId, buyerId, currencyAmount, itemPackage, time.time())
 
 		self.hash = hashlib.sha256(reqString.encode('utf-8')).hexdigest()[:8 ]
-		self.reqId = "TradeReq(seller={}, buyerId={}, currency={}, item={})_{}".format(sellerId, buyerId, currencyAmount, itemPackage, self.hash)
+		self.reqId = "TradeReq_{}(seller={}, buyerId={}, currency={}, item={})".format(self.hash, sellerId, buyerId, currencyAmount, itemPackage)
 
 	def __str__(self):
 		return self.reqId

@@ -18,7 +18,7 @@ class NetworkPacket:
 		self.hash = hashlib.sha256(hashStr.encode('utf-8')).hexdigest()[:8 ]
 
 	def __str__(self):
-		return "({}, {}, {}, {})".format(self.msgType, self.destinationId, self.transactionId, self.hash)
+		return "({}_{}, {}, {})".format(self.msgType, self.hash, self.destinationId, self.transactionId)
 
 class Link:
 	def __init__(self, sendPipe, recvPipe):
@@ -27,12 +27,20 @@ class Link:
 
 class ConnectionNetwork:
 	def __init__(self, logFile=True):
+		self.id = "TransactionNetwork"
+
 		self.logger = utils.getLogger("{}".format(__name__), logFile=logFile)
 		self.lockTimeout = 5
 
 		self.agentConnections = {}
 		self.agentConnectionsLock = threading.Lock()
 		self.sendLocks = {}
+
+		self.snoopDict = {}
+		self.snoopDictLock = threading.Lock()
+
+		self.killAllFlag = False
+		self.killAllLock = threading.Lock()
 
 	def addConnection(self, agentId, networkLink):
 		self.agentConnections[agentId] = networkLink
@@ -59,6 +67,35 @@ class ConnectionNetwork:
 		else:
 			self.logger.warning("Cannot send {}. Pipe[{}] already killed".format(packet, pipeId))
 
+	def setupSnoop(self, incommingPacket):
+		'''
+		Add this snoop request to snoop dict
+		'''
+		self.logger.debug("Handling snoop request {}".format(incommingPacket))
+		self.snoopDictLock.acquire()  #<== snoopDictLock acquire
+		try:
+			snooperId = incommingPacket.senderId
+			snoopTypeDict = incommingPacket.payload
+			for msgType in snoopTypeList:
+				if (not msgType in self.snoopDict):
+					self.snoopDict[msgType] = {}
+
+				self.logger.debug("Adding snoop {} > {} ({})".format(msgType, snooperId, incommingPacket.payload[msgType]))
+				self.snoopDict[msgType][snooperId] = incommingPacket.payload[msgType]
+
+		except Exception as e:
+			self.logger.error("Could not setup snoop {} | {}".format(incommingPacket, e))
+
+		self.snoopDictLock.release()  #<== snoopDictLock release
+
+	def handleSnoop(snooperId, incommingPacket):
+		'''
+		Fowards incomming packet to snooper if snoop criteria are met (currently, there are no criteria set up)
+		'''
+		snoopPacket = NetworkPacket(senderId=self.id, destinationId=snooperId, msgType="SNOOP", payload=incommingPacket)
+		self.sendPacket(snooperId, snoopPacket)
+
+
 	def monitorLink(self, agentId):
 		agentLink = self.agentConnections[agentId]
 		while True:
@@ -81,22 +118,52 @@ class ConnectionNetwork:
 						break
 
 			elif ("_BROADCAST" in incommingPacket.msgType):
+					#Check if this is a KILL_ALL broadcast
+					if (incommingPacket.msgType == "KILL_ALL_BROADCAST"):
+						self.killAllLock.acquire()
+						if (self.killAllFlag):
+							#All agents were already killed by another thread. Skip this broadcast
+							self.logger.debug("killAllFlag has already been set. Ignoring {}".format(incommingPacket))
+							continue
+
 					#We've received a broadcast message. Foward to all pipes
 					self.logger.debug("Fowarding broadcast")
-					for pipeId in self.agentConnections:
+					acquired_agentConnectionsLock = self.agentConnectionsLock.acquire()  #<== acquire agentConnectionsLock
+					pipeIdList = list(self.agentConnections.keys())
+					self.agentConnectionsLock.release()  #<== release agentConnectionsLock
+
+					for pipeId in pipeIdList:
 						sendThread = threading.Thread(target=self.sendPacket, args=(pipeId, incommingPacket))
 						sendThread.start()
+
 					self.logger.debug("Ending broadcast")
+
+					#CSet killAllFlag
+					if (incommingPacket.msgType == "KILL_ALL_BROADCAST"):
+						self.logger.debug("Setting killAllFlag")
+						self.killAllFlag = True
+						self.killAllLock.release()
+
+			elif ("SNOOP_START" in incommingPacket.msgType):
+					#We've received a snoop start request. Add to snooping dict
+					snoopStartThread = threading.Thread(target=self.startSnoop, args=(incommingPacket, ))
+					snoopStartThread.start()
 
 			elif (destinationId in self.agentConnections):
 				#Foward packet to destination
 				sendThread = threading.Thread(target=self.sendPacket, args=(destinationId, incommingPacket))
 				sendThread.start()
 
+				#Check for active snoops
+				if (incommingPacket.msgType in self.snoopDict):
+					for snooperId in self.snoopDict[incommingPacket.msgType]:
+						snoopThread = threading.Thread(target=self.handleSnoop, args=(snooperId, incommingPacket))
+						snoopThread.start()
+
 			else:
 				#Invalid packet destination
 				errorMsg = "Destination \"{}\" not connected to network".format(destinationId)
-				responsePacket = NetworkPacket(senderId="TransactionNetwork", destinationId=incommingPacket.sendPipe.senderId, msgType="ERROR", payload=errorMsg, transactionId=incommingPacket.transactionId)
+				responsePacket = NetworkPacket(senderId=self.id, destinationId=incommingPacket.senderId, msgType="ERROR", payload=errorMsg, transactionId=incommingPacket.transactionId)
 
 				sendThread = threading.Thread(target=self.sendPacket, args=(agentId, responsePacket))
 				sendThread.start()
