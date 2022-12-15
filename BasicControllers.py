@@ -66,8 +66,8 @@ class TestSnooper:
 		'''
 		Start snoop protocols 
 		'''
-		#snoopRequest = {"TRADE_REQ": True, "TRADE_REQ_ACK": True}
-		snoopRequest = {"INFO_RESP": True}
+		snoopRequest = {"TRADE_REQ": True, "TRADE_REQ_ACK": True}
+		#snoopRequest = {"INFO_RESP": True}
 		snoopStartPacket = NetworkPacket(senderId=self.agentId, msgType="SNOOP_START", payload=snoopRequest)
 
 		self.logger.info("Sending snoop request {}".format(snoopRequest))

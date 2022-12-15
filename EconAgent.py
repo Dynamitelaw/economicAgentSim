@@ -103,9 +103,12 @@ class AgentSeed:
 	def spawnAgent(self):
 		return Agent(self.agentInfo, itemDict=self.itemDict, allAgentDict=self.allAgentDict, networkLink=self.agentLink, logFile=self.logFile)
 
+	def __str__(self):
+		return "AgentSeed({})".format(self.agentInfo)
+
 
 class Agent:
-	def __init__(self, agentInfo, itemDict=None, allAgentDict=None, networkLink=None, logFile=True):
+	def __init__(self, agentInfo, itemDict=None, allAgentDict=None, networkLink=None, logFile=True, controller=None):
 		self.info = agentInfo
 		self.agentId = agentInfo.agentId
 		self.agentType = agentInfo.agentType
@@ -147,9 +150,12 @@ class Agent:
 				self.utilityFunctions[itemName] = UtilityFunction(itemFunctionParams["BaseUtility"]["mean"], itemFunctionParams["BaseUtility"]["stdDev"], itemFunctionParams["DiminishingFactor"]["mean"], itemFunctionParams["DiminishingFactor"]["stdDev"])
 
 		#Instantiate AI agent controller
-		self.controller = getAgentController(self, logFile=logFile)
-		if (not self.controller):
-			self.logger.warning("No controller was instantiated")
+		if (controller):
+			self.controller = controller
+		else:	
+			self.controller = getAgentController(self, logFile=logFile)
+			if (not self.controller):
+				self.logger.warning("No controller was instantiated")
 		self.controllerStart = False
 
 		#Launch network link monitor
@@ -727,5 +733,5 @@ class Agent:
 			self.logger.warning("Received infoRequest for another agent {}".format(infoRequest))
 
 	def __str__(self):
-		return "Agent(ID={}, Type={})".format(self.agentId, self.agentType)
+		return str(self.agentInfo)
 

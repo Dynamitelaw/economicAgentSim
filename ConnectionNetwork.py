@@ -2,6 +2,7 @@ import multiprocessing
 import threading
 import hashlib
 import time
+import traceback
 
 import utils
 
@@ -18,7 +19,7 @@ class NetworkPacket:
 		self.hash = hashlib.sha256(hashStr.encode('utf-8')).hexdigest()[:8 ]
 
 	def __str__(self):
-		return "({}_{}, {}, {})".format(self.msgType, self.hash, self.destinationId, self.transactionId)
+		return "({}_{}, {}, {}, {})".format(self.msgType, self.hash, self.senderId, self.destinationId, self.transactionId)
 
 class Link:
 	def __init__(self, sendPipe, recvPipe):
@@ -43,6 +44,7 @@ class ConnectionNetwork:
 		self.killAllLock = threading.Lock()
 
 	def addConnection(self, agentId, networkLink):
+		self.logger.info("Adding connection to {}".format(agentId))
 		self.agentConnections[agentId] = networkLink
 		self.sendLocks[agentId] = threading.Lock()
 
@@ -109,8 +111,8 @@ class ConnectionNetwork:
 					self.logger.info("Killing pipe {} {}".format(agentId, agentLink))
 					acquired_agentConnectionsLock = self.agentConnectionsLock.acquire(timeout=self.lockTimeout)  #<== acquire agentConnectionsLock
 					if (acquired_agentConnectionsLock):
-						del self.agentConnections[destinationId]
-						del self.sendLocks[destinationId]
+						del self.agentConnections[incommingPacket.senderId]
+						del self.sendLocks[incommingPacket.senderId]
 						self.agentConnectionsLock.release()  #<== release agentConnectionsLock
 						break
 					else:
@@ -168,27 +170,3 @@ class ConnectionNetwork:
 				sendThread = threading.Thread(target=self.sendPacket, args=(agentId, responsePacket))
 				sendThread.start()
 
-
-def childWait(conn):
-	while True:
-		incommingPacket = conn.recv()
-		if (incommingPacket == "END"):
-			break
-		print(incommingPacket.payload)
-
-
-if __name__ == '__main__':
-	parent_conn, child_conn = multiprocessing.Pipe(duplex=True)
-	
-	childProc = multiprocessing.Process(target=childWait, args=(child_conn,))
-	childProc.start()
-
-	#parent_conn.sendPipe.send("Hello")
-	#parent_conn.sendPipe.send("World")
-	#parent_conn.sendPipe.send("!")
-	packet = NetworkPacket("telegram", {"message": "good tidings"})
-	parent_conn.sendPipe.send(packet)
-	parent_conn.sendPipe.send("END")
-	parent_conn.sendPipe.send("Don't see me")
-
-	childProc.join()

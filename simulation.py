@@ -11,161 +11,215 @@ import traceback
 from EconAgent import *
 from ConnectionNetwork import *
 from TradeClasses import *
+from SimulationManager import *
 import utils
 
-#logPath = os.path.join("LOGS", "simulation_{}.log".format(time.time()))
-#logging.basicConfig(format='%(asctime)s.%(msecs)03d\t%(levelname)s:\t%(name)s:\t%(message)s', level=logging.DEBUG, datefmt='%m/%d/%Y %H:%M:%S', filename=logPath)
-#logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
-#Congregate items into into a single dict
-allItemsDict = {}
-for fileName in os.listdir("Items"):
+def launchSimulation(simManagerSeed):
 	try:
-		filePath = os.path.join("Items", fileName)
-		itemDictFile = open(filePath, "r")
-		itemDict = json.load(itemDictFile)
-		itemDictFile.close()
+		simManager = simManagerSeed.spawnManager()
+		simManager.runSim()
+	except KeyboardInterrupt:
+		curr_proc = multiprocessing.current_process()
 
-		allItemsDict[itemDict["id"]] = itemDict
-	except:
-		pass
+		print("###################### INTERUPT {} ######################".format(curr_proc))
+		simManager.terminate()
+
+		try:	
+			curr_proc.terminate()
+		except Exception as e:
+			print("### {} Error when terminating proc {}".format(e, curr_proc))
+			print(traceback.format_exc())
 
 
-def launchAgents(launchDict, allAgentList, procName, managementPipe):
-	logger = utils.getLogger("{}:{}".format(__name__, procName), console="INFO")
-
-	logger.debug("launchAgents() start")
-	logger.debug("launchDict = {}".format(launchDict))
-	logger.debug("allAgentList = {}".format(allAgentList))
-	logger.debug("procName = {}".format(procName))
-	logger.debug("managementPipe = {}".format(managementPipe))
-
-	#Instantiate agents
-	agentsInstantiated = False
+def launchAgents(launchDict, allAgentDict, procName, managerId, managementPipe):
 	try:
-		logger.info("Instantiating agents")
-		procAgentDict = {}
-		for agentId in launchDict:
-			agentObj = launchDict[agentId].spawnAgent()
-			procAgentDict[agentId] = agentObj
+		logger = utils.getLogger("{}:{}".format(__name__, procName), console="INFO")
 
-		procAgentList = list(procAgentDict.keys())
-		agentsInstantiated = True
-		time.sleep(2)
-	except Exception as e:
-		logger.error("Error while instantiating agents")
-		logger.error(traceback.format_exc())
+		curr_proc = multiprocessing.current_process()
+		logger.info("{}".format(curr_proc.name))
+
+		logger.debug("launchAgents() start")
+		logger.debug("launchDict = {}".format(launchDict))
+		logger.debug("allAgentDict = {}".format(allAgentDict))
+		logger.debug("procName = {}".format(procName))
+		logger.debug("managerId = {}".format(managerId))
+		logger.debug("managementPipe = {}".format(managementPipe))
+
+		try:
+			#Instantiate agents
+			logger.info("Instantiating agents")
+			procAgentDict = {}
+			for agentId in launchDict:
+				logger.debug("Instantiating {}".format(launchDict[agentId]))
+				agentObj = launchDict[agentId].spawnAgent()
+				procAgentDict[agentId] = agentObj
+
+			procAgentList = list(procAgentDict.keys())
+
+			#All agents instantiated. Notify manager
+			managerPacket = NetworkPacket(senderId=procName, destinationId=managerId, msgType="PROC_READY")
+			networkPacket = NetworkPacket(senderId=procName, destinationId=managerId, msgType="CONTROLLER_MSG", payload=managerPacket)
+			managementPipe.sendPipe.send(networkPacket)
+			
+		except Exception as e:
+			logger.error("Error while instantiating agents")
+			logger.error(traceback.format_exc())
+
+			#Notify manager of error
+			managerPacket = NetworkPacket(senderId=procName, destinationId=managerId, msgType="PROC_ERROR", payload=traceback.format_exc())
+			networkPacket = NetworkPacket(senderId=procName, destinationId=managerId, msgType="CONTROLLER_MSG", payload=managerPacket)
+			managementPipe.sendPipe.send(networkPacket)
 
 
-	#Start agent controllers
-	controllerStartBroadcast = NetworkPacket(senderId=procName, msgType="CONTROLLER_START_BROADCAST")
-	managementPipe.sendPipe.send(controllerStartBroadcast)
+		#Wait for manager to end us
+		while True:
+			logger.debug("Waiting for stop command or kill command")
 
-	#Wait while agents trade amongst themselves
-	waitTime = 30
-	logger.info("Waiting {} min {} sec for trading to continue".format(int(waitTime/60), waitTime%60))
-	time.sleep(waitTime)
+			incommingPacket = managementPipe.recvPipe.recv()
+			logger.debug("INBOUND {}".format(incommingPacket))
+			if ((incommingPacket.msgType == "PROC_STOP") or (incommingPacket.msgType == "KILL_ALL_BROADCAST")):
+				logger.info("Stoppinng process")
 
-	#Send commands for all controllers to stop trading
-	try:
-		logger.info("Broadcasting STOP_TRADING command")
+				networkPacket = NetworkPacket(senderId=procName, msgType="KILL_PIPE_NETWORK")
+				logger.debug("OUTBOUND {}".format(networkPacket))
+				managementPipe.sendPipe.send(networkPacket)
+
+				break
+
+		return
+	except KeyboardInterrupt:
+		curr_proc = multiprocessing.current_process()
+		print("###################### INTERUPT {} ######################".format(curr_proc))
+
 		controllerMsg = NetworkPacket(senderId=procName, msgType="STOP_TRADING")
 		networkPacket = NetworkPacket(senderId=procName, msgType="CONTROLLER_MSG_BROADCAST", payload=controllerMsg)
-		logger.debug("OUTBOUND {}".format(networkPacket))
+		logger.critical("OUTBOUND {}".format(networkPacket))
 		managementPipe.sendPipe.send(networkPacket)
-
-		stopWaitTime = 5
-		logger.info("Waiting {} sec for all trades to finish".format(stopWaitTime))
-		time.sleep(stopWaitTime)
-	except Exception as e:
-		logger.error("Error while sending STOP_TRADING command to agents")
-		logger.error(traceback.format_exc())
-
-	#Send out info requests to all sellers
-	logger.info("Sending out info requests to sellers")
-	for agentId in procAgentDict:
-		if (procAgentDict[agentId].agentType == "TestSeller"):
-			infoRequest = InfoRequest(requesterId=procName, agentId=agentId, infoKey="currencyBalance")
-			reqPacket = NetworkPacket(senderId=procName, destinationId=agentId, msgType="INFO_REQ", payload=infoRequest)
-			logger.debug("OUTBOUND {}".format(reqPacket))
-			managementPipe.sendPipe.send(reqPacket)
-	time.sleep(1)
-
-	#Send kill commands for all pipes connected to this batch of agents
-	try:
-		logger.info("Broadcasting kill command")
-		killPacket = NetworkPacket(senderId=procName, msgType="KILL_ALL_BROADCAST")
-		logger.debug("OUTBOUND {}".format(killPacket))
-		managementPipe.sendPipe.send(killPacket)
-	except Exception as e:
-		logger.error("Error while sending kill commands to agents")
-		logger.error(traceback.format_exc())
-
-	#Send kill command for management pipe
-	try:
-		logger.info("Killing network connection")
 		time.sleep(1)
-		killPacket = NetworkPacket(senderId=procName, destinationId=procName, msgType="KILL_PIPE_NETWORK")
-		logger.debug("OUTBOUND {}".format(killPacket))
-		managementPipe.sendPipe.send(killPacket)
+
+		networkPacket = NetworkPacket(senderId=procName, msgType="KILL_ALL_BROADCAST")
+		logger.critical("OUTBOUND {}".format(networkPacket))
+		managementPipe.sendPipe.send(networkPacket)
+		networkPacket = NetworkPacket(senderId=procName, msgType="KILL_PIPE_NETWORK")
+		logger.critical("OUTBOUND {}".format(networkPacket))
+		managementPipe.sendPipe.send(networkPacket)
 		time.sleep(1)
-	except Exception as e:
-		logger.error("Error while killing network link")
-		logger.error(traceback.format_exc())
 
-	logger.debug("Exiting launchAgents()")
+		try:	
+			curr_proc.terminate()
+		except Exception as e:
+			print("### {} Error when terminating proc {}".format(e, curr_proc))
+			print(traceback.format_exc())
 
-	return
 
 if __name__ == "__main__":
-	#Generate agent IDs and network pipes
-	spawnDict = {}
-	numProcess = 2
-	for procNum in range(numProcess):
-		spawnDict[procNum] = {}
+	childProcesses = []
+	try:
+		######################
+		# Parse All Items
+		######################
+		#Congregate items into into a single dict
+		allItemsDict = {}
+		for fileName in os.listdir("Items"):
+			try:
+				filePath = os.path.join("Items", fileName)
+				itemDictFile = open(filePath, "r")
+				itemDict = json.load(itemDictFile)
+				itemDictFile.close()
 
-	allAgentList = []
-	#Spawn buyers
-	numBuyers = 10
-	for i in range(numBuyers):
-		agentId = "buyer_{}".format(i)
-		allAgentList.append(agentId)
-		procNum = i%numProcess
+				allItemsDict[itemDict["id"]] = itemDict
+			except:
+				pass
 
-		spawnDict[procNum][agentId] = AgentSeed(agentId, "TestBuyer", itemDict=allItemsDict)
+		########################################
+		# Create AgentSeeds for each subprocess
+		########################################
+		spawnDict = {}
+		procDict = {}
+		allAgentDict = {}
 
-	#Spawn sellers
-	numSellers = 10
-	for i in range(numSellers):
-		agentId = "seller_{}".format(i)
-		allAgentList.append(agentId)
-		procNum = i%numProcess
+		numProcess = 2
+		for procNum in range(numProcess):
+			spawnDict[procNum] = {}
 
-		spawnDict[procNum][agentId] = AgentSeed(agentId, "TestSeller", itemDict=allItemsDict)
+			procName = "Simulation_Proc{}".format(procNum)
+			procDict[procName] = True
 
-	#Spawn a snooper agent
-	snooperId = "Snooper0"
-	spawnDict[0][snooperId] = AgentSeed(snooperId, "TestSnooper")
-	
-	#Instantiate network
-	xactNetwork = ConnectionNetwork()
-	for procNum in spawnDict:
-		for agentId in spawnDict[procNum]:
-			xactNetwork.addConnection(agentId=agentId, networkLink=spawnDict[procNum][agentId].networkLink)
+		#Create buyer seeds
+		numBuyers = 10
+		for i in range(numBuyers):
+			agentId = "buyer_{}".format(i)
+			procNum = i%numProcess
 
-	#Spawn subprocesses
-	for procNum in spawnDict:
-		procName = "Simulation_Proc{}".format(procNum)
+			agentSeed = AgentSeed(agentId, "TestBuyer", itemDict=allItemsDict)
+			spawnDict[procNum][agentId] = agentSeed
+			allAgentDict[agentId] = agentSeed.agentInfo
 
-		networkPipeRecv, managementPipeSend = multiprocessing.Pipe()
-		managementPipeRecv, networkPipeSend = multiprocessing.Pipe()
-		networkLink = Link(sendPipe=networkPipeSend, recvPipe=networkPipeRecv)
-		managementLink = Link(sendPipe=managementPipeSend, recvPipe=managementPipeRecv)
+		#Create seller seeds
+		numSellers = 10
+		for i in range(numSellers):
+			agentId = "seller_{}".format(i)
+			procNum = i%numProcess
 
-		xactNetwork.addConnection(agentId=procName, networkLink=networkLink)
+			agentSeed = AgentSeed(agentId, "TestSeller", itemDict=allItemsDict)
+			spawnDict[procNum][agentId] = agentSeed
+			allAgentDict[agentId] = agentSeed.agentInfo
+		
+		###########################
+		# Setup Simulation Manager
+		###########################
+		managerId = "simManager"
+		simManagerSeed = SimulationManagerSeed(managerId, allAgentDict, procDict)
 
-		proc = multiprocessing.Process(target=launchAgents, args=(spawnDict[procNum], allAgentList, procName, managementLink))
-		proc.start()
+		##########################
+		# Setup ConnectionNetwork
+		##########################
+		#Instantiate network
+		xactNetwork = ConnectionNetwork()
+		xactNetwork.addConnection(agentId=managerId, networkLink=simManagerSeed.networkLink)
+		for procNum in spawnDict:
+			for agentId in spawnDict[procNum]:
+				xactNetwork.addConnection(agentId=agentId, networkLink=spawnDict[procNum][agentId].networkLink)
 
-	#Launch network
-	xactNetwork.startMonitors()
+		##########################
+		# Launch subprocesses
+		##########################
+
+		#Launch agent procs
+		for procNum in spawnDict:
+			procName = "Simulation_Proc{}".format(procNum)
+
+			networkPipeRecv, managementPipeSend = multiprocessing.Pipe()
+			managementPipeRecv, networkPipeSend = multiprocessing.Pipe()
+			networkLink = Link(sendPipe=networkPipeSend, recvPipe=networkPipeRecv)
+			managementLink = Link(sendPipe=managementPipeSend, recvPipe=managementPipeRecv)
+
+			xactNetwork.addConnection(agentId=procName, networkLink=networkLink)
+
+			proc = multiprocessing.Process(target=launchAgents, args=(spawnDict[procNum], allAgentDict, procName, managerId, managementLink))
+			childProcesses.append(proc)
+			proc.start()
+
+		#Launch connection network
+		xactNetwork.startMonitors()
+
+		##########################
+		# Start simulation
+		##########################
+		managerProc = multiprocessing.Process(target=launchSimulation, args=(simManagerSeed,))
+		childProcesses.append(managerProc)
+		managerProc.start()
+		#managerProc.join()
+
+	except KeyboardInterrupt:
+		for proc in childProcesses:
+			try:
+				print("### TERMINATE {}".format(proc.name))
+				proc.terminate()
+				print("### TERMINATED {}".format(proc.name))
+			except Exception as e:
+				print("### FAILED_TERMINANE, error = {}".format(e))
+
+		raise ValueError("WE DIED!")
+
