@@ -5,6 +5,7 @@ import time
 import traceback
 import threading
 from datetime import timedelta
+from tqdm import tqdm
 
 from EconAgent import *
 from ConnectionNetwork import *
@@ -101,9 +102,10 @@ class SimulationManager:
 			ticksPerStep = 24
 
 			self.logger.info("Starting a {} step simulation, with {} ticks per step".format(simulationSteps, ticksPerStep))
-			for stepNum in range(simulationSteps):
+			print("\n")
+			for stepNum in tqdm (range (simulationSteps), ascii=False, ncols=80):
 				#Start new simulation day
-				self.logger.info("Running simulation step {}".format(stepNum))
+				self.logger.debug("Running simulation step {}".format(stepNum))
 
 				#Set all tick blockers to False
 				self.timeTickBlockers_Lock.acquire()
@@ -136,6 +138,7 @@ class SimulationManager:
 				self.logger.debug("Ending simulation step {}".format(stepNum))
 
 			#Calculate runtime
+			print("\n")
 			endTime = time.time()
 			elapsedSeconds = endTime - startTime
 			elapsedSring = str(timedelta(seconds=elapsedSeconds))
