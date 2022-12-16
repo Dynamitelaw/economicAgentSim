@@ -65,7 +65,11 @@ class SimulationManager:
 		self.agent = Agent(self.info, networkLink=networkLink, logFile=logFile, controller=self)
 
 
-	def runSim(self, simSettings=None):
+	def runSim(self, settingsDict):
+		'''
+		Runs a single simulation
+		'''
+
 		#Wait for all agents to be instantiated
 		self.logger.info("Waiting for all agents to be instantiated")
 		agentsInstantiated = False
@@ -82,7 +86,7 @@ class SimulationManager:
 
 		if (len(self.procErrors) > 0):
 			#There were errors during instantiation
-			self.logger.error("Could not instantiate all agents")
+			self.logger.error("Could not instantiate all agents. Will not run simulation")
 			for procName in self.procErrors:
 				self.logger.error("Error in {}".format(procName))
 				self.logger.error(self.procErrors[procName])
@@ -101,44 +105,51 @@ class SimulationManager:
 
 			#Run simulation for specified time
 			startTime = time.time()
-			simulationSteps = 10
-			ticksPerStep = 24
+			skipSimulation = False
+			if ((not "SimulationSteps" in settingsDict) or (not "TicksPerStep" in settingsDict)):
+				self.logger.error("Missing SimulationSteps and/or TicksPerStep from settings. Won't run simulation")
+				skipSimulation = True
 
-			self.logger.info("Starting a {} step simulation, with {} ticks per step".format(simulationSteps, ticksPerStep))
-			print("\n")
-			for stepNum in tqdm (range (simulationSteps), ascii=False, ncols=80):
-				#Start new simulation day
-				self.logger.debug("Running simulation step {}".format(stepNum))
+			if (not skipSimulation):
+				simulationSteps = int(settingsDict["SimulationSteps"])
+				ticksPerStep = int(settingsDict["TicksPerStep"])
 
-				#Set all tick blockers to False
-				self.timeTickBlockers_Lock.acquire()
-				for agentId in self.timeTickBlockers:
-					self.timeTickBlockers[agentId] = False  #this agent is no longer blocked by time ticks
-				self.timeTickBlockers_Lock.release()
+				self.logger.info("Starting Simulation (Steps={}, TicksPerStep={})".format(simulationSteps, ticksPerStep))
+				print("\n")
+				for stepNum in tqdm (range (simulationSteps), ascii=False, ncols=80):
+					#Start new simulation day
+					self.logger.debug("Running simulation step {}".format(stepNum))
 
-				#Distribute ticks to agent controllers
-				tickGrantPayload = NetworkPacket(senderId=self.agentId, msgType="TICK_GRANT", payload=ticksPerStep)
-				tickGrantBroadcast = NetworkPacket(senderId=self.agentId, msgType="CONTROLLER_MSG_BROADCAST", payload=tickGrantPayload)
-				self.logger.debug("OUTBOUND {}->{}".format(tickGrantPayload, tickGrantBroadcast))
-				self.agent.sendPacket(tickGrantBroadcast)
-
-				#Wait for all tick blockers to be set before advancing to next day
-				self.logger.debug("Waiting for all agents to be tick blocked")
-				allAgentsBlocked = False
-				while True:
-					allAgentsBlocked = True
+					#Set all tick blockers to False
+					self.timeTickBlockers_Lock.acquire()
 					for agentId in self.timeTickBlockers:
-						agentBlocked = self.timeTickBlockers[agentId]
-						if (not agentBlocked):
-							#self.logger.debug("Still waiting for {} to be tick blocked".format(agentId))
-							allAgentsBlocked = False
+						self.timeTickBlockers[agentId] = False  #this agent is no longer blocked by time ticks
+					self.timeTickBlockers_Lock.release()
 
-					if (allAgentsBlocked):
-						self.logger.debug("All agents are tick blocked")
-						break
+					#Distribute ticks to agent controllers
+					tickGrantPayload = NetworkPacket(senderId=self.agentId, msgType="TICK_GRANT", payload=ticksPerStep)
+					tickGrantBroadcast = NetworkPacket(senderId=self.agentId, msgType="CONTROLLER_MSG_BROADCAST", payload=tickGrantPayload)
+					self.logger.debug("OUTBOUND {}->{}".format(tickGrantPayload, tickGrantBroadcast))
+					self.agent.sendPacket(tickGrantBroadcast)
 
-				#End simulation day
-				self.logger.debug("Ending simulation step {}".format(stepNum))
+					#Wait for all tick blockers to be set before advancing to next day
+					self.logger.debug("Waiting for all agents to be tick blocked")
+					allAgentsBlocked = False
+					while True:
+						allAgentsBlocked = True
+						for agentId in self.timeTickBlockers:
+							agentBlocked = self.timeTickBlockers[agentId]
+							if (not agentBlocked):
+								#self.logger.debug("Still waiting for {} to be tick blocked".format(agentId))
+								allAgentsBlocked = False
+								break
+
+						if (allAgentsBlocked):
+							self.logger.debug("All agents are tick blocked")
+							break
+
+					#End simulation day
+					self.logger.debug("Ending simulation step {}".format(stepNum))
 
 			#Calculate runtime
 			print("\n")

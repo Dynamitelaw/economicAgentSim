@@ -18,10 +18,10 @@ from SimulationManager import *
 import utils
 
 
-def launchSimulation(simManagerSeed):
+def launchSimulation(simManagerSeed, settingsDict):
 	try:
 		simManager = simManagerSeed.spawnManager()
-		simManager.runSim()
+		simManager.runSim(settingsDict)
 	except KeyboardInterrupt:
 		curr_proc = multiprocessing.current_process()
 
@@ -119,12 +119,19 @@ def launchAgents(launchDict, allAgentDict, procName, managerId, managementPipe):
 			print(traceback.format_exc())
 
 
-if __name__ == "__main__":
+def RunSimulation(settingsDict):
+	'''
+	Run's a single simulation with the specified settings
+	'''
+	logger = utils.getLogger("SimulationRunner:RunSimulation")
+	logger.info("settingsDict={}".format(settingsDict))
+
 	childProcesses = []
 	try:
 		######################
 		# Parse All Items
 		######################
+		logger.info("Parsing items")
 
 		#Congregate items into into a single dict
 		allItemsDict = {}
@@ -143,37 +150,53 @@ if __name__ == "__main__":
 		# Create AgentSeeds for each subprocess
 		########################################
 		managerId = "simManager"
+		if ((not "SimulationSteps" in settingsDict) or (not "TicksPerStep" in settingsDict)):
+			logger.error("Missing \"SimulationSteps\" and/or \"TicksPerStep\" from settings. Won't run simulation")
 
+		logger.debug("SimulationSteps = {}".format(settingsDict["SimulationSteps"]))
+		print("SimulationSteps = {}".format(settingsDict["SimulationSteps"]))
+		logger.debug("TicksPerStep = {}".format(settingsDict["TicksPerStep"]))
+		print("TicksPerStep = {}".format(settingsDict["TicksPerStep"]))
+
+
+		#Setup spawn and process dicts
 		spawnDict = {}
 		procDict = {}
 		allAgentDict = {}
 
-		numProcess = 2
+		if not ("NumProcesses" in settingsDict):
+			logger.error("\"NumProcesses\" missing from settings. Won't run simulation")
+			return None
+
+		numProcess = settingsDict["NumProcesses"]
+		logger.debug("numProcess={}".format(numProcess))
+		print("Processes = {}\n".format(numProcess))
 		for procNum in range(numProcess):
 			spawnDict[procNum] = {}
 
 			procName = "Simulation_Proc{}".format(procNum)
 			procDict[procName] = True
 
-		#Create buyer seeds
-		numBuyers = 10
-		for i in range(numBuyers):
-			agentId = "buyer_{}".format(i)
-			procNum = i%numProcess
+		#Create agent seeds
+		for agentType in settingsDict["AgentSpawns"]:
+			agentSettings = settingsDict["AgentSpawns"][agentType]
 
-			agentSeed = AgentSeed(agentId, "TestBuyer", simManagerId=managerId, itemDict=allItemsDict)
-			spawnDict[procNum][agentId] = agentSeed
-			allAgentDict[agentId] = agentSeed.agentInfo
+			if not ("quantity" in agentSettings):
+				logger.error("\"quantity\" missing from \"{}\" settings. Won't run simulation".format(agentType))
+				return None
 
-		#Create seller seeds
-		numSellers = 10
-		for i in range(numSellers):
-			agentId = "seller_{}".format(i)
-			procNum = i%numProcess
+			numAgents = agentSettings["quantity"]
+			logger.debug("{} Agents = {}".format(agentType, numAgents))
+			print("{} Agents={}".format(agentType, numAgents))
 
-			agentSeed = AgentSeed(agentId, "TestSeller", simManagerId=managerId, itemDict=allItemsDict)
-			spawnDict[procNum][agentId] = agentSeed
-			allAgentDict[agentId] = agentSeed.agentInfo
+			for i in range(numAgents):
+				agentId = "{}_{}".format(agentType, i)
+				procNum = i%numProcess
+
+				agentSeed = AgentSeed(agentId, agentType, simManagerId=managerId, itemDict=allItemsDict)
+				spawnDict[procNum][agentId] = agentSeed
+				allAgentDict[agentId] = agentSeed.agentInfo
+		print("\n")
 		
 		###########################
 		# Setup Simulation Manager
@@ -214,7 +237,7 @@ if __name__ == "__main__":
 		##########################
 		# Start simulation
 		##########################
-		managerProc = multiprocessing.Process(target=launchSimulation, args=(simManagerSeed,))
+		managerProc = multiprocessing.Process(target=launchSimulation, args=(simManagerSeed, settingsDict))
 		childProcesses.append(managerProc)
 		managerProc.start()
 		#managerProc.join()  #DO NOT use a join statment here, or anywhere else in this function. It breaks interrupt handling

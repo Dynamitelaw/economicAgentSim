@@ -1,0 +1,16 @@
+{
+	"description": "Test simulation with test agent controllers. Used for testing and debug.",
+	"settings": {
+		"NumProcesses": 2,
+		"SimulationSteps": 10,
+		"TicksPerStep": 24,
+		"AgentSpawns":{
+			"TestSeller": {
+				"quantity": 10
+			},
+			"TestBuyer":{
+				"quantity": 10
+			}
+		}
+	}
+}

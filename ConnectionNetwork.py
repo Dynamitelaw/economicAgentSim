@@ -249,7 +249,7 @@ ITEM_MARKET_REMOVE_BROADCAST
 	Will remove an ItemListing from all agent's ItemMarket dictionaries
 
 #########################
-# Other Packets
+# Other Agent Packets
 #########################
 
 INFO_REQ
@@ -270,8 +270,36 @@ ERROR_CONTROLLER_START
 	Sent by an agent if they could not start their controller
 
 CONTROLLER_MSG
-	The recipient agent will foward this packet to it's controller
+	The recipient agent will foward this packet to it's controller.
 
 CONTROLLER_MSG_BROADCAST
 	All agents will foward this packet to their controller
+
+
+#########################
+# Controller messages
+#########################
+These message types are fowarded to the agent controller, so they have no hardcoded behavior.
+The following are the current types and their intended usage.
+
+NetworkPacket(msgType="CONTROLLER_MSG|CONTROLLER_MSG_BROADCAST", payload=controllerMessage)
+
+"controllerMessage" is expected to be a <NetworkPacket> obj.
+
+controllerMessage.msgTypes:
+	STOP_TRADING:
+		Tells the recipient controller to cease all trading activity
+	TICK_GRANT:
+		payload=<int> tickAmount
+		Grants the recipient controller time ticks. Sent by the SimulationManager to synchronize sim time.
+	TICK_BLOCK_SUBSCRIBE:
+		Sent by a controller to the SimulationManager. Tells the manager to block simulation step progress until controller send a TICK_BLOCKED message
+	TICK_BLOCKED
+		Sent by a controller to the SimulationManager. Tells the manager that the controller is out of time ticks and cannot execute more actions
+	PROC_READY
+		Sent by child process to the SimulationManager. Tells the manager that all agents in the process have been instantiated
+	PROC_ERROR
+		Sent by child process to the SimulationManager. Tells the manager that there was an error during agent instantiation
+
+
 '''

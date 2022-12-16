@@ -22,7 +22,7 @@ import time
 import os
 
 from ConnectionNetwork import *
-from BasicControllers import *
+from TestControllers import *
 from TradeClasses import *
 import utils
 

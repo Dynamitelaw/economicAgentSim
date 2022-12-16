@@ -20,7 +20,7 @@ class PushoverController:
 		self.agentId = agent.agentId
 		self.name = "{}_PushoverController".format(agent.agentId)
 
-		self.logger = utils.getLogger("{}:{}".format("PushoverController", self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"))
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"))
 
 		#Keep track of agent assets
 		self.currencyBalance = agent.currencyBalance  #(int) cents  #This prevents accounting errors due to float arithmetic (plus it's faster)
@@ -66,7 +66,7 @@ class TestSnooper:
 		self.agentId = agent.agentId
 		self.name = "{}_TestSnooper".format(agent.agentId)
 
-		self.logger = utils.getLogger("{}:{}".format("TestSnooper", self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"))
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"))
 
 	def controllerStart(self, incommingPacket):
 		'''
@@ -103,7 +103,7 @@ class TestSeller:
 
 		self.name = "{}_TestSeller".format(agent.agentId)
 
-		self.logger = utils.getLogger("{}:{}".format("TestSeller", self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"))
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"))
 
 		#Keep track of agent assets
 		self.currencyBalance = agent.currencyBalance  #(int) cents  #This prevents accounting errors due to float arithmetic (plus it's faster)
@@ -257,7 +257,7 @@ class TestBuyer:
 
 		self.name = "{}_TestBuyer".format(agent.agentId)
 
-		self.logger = utils.getLogger("{}:{}".format("TestBuyer", self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"))
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"))
 
 		#Keep track of agent assets
 		self.currencyBalance = agent.currencyBalance  #(int) cents  #This prevents accounting errors due to float arithmetic (plus it's faster)
@@ -338,26 +338,27 @@ class TestBuyer:
 							bestSeller = itemListing.sellerId
 
 					#Determing whether to buy
-					marginalUtility = self.agent.getMarginalUtility(itemId)
-					if (marginalUtility > minPrice):
-						#We're buying this item
-						itemsBought = True
+					if (minPrice):
+						marginalUtility = self.agent.getMarginalUtility(itemId)
+						if (marginalUtility > minPrice):
+							#We're buying this item
+							itemsBought = True
 
-						#Print money required for purchase
-						self.agent.receiveCurrency(minPrice)
+							#Print money required for purchase
+							self.agent.receiveCurrency(minPrice)
 
-						#Send trade request
-						itemRequest = ItemContainer(itemId, 1)
-						tradeRequest = TradeRequest(sellerId=bestSeller, buyerId=self.agentId, currencyAmount=minPrice, itemPackage=itemRequest)
-						self.logger.debug("Buying item | {}".format(tradeRequest))
-						tradeCompleted = self.agent.sendTradeRequest(request=tradeRequest, recipientId=bestSeller)
-						self.logger.debug("Trade completed={} | {}".format(tradeCompleted, tradeRequest))
+							#Send trade request
+							itemRequest = ItemContainer(itemId, 1)
+							tradeRequest = TradeRequest(sellerId=bestSeller, buyerId=self.agentId, currencyAmount=minPrice, itemPackage=itemRequest)
+							self.logger.debug("Buying item | {}".format(tradeRequest))
+							tradeCompleted = self.agent.sendTradeRequest(request=tradeRequest, recipientId=bestSeller)
+							self.logger.debug("Trade completed={} | {}".format(tradeCompleted, tradeRequest))
 
-						#We used up a tick for this trade. Decrement allotment
-						self.timeTicks -= 1
-						if (self.timeTicks <= 0):
-							#End shopping spree
-							break
+							#We used up a tick for this trade. Decrement allotment
+							self.timeTicks -= 1
+							if (self.timeTicks <= 0):
+								#End shopping spree
+								break
 
 				if (len(self.itemMarket) == 0):
 					self.logger.info("No item listing in the market right now. Relinquishing time timeTicks")
