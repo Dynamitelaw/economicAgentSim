@@ -1,3 +1,6 @@
+'''
+Contains the functions needed to run a single simulation
+'''
 import json
 from random import *
 import multiprocessing
@@ -33,6 +36,9 @@ def launchSimulation(simManagerSeed):
 
 
 def launchAgents(launchDict, allAgentDict, procName, managerId, managementPipe):
+	'''
+	Instantiate all agents in launchDict, then wait for a kill message from Simulation Manager before exiting
+	'''
 	try:
 		logger = utils.getLogger("{}:{}".format(__name__, procName), console="INFO")
 
@@ -119,6 +125,7 @@ if __name__ == "__main__":
 		######################
 		# Parse All Items
 		######################
+
 		#Congregate items into into a single dict
 		allItemsDict = {}
 		for fileName in os.listdir("Items"):
@@ -176,7 +183,6 @@ if __name__ == "__main__":
 		##########################
 		# Setup ConnectionNetwork
 		##########################
-		#Instantiate network
 		xactNetwork = ConnectionNetwork()
 		xactNetwork.addConnection(agentId=managerId, networkLink=simManagerSeed.networkLink)
 		for procNum in spawnDict:
@@ -187,7 +193,7 @@ if __name__ == "__main__":
 		# Launch subprocesses
 		##########################
 
-		#Launch agent procs
+		#Launch agent processes
 		for procNum in spawnDict:
 			procName = "Simulation_Proc{}".format(procNum)
 

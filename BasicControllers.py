@@ -1,3 +1,7 @@
+'''
+These agent controllers have simple and/or impossible characteristics.
+Used for simulation testing.
+'''
 import random
 import os
 import threading

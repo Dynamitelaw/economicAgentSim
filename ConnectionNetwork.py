@@ -1,3 +1,16 @@
+'''
+The ConnectionNetwork is how all agents in the simulation communicate with each other.
+
+It's set up as a hub and spoke topology, where all agents have a single connection to the ConnectionNetwork object.
+Each agent connection is monitored with it's own thread. 
+Agents communicate using NetworkPacket objects. Each agent has a unique id to identify it on the network.
+
+The ConnectionNetwork routes all packets to the specified recipient, or to all agents if msgTpye ends with "_BROADCAST"
+The network also supports packet snooping, where an agent controller can request to be sent all packets of a specified type, regardless of recipient.
+
+The network will route any packet with a valid destination, regardless of content.
+A list of all currently-implemented packet types can be found at the bottom of this file.
+'''
 import multiprocessing
 import threading
 import hashlib
@@ -28,7 +41,7 @@ class Link:
 
 class ConnectionNetwork:
 	def __init__(self, logFile=True):
-		self.id = "TransactionNetwork"
+		self.id = "ConnectionNetwork"
 
 		self.logger = utils.getLogger("{}".format(__name__), logFile=logFile)
 		self.lockTimeout = 5
@@ -170,3 +183,95 @@ class ConnectionNetwork:
 				sendThread = threading.Thread(target=self.sendPacket, args=(agentId, responsePacket))
 				sendThread.start()
 
+'''
+#Format
+NetworkPacket.msgType
+	Info
+
+#########################
+# Network Packets
+#########################
+
+KILL_PIPE_AGENT
+	If sent to an agent, the agent will send a KILL_PIPE_NETWORK packet to the network, then kill it's monitoring thread
+
+KILL_ALL_BROADCAST
+	Equivalent to sending a KILL_PIPE_AGENT to every agent on the network
+
+KILL_PIPE_NETWORK
+	If sent from an agent, the connection network will delete it's connection to the agent and kill it's monitoring thread
+
+SNOOP_START
+	payload = <dict> {msgType: <bool>, ...}
+	If sent from an agent, the network will set up a snoop protocol. Afterwards, all packets with the specified msgTypes (incommingPacket) will be fowarded to the snooper
+	in the following format.
+		NetworkPacket(destinationId=snooperId, msgType="SNOOP", payload=incommingPacket)
+
+SNOOP
+	payload = <NetworkPacket>
+	Sent to a snooping controller
+
+ERROR
+	If send to an agent, the agent will print out the packet in an error logger. Currently only used for network errors.
+
+#########################
+# Trade Packets
+#########################
+
+CURRENCY_TRANSFER
+	payload = <dict> {"paymentId": <str>, "cents": <int>}
+	Transfer currency (amount="cents") from packet sender to packet recipient
+
+CURRENCY_TRANSFER_ACK
+	payload = <dict> {"paymentId": <str>, "transferSuccess": <bool>}
+	Sent from currency recipient to currency sender
+
+ITEM_TRANSFER
+	payload = <dict> {"transferId": <str>, "item": <ItemContainer>}
+	Transfer an item from sender to recipient
+
+ITEM_TRANSFER_ACK
+	payload = <dict> {"transferId": <str>, "transferSuccess": <bool>}
+	Sent from item recipient to item sender
+
+TRADE_REQ
+	payload = <TradeRequest>
+
+TRADE_REQ_ACK
+	payload = <dict> {"tradeRequest": <TradeRequest>, "accepted": <bool>}
+
+ITEM_MARKET_UPDATE_BROADCAST
+	payload = <ItemListing>
+	Will update all agent's ItemMarket dictionaries with the included listing info
+
+ITEM_MARKET_REMOVE_BROADCAST
+	payload = <ItemListing>
+	Will remove an ItemListing from all agent's ItemMarket dictionaries
+
+#########################
+# Other Packets
+#########################
+
+INFO_REQ
+	payload = <InfoRequest>
+	Request information from an agent
+
+INFO_RESP
+	payload = <InfoRequest>
+	Response to information request
+
+CONTROLLER_START
+	Tells the agent to start it's controller by caling controller.controllerStart()
+
+CONTROLLER_START_BROADCAST
+	Tells all agents to start their controllers by caling controller.controllerStart()
+
+ERROR_CONTROLLER_START
+	Sent by an agent if they could not start their controller
+
+CONTROLLER_MSG
+	The recipient agent will foward this packet to it's controller
+
+CONTROLLER_MSG_BROADCAST
+	All agents will foward this packet to their controller
+'''

@@ -1,3 +1,6 @@
+'''
+The SimulationManager controls and manages the simulation using network commands
+'''
 import json
 import os
 import logging
@@ -38,7 +41,7 @@ class SimulationManagerSeed:
 
 class SimulationManager:
 	'''
-	The master object that controls and manages the a simulation using network commands
+	The master object that controls and manages the simulation using network commands
 	'''
 	def __init__(self, agentInfo, allAgentDict, allProcDict, networkLink=None, logFile=True, controller=None):
 		self.info = agentInfo

@@ -1,3 +1,20 @@
+'''
+The Agent class is a generic class used by all agents running in a simulation.
+
+The behavior of any given agent instance is determined by it's controller, which handles all decision making.
+The Agent class is instead mostly responsible for the controller's interface to the rest of the simulation.
+
+The Agent class handles:
+	-item transfers
+	-currency transfers
+	-trade execution
+	-currency balance
+	-item inventory
+	-ConnectionNetwork interactions
+	-item utility calculations
+	-item market updates
+
+'''
 import math
 import threading
 import logging
@@ -11,6 +28,9 @@ import utils
 
 
 class UtilityFunction:
+	'''
+	Determines the utility for an object
+	'''
 	def __init__(self, baseUtility, baseStdDev, diminishingFactor, diminStdDev):
 		self.baseUtility = float(utils.getNormalSample(baseUtility, baseStdDev))
 		self.diminishingFactor = float(utils.getNormalSample(diminishingFactor, diminStdDev))
@@ -69,6 +89,9 @@ class AgentInfo:
 
 
 def getAgentController(agent, logFile=True):
+	'''
+	Instantiates an agent controller, dependant on the agentType
+	'''
 	agentInfo = agent.info
 
 	if (agentInfo.agentType == "PushoverController"):
@@ -89,6 +112,12 @@ def getAgentController(agent, logFile=True):
 
 
 class AgentSeed:
+	'''
+	Because thread locks cannot be pickled, you can't pass Agent instances to other processes.
+
+	So the AgentSeed class is a pickle-safe info container that can be passed to child processes.
+	The process can then call AgentSeed.spawnAgent() to instantiate an Agent obj.
+	'''
 	def __init__(self, agentId, agentType, simManagerId=None, itemDict=None, allAgentDict=None, logFile=True):
 		self.agentInfo = AgentInfo(agentId, agentType)
 		self.simManagerId = simManagerId
@@ -213,7 +242,7 @@ class Agent:
 					self.logger.warning(warning)
 					responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType="ERROR_CONTROLLER_START", payload=warning)
 
-			elif ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST") or (incommingPacket.msgType == "SNOOP")):
+			elif ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST") or (incommingPacket.msgType == "SNOOP") or (incommingPacket.msgType == "INFO_RESP")):
 				#Foward packet to controller
 				if (self.controller):
 					self.logger.debug("Fowarding msg to controller {}".format(incommingPacket))
