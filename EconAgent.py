@@ -2,6 +2,7 @@ import math
 import threading
 import logging
 import time
+import os
 
 from ConnectionNetwork import *
 from BasicControllers import *
@@ -88,8 +89,9 @@ def getAgentController(agent, logFile=True):
 
 
 class AgentSeed:
-	def __init__(self, agentId, agentType, itemDict=None, allAgentDict=None, logFile=True):
+	def __init__(self, agentId, agentType, simManagerId=None, itemDict=None, allAgentDict=None, logFile=True):
 		self.agentInfo = AgentInfo(agentId, agentType)
+		self.simManagerId = simManagerId
 		self.itemDict = itemDict
 		self.allAgentDict = allAgentDict
 		self.logFile = logFile
@@ -101,18 +103,20 @@ class AgentSeed:
 		self.agentLink = Link(sendPipe=agentPipeSend, recvPipe=agentPipeRecv)
 
 	def spawnAgent(self):
-		return Agent(self.agentInfo, itemDict=self.itemDict, allAgentDict=self.allAgentDict, networkLink=self.agentLink, logFile=self.logFile)
+		return Agent(self.agentInfo, simManagerId=self.simManagerId, itemDict=self.itemDict, allAgentDict=self.allAgentDict, networkLink=self.agentLink, logFile=self.logFile)
 
 	def __str__(self):
 		return "AgentSeed({})".format(self.agentInfo)
 
 
 class Agent:
-	def __init__(self, agentInfo, itemDict=None, allAgentDict=None, networkLink=None, logFile=True, controller=None):
+	def __init__(self, agentInfo, simManagerId=None, itemDict=None, allAgentDict=None, networkLink=None, logFile=True, controller=None):
 		self.info = agentInfo
 		self.agentId = agentInfo.agentId
 		self.agentType = agentInfo.agentType
-		self.logger = utils.getLogger("{}:{}".format(__name__, self.agentId), logFile=logFile)
+		self.simManagerId = simManagerId
+
+		self.logger = utils.getLogger("{}:{}".format(__name__, self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Agent_Logs"))
 		self.logger.debug("{} instantiated".format(self.info))
 
 		self.lockTimeout = 5
@@ -682,7 +686,8 @@ class Agent:
 		acquired_itemMarketLock = self.itemMarketLock.acquire(timeout=self.lockTimeout)  # <== itemMarketLock acquire
 		if (acquired_itemMarketLock):
 			if (itemListing.itemId in self.itemMarket):
-				del self.itemMarket[itemListing.itemId][itemListing.sellerId]
+				if (itemListing.sellerId in self.itemMarket[itemListing.itemId]):
+					del self.itemMarket[itemListing.itemId][itemListing.sellerId]
 
 			self.itemMarketLock.release()  # <== itemMarketLock release
 			updateSuccess = True
@@ -693,7 +698,7 @@ class Agent:
 		#If we're the seller, and this is not a rebound broadcast, send out update broadcast to other agents
 		if ((itemListing.sellerId == self.agentId) and (incommingPacket==None)):
 			updatePacket = NetworkPacket(senderId=self.agentId, msgType="ITEM_MARKET_REMOVE_BROADCAST", payload=itemListing)
-			self.sendPacket(tradePacket)
+			self.sendPacket(updatePacket)
 
 		#Return status
 		self.logger.debug("{}.removeItemListing({}) return {}".format(self.agentId, itemListing, updateSuccess))

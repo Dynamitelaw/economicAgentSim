@@ -1,4 +1,6 @@
 import random
+import os
+import threading
 
 import utils
 from TradeClasses import *
@@ -14,7 +16,7 @@ class PushoverController:
 		self.agentId = agent.agentId
 		self.name = "{}_PushoverController".format(agent.agentId)
 
-		self.logger = utils.getLogger("{}:{}".format("PushoverController", self.agentId), logFile=logFile)
+		self.logger = utils.getLogger("{}:{}".format("PushoverController", self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"))
 
 		#Keep track of agent assets
 		self.currencyBalance = agent.currencyBalance  #(int) cents  #This prevents accounting errors due to float arithmetic (plus it's faster)
@@ -60,7 +62,7 @@ class TestSnooper:
 		self.agentId = agent.agentId
 		self.name = "{}_TestSnooper".format(agent.agentId)
 
-		self.logger = utils.getLogger("{}:{}".format("TestSnooper", self.agentId), logFile=logFile)
+		self.logger = utils.getLogger("{}:{}".format("TestSnooper", self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"))
 
 	def controllerStart(self, incommingPacket):
 		'''
@@ -93,13 +95,18 @@ class TestSeller:
 	def __init__(self, agent, logFile=True):
 		self.agent = agent
 		self.agentId = agent.agentId
+		self.simManagerId = agent.simManagerId
+
 		self.name = "{}_TestSeller".format(agent.agentId)
 
-		self.logger = utils.getLogger("{}:{}".format("TestSeller", self.agentId), logFile=logFile)
+		self.logger = utils.getLogger("{}:{}".format("TestSeller", self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"))
 
 		#Keep track of agent assets
 		self.currencyBalance = agent.currencyBalance  #(int) cents  #This prevents accounting errors due to float arithmetic (plus it's faster)
 		self.inventory = agent.inventory
+
+		#Keep track of time ticks
+		self.timeTicks = 0
 
 		#Marketplaces
 		self.itemMarket = agent.itemMarket
@@ -109,27 +116,74 @@ class TestSeller:
 
 		#Determine what to sell
 		itemList = self.itemMarket.keys()
-		itemId = random.sample(itemList, 1)[0]
+		self.sellItemId = random.sample(itemList, 1)[0]
 
-		baseUtility = self.utilityFunctions[itemId].baseUtility
-		sellPrice = round(baseUtility*random.random())
+		baseUtility = self.utilityFunctions[self.sellItemId].baseUtility
+		self.sellPrice = round(baseUtility*random.random())
 
-		maxQuantity = int(20*random.random())
+		initialQuantity = int(20*random.random())
 
 		#Spawn items into inventory
-		inventoryEntry = ItemContainer(itemId, maxQuantity)
+		inventoryEntry = ItemContainer(self.sellItemId, initialQuantity)
 		self.agent.receiveItem(inventoryEntry)
 
 		#Post item listing
-		itemListing = ItemListing(sellerId=self.agentId, itemId=itemId, unitPrice=sellPrice, maxQuantity=maxQuantity)
-		self.agent.updateItemListing(itemListing)
+		self.myItemListing = ItemListing(sellerId=self.agentId, itemId=self.sellItemId, unitPrice=self.sellPrice, maxQuantity=initialQuantity)
+		self.myItemListing_Lock = threading.Lock()
+		self.logger.info("OUTBOUND {}".format(self.myItemListing))
+		self.agent.updateItemListing(self.myItemListing)
 
 		
 	def controllerStart(self, incommingPacket):
-		return
+		#Subscribe for tick blocking
+		tickBlockReq = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCK_SUBSCRIBE")
+		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlockReq)
+		self.logger.debug("OUTBOUND {}->{}".format(tickBlockReq, tickBlockPacket))
+		self.agent.sendPacket(tickBlockPacket)
+
 
 	def receiveMsg(self, incommingPacket):
-		return
+		controllerMsg = incommingPacket.payload
+		self.logger.info("INBOUND {}".format(controllerMsg))
+		
+		if (controllerMsg.msgType == "STOP_TRADING"):
+			self.killThreads = True
+
+		if (controllerMsg.msgType == "TICK_GRANT"):
+			self.timeTicks += int(controllerMsg.payload)
+			#Launch production function
+			self.produceItems()
+
+
+	def produceItems(self):
+		#Spawn items into inventory
+		spawnQuantity = int(20*random.random())
+		inventoryEntry = ItemContainer(self.sellItemId, spawnQuantity)
+		self.logger.info("Spawning new items to sell {}".format(inventoryEntry))
+		self.agent.receiveItem(inventoryEntry)
+
+		#Update listing
+		self.logger.info("Updating item listing")
+
+		currentInventory = self.inventory[self.sellItemId]
+		self.myItemListing_Lock.acquire()
+		self.myItemListing = ItemListing(sellerId=self.agentId, itemId=self.sellItemId, unitPrice=self.sellPrice, maxQuantity=currentInventory.quantity)
+		self.myItemListing_Lock.release()
+
+		self.logger.info("OUTBOUND {}".format(self.myItemListing))
+		self.agent.updateItemListing(self.myItemListing)
+
+		#Relinquish time ticks
+		self.logger.info("Relinquishing time ticks")
+		self.timeTicks = 0
+
+		tickBlocked = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCKED")
+		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlocked)
+		self.logger.debug("OUTBOUND {}->{}".format(tickBlocked, tickBlockPacket))
+		self.agent.sendPacket(tickBlockPacket)
+
+		self.logger.debug("Waiting for tick grant")
+
 
 	def evalTradeRequest(self, request):
 		'''
@@ -139,22 +193,50 @@ class TestSeller:
 
 		offerAccepted = False
 
+		newInventory = 0
+
 		if (self.agentId == request.sellerId):
 			itemId = request.itemPackage.id
-			myListing = self.itemMarket[itemId][self.agentId]
 
 			#Check price and quantity
 			unitPrice = round(request.currencyAmount / request.itemPackage.quantity)
-			if (unitPrice >= myListing.unitPrice) and (request.itemPackage.quantity <= myListing.maxQuantity):
+			if (unitPrice >= self.myItemListing.unitPrice) and (request.itemPackage.quantity <= self.myItemListing.maxQuantity):
 				#Trade terms are good. Make sure we have inventory
 				if (itemId in self.inventory):
 					currentInventory = self.inventory[itemId]
 					newInventory = currentInventory.quantity - request.itemPackage.quantity
-					offerAccepted = newInventory > 0
+					offerAccepted = newInventory >= 0
+					if (not offerAccepted):
+						self.logger.debug("Current Inventory({}) not enough inventory to fulfill {}".format(currentInventory, request))
 				else:
+					self.logger.debug("{} not in inventory. Can't fulfill {}".format(itemId, request))
 					offerAccepted = False
+			else:
+				self.logger.debug("Bad term offers for {}".format(request))
+				self.logger.debug("{} | unitPrice >= self.myItemListing.unitPrice = {} | request.itemPackage.quantity <= self.myItemListing.maxQuantity = {}".format(request.hash, unitPrice >= self.myItemListing.unitPrice, request.itemPackage.quantity <= self.myItemListing.maxQuantity))
+				offerAccepted = False
+	
+		else:
+			self.logger.warning("Invalid trade offer {}".format(request))
+			self.logger.debug("{} | self.agentId({}) != request.sellerId({})".format(request.hash, self.agentId, request.sellerId))
+			offerAccepted = False
 
 		self.logger.info("{} accepted={}".format(request, offerAccepted))
+
+		#Remove item listing if we're out of stock
+		if (newInventory == 0) and (offerAccepted):
+			self.logger.info("Out of stock. Removing item listing {}".format(self.myItemListing))
+			self.agent.removeItemListing(self.myItemListing)
+		elif (offerAccepted):
+			newListing = ItemListing(sellerId=self.agentId, itemId=itemId, unitPrice=self.myItemListing.unitPrice, maxQuantity=newInventory)
+			self.myItemListing_Lock.acquire()
+			self.myItemListing = newListing
+			self.myItemListing_Lock.release()
+
+			self.logger.info("Update item listing with new stock")
+			self.logger.info("OUTBOUND {}".format(newListing))
+			self.agent.updateItemListing(newListing)
+
 		return offerAccepted
 
 
@@ -167,9 +249,11 @@ class TestBuyer:
 	def __init__(self, agent, logFile=True):
 		self.agent = agent
 		self.agentId = agent.agentId
+		self.simManagerId = agent.simManagerId
+
 		self.name = "{}_TestBuyer".format(agent.agentId)
 
-		self.logger = utils.getLogger("{}:{}".format("TestBuyer", self.agentId), logFile=logFile)
+		self.logger = utils.getLogger("{}:{}".format("TestBuyer", self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"))
 
 		#Keep track of agent assets
 		self.currencyBalance = agent.currencyBalance  #(int) cents  #This prevents accounting errors due to float arithmetic (plus it's faster)
@@ -184,16 +268,35 @@ class TestBuyer:
 		#Initiate thread kill flag to false
 		self.killThreads = False
 
+		#Keep track of time ticks
+		self.timeTicks = 0
+		self.tickBlockFlag = False
+		self.tickBlockFlag_Lock = threading.Lock()
+
 
 	def controllerStart(self, incommingPacket):
-		#Launch buying loop
-		self.shoppingSpree()
+		#Subscribe for tick blocking
+		tickBlockReq = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCK_SUBSCRIBE")
+		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlockReq)
+		self.logger.debug("OUTBOUND {}->{}".format(tickBlockReq, tickBlockPacket))
+		self.agent.sendPacket(tickBlockPacket)
 
 	def receiveMsg(self, incommingPacket):
 		controllerMsg = incommingPacket.payload
 		self.logger.info("INBOUND {}".format(controllerMsg))
+		
 		if (controllerMsg.msgType == "STOP_TRADING"):
 			self.killThreads = True
+
+		if (controllerMsg.msgType == "TICK_GRANT"):
+			self.timeTicks += int(controllerMsg.payload)
+
+			self.tickBlockFlag_Lock.acquire()
+			self.tickBlockFlag = False
+			self.tickBlockFlag_Lock.release()
+
+			#Launch buying loop
+			self.shoppingSpree()
 		
 	def shoppingSpree(self):
 		'''
@@ -202,50 +305,82 @@ class TestBuyer:
 		self.logger.info("Starting shopping spree")
 
 		numSellerCheck = 3
-		itemsBought = False
-		while True:
+		while ((not self.tickBlockFlag) and (not self.killThreads)):
 			if (self.killThreads):
 				self.logger.debug("Received kill command")
 				break
 
-			for itemId in self.itemMarket:
-				#Find best price/seller from sample
-				possibeSellers = self.itemMarket[itemId].keys()
-				sampleSize = 3
-				if (sampleSize > len(possibeSellers)):
-					sampleSize = len(possibeSellers)
-				consideredSellers = random.sample(possibeSellers, sampleSize)
+			if (self.timeTicks > 0):  #We have timeTicks to use
+				itemsBought = False
 
-				minPrice = None
-				bestSeller = None
-				for sellerId in consideredSellers:
-					itemListing = self.itemMarket[itemId][sellerId]
-					if (minPrice):
-						if (itemListing.unitPrice < minPrice):
+				for itemId in self.itemMarket:
+					#Find best price/seller from sample
+					possibeSellers = self.itemMarket[itemId].keys()
+					sampleSize = 3
+					if (sampleSize > len(possibeSellers)):
+						sampleSize = len(possibeSellers)
+					consideredSellers = random.sample(possibeSellers, sampleSize)
+
+					minPrice = None
+					bestSeller = None
+					for sellerId in consideredSellers:
+						itemListing = self.itemMarket[itemId][sellerId]
+						if (minPrice):
+							if (itemListing.unitPrice < minPrice):
+								minPrice = itemListing.unitPrice
+								bestSeller = itemListing.sellerId
+						else:
 							minPrice = itemListing.unitPrice
 							bestSeller = itemListing.sellerId
-					else:
-						minPrice = itemListing.unitPrice
-						bestSeller = itemListing.sellerId
 
-				#Determing whether to buy
-				marginalUtility = self.agent.getMarginalUtility(itemId)
-				if (marginalUtility > minPrice):
-					#We're buying this item
-					itemsBought = True
+					#Determing whether to buy
+					marginalUtility = self.agent.getMarginalUtility(itemId)
+					if (marginalUtility > minPrice):
+						#We're buying this item
+						itemsBought = True
 
-					#Print money required for purchase
-					self.agent.receiveCurrency(minPrice)
+						#Print money required for purchase
+						self.agent.receiveCurrency(minPrice)
 
-					#Send trade request
-					itemRequest = ItemContainer(itemId, 1)
-					tradeRequest = TradeRequest(sellerId=bestSeller, buyerId=self.agentId, currencyAmount=minPrice, itemPackage=itemRequest)
-					self.logger.debug("Buying item | {}".format(tradeRequest))
-					tradeCompleted = self.agent.sendTradeRequest(request=tradeRequest, recipientId=bestSeller)
-					self.logger.debug("Trade completed={} | {}".format(tradeCompleted, tradeRequest))
+						#Send trade request
+						itemRequest = ItemContainer(itemId, 1)
+						tradeRequest = TradeRequest(sellerId=bestSeller, buyerId=self.agentId, currencyAmount=minPrice, itemPackage=itemRequest)
+						self.logger.debug("Buying item | {}".format(tradeRequest))
+						tradeCompleted = self.agent.sendTradeRequest(request=tradeRequest, recipientId=bestSeller)
+						self.logger.debug("Trade completed={} | {}".format(tradeCompleted, tradeRequest))
 
-			if (not itemsBought):
-				#We bought no items in this loop. Exit
-				break
+						#We used up a tick for this trade. Decrement allotment
+						self.timeTicks -= 1
+						if (self.timeTicks <= 0):
+							#End shopping spree
+							break
+
+				if (len(self.itemMarket) == 0):
+					self.logger.info("No item listing in the market right now. Relinquishing time timeTicks")
+					self.timeTicks = 0
+				
+				if (not itemsBought):
+					self.logger.info("No good item listings found in the market right now. Relinquishing time timeTicks")
+					self.timeTicks = 0
+
+			else:
+				#We are out of timeTicks
+				if (not self.tickBlockFlag):
+					#We have not set the block flag yet. Set blocked flag to True
+					self.tickBlockFlag_Lock.acquire()
+					self.tickBlockFlag = True
+					self.tickBlockFlag_Lock.release()
+
+					#Send blocking signal to sim manager
+					self.logger.debug("We're tick blocked. Sending TICK_BLOCKED to simManager")
+
+					tickBlocked = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCKED")
+					tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlocked)
+					self.logger.debug("OUTBOUND {}->{}".format(tickBlocked, tickBlockPacket))
+					self.agent.sendPacket(tickBlockPacket)
+
+					self.logger.debug("Waiting for tick grant")
+					break  #exit while loop
+
 
 		self.logger.info("Ending shopping spree")

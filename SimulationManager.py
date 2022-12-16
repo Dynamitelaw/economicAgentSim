@@ -4,6 +4,7 @@ import logging
 import time
 import traceback
 import threading
+from datetime import timedelta
 
 from EconAgent import *
 from ConnectionNetwork import *
@@ -53,6 +54,9 @@ class SimulationManager:
 		self.procReadyDictLock = threading.Lock()
 		self.procErrors = {}
 
+		self.timeTickBlockers = {}
+		self.timeTickBlockers_Lock = threading.Lock()
+
 		#Spawn agent
 		self.agent = Agent(self.info, networkLink=networkLink, logFile=logFile, controller=self)
 
@@ -84,19 +88,59 @@ class SimulationManager:
 
 		if (agentsInstantiated):
 			self.logger.info("All agents are instantiated")
-			#Initialize agent values
-			pass
 
 			#Start all agent controllers
 			self.logger.info("Starting all agent controllers")
 			controllerStartBroadcast = NetworkPacket(senderId=self.agentId, msgType="CONTROLLER_START_BROADCAST")
 			self.agent.sendPacket(controllerStartBroadcast)
-			time.sleep(3)  #TODO: calculate sleep time based on size of agentDict
+			time.sleep(3)  #Sleep to give controllers time to start blocking protocols #TODO: calculate sleep time based on size of agentDict
 
-			#Wait while agents trade amongst themselves
-			waitTime = 60
-			self.logger.info("Waiting {} min {} sec for trading to continue".format(int(waitTime/60), waitTime%60))
-			time.sleep(waitTime)
+			#Run simulation for specified time
+			startTime = time.time()
+			simulationSteps = 10
+			ticksPerStep = 24
+
+			self.logger.info("Starting a {} step simulation, with {} ticks per step".format(simulationSteps, ticksPerStep))
+			for stepNum in range(simulationSteps):
+				#Start new simulation day
+				self.logger.info("Running simulation step {}".format(stepNum))
+
+				#Set all tick blockers to False
+				self.timeTickBlockers_Lock.acquire()
+				for agentId in self.timeTickBlockers:
+					self.timeTickBlockers[agentId] = False  #this agent is no longer blocked by time ticks
+				self.timeTickBlockers_Lock.release()
+
+				#Distribute ticks to agent controllers
+				tickGrantPayload = NetworkPacket(senderId=self.agentId, msgType="TICK_GRANT", payload=ticksPerStep)
+				tickGrantBroadcast = NetworkPacket(senderId=self.agentId, msgType="CONTROLLER_MSG_BROADCAST", payload=tickGrantPayload)
+				self.logger.debug("OUTBOUND {}->{}".format(tickGrantPayload, tickGrantBroadcast))
+				self.agent.sendPacket(tickGrantBroadcast)
+
+				#Wait for all tick blockers to be set before advancing to next day
+				self.logger.debug("Waiting for all agents to be tick blocked")
+				allAgentsBlocked = False
+				while True:
+					allAgentsBlocked = True
+					for agentId in self.timeTickBlockers:
+						agentBlocked = self.timeTickBlockers[agentId]
+						if (not agentBlocked):
+							#self.logger.debug("Still waiting for {} to be tick blocked".format(agentId))
+							allAgentsBlocked = False
+
+					if (allAgentsBlocked):
+						self.logger.debug("All agents are tick blocked")
+						break
+
+				#End simulation day
+				self.logger.debug("Ending simulation step {}".format(stepNum))
+
+			#Calculate runtime
+			endTime = time.time()
+			elapsedSeconds = endTime - startTime
+			elapsedSring = str(timedelta(seconds=elapsedSeconds))
+			self.logger.info("Simulation (Steps={}, TicksPerStep={}) took {} to run".format(simulationSteps, ticksPerStep, elapsedSring))
+
 
 		#Stop all trading
 		try:
@@ -127,7 +171,7 @@ class SimulationManager:
 		'''
 		Terminate this simulation
 		'''
-		print("###################### SimulationManager.{}.INTERUPT ######################".format(self.agentId))
+		print("###################### SimulationManager.{}.INTERUPT  ######################".format(self.agentId))
 		#Stop all trading
 		try:
 			self.logger.critical("Stopping all trading activity")
@@ -159,6 +203,7 @@ class SimulationManager:
 		controllerMsg = incommingPacket.payload
 		self.logger.debug("INBOUND {}".format(controllerMsg))
 
+		#Handle process messages
 		if (controllerMsg.msgType == "PROC_READY"):
 			self.procReadyDictLock.acquire()
 			self.procReadyDict[controllerMsg.senderId] = True
@@ -168,6 +213,17 @@ class SimulationManager:
 			self.procReadyDict[controllerMsg.senderId] = False
 			self.procErrors[controllerMsg.senderId] = controllerMsg.payload
 			self.procReadyDictLock.release()
+
+		#Handle time tick messages
+		if (controllerMsg.msgType == "TICK_BLOCK_SUBSCRIBE"):
+			self.logger.debug("{} has subscribed to tick blocking".format(controllerMsg.senderId))
+			self.timeTickBlockers_Lock.acquire()
+			self.timeTickBlockers[controllerMsg.senderId] = True
+			self.timeTickBlockers_Lock.release()
+		if (controllerMsg.msgType == "TICK_BLOCKED"):
+			self.timeTickBlockers_Lock.acquire()
+			self.timeTickBlockers[controllerMsg.senderId] = True  #This agent is now blocked by time ticks
+			self.timeTickBlockers_Lock.release()
 
 	def evalTradeRequest(self, request):
 		return False

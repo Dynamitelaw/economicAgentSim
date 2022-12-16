@@ -135,6 +135,8 @@ if __name__ == "__main__":
 		########################################
 		# Create AgentSeeds for each subprocess
 		########################################
+		managerId = "simManager"
+
 		spawnDict = {}
 		procDict = {}
 		allAgentDict = {}
@@ -152,7 +154,7 @@ if __name__ == "__main__":
 			agentId = "buyer_{}".format(i)
 			procNum = i%numProcess
 
-			agentSeed = AgentSeed(agentId, "TestBuyer", itemDict=allItemsDict)
+			agentSeed = AgentSeed(agentId, "TestBuyer", simManagerId=managerId, itemDict=allItemsDict)
 			spawnDict[procNum][agentId] = agentSeed
 			allAgentDict[agentId] = agentSeed.agentInfo
 
@@ -162,14 +164,13 @@ if __name__ == "__main__":
 			agentId = "seller_{}".format(i)
 			procNum = i%numProcess
 
-			agentSeed = AgentSeed(agentId, "TestSeller", itemDict=allItemsDict)
+			agentSeed = AgentSeed(agentId, "TestSeller", simManagerId=managerId, itemDict=allItemsDict)
 			spawnDict[procNum][agentId] = agentSeed
 			allAgentDict[agentId] = agentSeed.agentInfo
 		
 		###########################
 		# Setup Simulation Manager
 		###########################
-		managerId = "simManager"
 		simManagerSeed = SimulationManagerSeed(managerId, allAgentDict, procDict)
 
 		##########################
