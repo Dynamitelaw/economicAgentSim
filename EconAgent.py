@@ -12,7 +12,7 @@ The Agent class handles:
 	-item inventory
 	-ConnectionNetwork interactions
 	-item utility calculations
-	-item market updates
+	-marketplace updates and polling
 
 '''
 import math
@@ -104,10 +104,10 @@ def getAgentController(agent, logFile=True, fileLevel="INFO"):
 		#Return TestSnooper controller
 		return TestSnooper(agent, logFile=logFile, fileLevel=fileLevel)
 	if (agentInfo.agentType == "TestSeller"):
-		#Return pushover controller
+		#Return TestSeller controller
 		return TestSeller(agent, logFile=logFile, fileLevel=fileLevel)
 	if (agentInfo.agentType == "TestBuyer"):
-		#Return pushover controller
+		#Return TestBuyer controller
 		return TestBuyer(agent, logFile=logFile, fileLevel=fileLevel)
 
 	#Unhandled agent type. Return default controller

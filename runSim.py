@@ -1,3 +1,10 @@
+'''
+Runs a simulation
+
+Command line args:
+	-cfg: Path to simulation cfg json. Defaults to "SimulationSettings/test.json
+	-log: Determine output level for agent/controller log files. Options are [CRITICAL, ERROR, WARNING, INFO, DEBUG]. Defaults to WARNING.
+'''
 import argparse
 import json
 import traceback
@@ -32,7 +39,7 @@ def runSim(settingsFilePath, logLevel="INFO"):
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
 	parser.add_argument("-cfg", dest="cfgPath", default="SimulationSettings\\test.json", help="Path to simulation cfg json. Defaults to \"SimulationSettings\\test.json\"")
-	parser.add_argument("-log", dest="logLevel", default="INFO", help="Determine output level for generated agent/controller log files. Options are [CRITICAL, ERROR, WARNING, INFO, DEBUG]. Defaults to WARNING.")
+	parser.add_argument("-log", dest="logLevel", default="WARNING", help="Determine output level for generated agent/controller log files. Options are [CRITICAL, ERROR, WARNING, INFO, DEBUG]. Defaults to WARNING.")
 
 	args = parser.parse_args()
 

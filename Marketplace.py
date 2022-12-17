@@ -1,3 +1,11 @@
+'''
+These marketplaces live inside the ConnectionNetwork.
+They basically function like billboards, where sellers can post listings that can be viewed by other agents.
+They do not handle transactions.
+
+Types:
+	ItemMarketplace: Where sellers can post ItemListings
+'''
 import threading
 import os
 import random
@@ -169,10 +177,10 @@ class ItemMarketplace:
 
 	def sampleItemListings(self, incommingPacket, agentLink, agentSendLock):
 		'''
-		Returns a list of randomly sampled item listings that match itemContainer
+		Sends a list of randomly sampled item listings that match itemContainer to the requesting agent.
 			ItemListing.itemId == itemContainer.id
 
-		List length can be 0 if none are found, or up to sampleSize.
+		Returns True if successful
 		'''
 
 		itemContainer = incommingPacket.payload["itemContainer"]

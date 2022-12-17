@@ -6,7 +6,7 @@ It's set up as a hub and spoke topology, where all agents have a single connecti
 Each agent connection is monitored with it's own thread. 
 Agents communicate using NetworkPacket objects. Each agent has a unique id to identify it on the network.
 
-The ConnectionNetwork routes all packets to the specified recipient, or to all agents if msgTpye ends with "_BROADCAST", or to the specified market manager.
+The ConnectionNetwork routes all packets to the specified recipient, or to all agents if msgTpye ends with "_BROADCAST", or to the specified marketplace.
 The network also supports packet snooping, where an agent controller can request to be sent all packets of a specified type, regardless of recipient.
 
 The network will route any packet with a valid destination, regardless of content.
@@ -247,13 +247,25 @@ TRADE_REQ
 TRADE_REQ_ACK
 	payload = <dict> {"tradeRequest": <TradeRequest>, "accepted": <bool>}
 
-ITEM_MARKET_UPDATE_BROADCAST
-	payload = <ItemListing>
-	Will update all agent's ItemMarket dictionaries with the included listing info
+#########################
+# Market Packets
+#########################
 
-ITEM_MARKET_REMOVE_BROADCAST
+ITEM_MARKET_UPDATE
 	payload = <ItemListing>
-	Will remove an ItemListing from all agent's ItemMarket dictionaries
+	Will update the agent's item listing in the ItemMarketplace
+
+ITEM_MARKET_REMOVE
+	payload = <ItemListing>
+	Will remove the agent's item listing in the ItemMarketplace
+
+ITEM_MARKET_SAMPLE
+	payload = <dict> {"itemContainer": <ItemContainer>, "sampleSize": <int>}
+	Request a sample of sellers for a given item from the ItemMarketplace
+
+ITEM_MARKET_SAMPLE_ACK
+	payload = <list> [<ItemListing>, ...]
+	Returns a list of item listings
 
 #########################
 # Other Agent Packets
