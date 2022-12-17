@@ -23,8 +23,9 @@ class ItemListing:
 		self.unitPrice = unitPrice
 		self.maxQuantity = maxQuantity
 
-		self.listingStr = "ItemListing(seller={}, item={}, price={}, max={})".format(sellerId, itemId, unitPrice, maxQuantity)
-		self.hash = hashlib.sha256(self.listingStr.encode('utf-8')).hexdigest()[:8 ]
+		tempListingStr = "ItemListing(seller={}, item={}, price={}, max={})".format(sellerId, itemId, unitPrice, maxQuantity)
+		self.hash = hashlib.sha256(tempListingStr.encode('utf-8')).hexdigest()[:8 ]
+		self.listingStr = "ItemListing_{}(seller={}, item={}, price={}, max={})".format(sellerId, itemId, unitPrice, maxQuantity, self.hash)
 
 	def __str__(self):
 		return self.listingStr
@@ -35,11 +36,16 @@ class ItemContainer:
 		self.id = itemId
 		self.quantity = itemQuantity
 
+		tempStr = "{}_{}".format(itemId, itemQuantity)
+		self.hash = hashlib.sha256(tempStr.encode('utf-8')).hexdigest()[:8 ]
+		self.string = "ItemContainer_{}(ID={}, Quant={})".format(self.hash, self.id, self.quantity)
+
+
 	def __repr__(self):
 		return str(self)
 
 	def __str__(self):
-		return "ItemContainer(ID={}, Quant={})".format(self.id, self.quantity)
+		return self.string
 
 	def __add__(self, other):
 		typeOther = type(other)

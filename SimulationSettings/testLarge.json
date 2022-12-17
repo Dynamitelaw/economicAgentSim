@@ -2,14 +2,14 @@
 	"description": "Test simulation with a large amount of test agent controllers. Used for testing and debug",
 	"settings": {
 		"NumProcesses": 14,
-		"SimulationSteps": 100,
+		"SimulationSteps": 10,
 		"TicksPerStep": 24,
 		"AgentSpawns":{
 			"TestSeller": {
-				"quantity": 100
+				"quantity": 320
 			},
 			"TestBuyer":{
-				"quantity": 100
+				"quantity": 320
 			}
 		}
 	}

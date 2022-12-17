@@ -20,8 +20,10 @@ import threading
 import logging
 import time
 import os
+import random
+import multiprocessing
 
-from ConnectionNetwork import *
+from NetworkClasses import *
 from TestControllers import *
 from TradeClasses import *
 import utils
@@ -88,24 +90,25 @@ class AgentInfo:
 		return "AgentInfo(ID={}, Type={})".format(self.agentId, self.agentType)
 
 
-def getAgentController(agent, logFile=True):
+def getAgentController(agent, logFile=True, fileLevel="INFO"):
 	'''
 	Instantiates an agent controller, dependant on the agentType
 	'''
 	agentInfo = agent.info
 
+	#Test controllers
 	if (agentInfo.agentType == "PushoverController"):
 		#Return pushover controller
-		return PushoverController(agent, logFile=logFile)
+		return PushoverController(agent, logFile=logFile, fileLevel=fileLevel)
 	if (agentInfo.agentType == "TestSnooper"):
 		#Return TestSnooper controller
-		return TestSnooper(agent, logFile=logFile)
+		return TestSnooper(agent, logFile=logFile, fileLevel=fileLevel)
 	if (agentInfo.agentType == "TestSeller"):
 		#Return pushover controller
-		return TestSeller(agent, logFile=logFile)
+		return TestSeller(agent, logFile=logFile, fileLevel=fileLevel)
 	if (agentInfo.agentType == "TestBuyer"):
 		#Return pushover controller
-		return TestBuyer(agent, logFile=logFile)
+		return TestBuyer(agent, logFile=logFile, fileLevel=fileLevel)
 
 	#Unhandled agent type. Return default controller
 	return None
@@ -118,12 +121,13 @@ class AgentSeed:
 	So the AgentSeed class is a pickle-safe info container that can be passed to child processes.
 	The process can then call AgentSeed.spawnAgent() to instantiate an Agent obj.
 	'''
-	def __init__(self, agentId, agentType, simManagerId=None, itemDict=None, allAgentDict=None, logFile=True):
+	def __init__(self, agentId, agentType, simManagerId=None, itemDict=None, allAgentDict=None, logFile=True, fileLevel="INFO"):
 		self.agentInfo = AgentInfo(agentId, agentType)
 		self.simManagerId = simManagerId
 		self.itemDict = itemDict
 		self.allAgentDict = allAgentDict
 		self.logFile = logFile
+		self.fileLevel = fileLevel
 
 		networkPipeRecv, agentPipeSend = multiprocessing.Pipe()
 		agentPipeRecv, networkPipeSend = multiprocessing.Pipe()
@@ -132,33 +136,33 @@ class AgentSeed:
 		self.agentLink = Link(sendPipe=agentPipeSend, recvPipe=agentPipeRecv)
 
 	def spawnAgent(self):
-		return Agent(self.agentInfo, simManagerId=self.simManagerId, itemDict=self.itemDict, allAgentDict=self.allAgentDict, networkLink=self.agentLink, logFile=self.logFile)
+		return Agent(self.agentInfo, simManagerId=self.simManagerId, itemDict=self.itemDict, allAgentDict=self.allAgentDict, networkLink=self.agentLink, logFile=self.logFile, fileLevel=self.fileLevel)
 
 	def __str__(self):
 		return "AgentSeed({})".format(self.agentInfo)
 
 
 class Agent:
-	def __init__(self, agentInfo, simManagerId=None, itemDict=None, allAgentDict=None, networkLink=None, logFile=True, controller=None):
+	def __init__(self, agentInfo, simManagerId=None, itemDict=None, allAgentDict=None, networkLink=None, logFile=True, fileLevel="INFO", controller=None):
 		self.info = agentInfo
 		self.agentId = agentInfo.agentId
 		self.agentType = agentInfo.agentType
+		
 		self.simManagerId = simManagerId
 
-		self.logger = utils.getLogger("{}:{}".format(__name__, self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Agent_Logs"))
+		self.logger = utils.getLogger("{}:{}".format(__name__, self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Agent_Logs"), fileLevel=fileLevel)
 		self.logger.debug("{} instantiated".format(self.info))
 
 		self.lockTimeout = 5
 
+		#Pipe connections to the connection network
+		self.networkLink = networkLink
+		self.networkSendLock = threading.Lock()
+		self.responseBuffer = {}
+		self.responseBufferLock = threading.Lock()
+
 		#Keep track of other agents
 		self.allAgentDict = allAgentDict
-
-		#Marketplaces
-		self.itemMarket = {}
-		self.itemMarketLock = threading.Lock()
-		if (itemDict):
-			for itemName in itemDict:
-				self.itemMarket[itemName] = {}
 
 		#Keep track of agent assets
 		self.currencyBalance = 0  #(int) cents  #This prevents accounting errors due to float arithmetic (plus it's faster)
@@ -168,12 +172,6 @@ class Agent:
 		self.debtBalance = 0
 		self.debtBalanceLock = threading.Lock()
 		self.tradeRequestLock = threading.Lock()
-
-		#Pipe connections to the transaction supervisor
-		self.networkLink = networkLink
-		self.networkSendLock = threading.Lock()
-		self.responseBuffer = {}
-		self.responseBufferLock = threading.Lock()
 		
 		#Instantiate agent preferences (utility functions)
 		self.utilityFunctions = {}
@@ -186,7 +184,7 @@ class Agent:
 		if (controller):
 			self.controller = controller
 		else:	
-			self.controller = getAgentController(self, logFile=logFile)
+			self.controller = getAgentController(self, logFile=logFile, fileLevel=fileLevel)
 			if (not self.controller):
 				self.logger.warning("No controller was instantiated")
 		self.controllerStart = False
@@ -270,14 +268,19 @@ class Agent:
 				transferThread.start()
 
 			#Handle incoming item marketplace updates
-			elif (incommingPacket.msgType == "ITEM_MARKET_UPDATE_BROADCAST"):
+			elif (incommingPacket.msgType == "ITEM_MARKET_UPDATE"):
 				itemListing = incommingPacket.payload
 				updateThread =  threading.Thread(target=self.updateItemListing, args=(itemListing, incommingPacket))
 				updateThread.start()
-			elif (incommingPacket.msgType == "ITEM_MARKET_REMOVE_BROADCAST"):
+			elif (incommingPacket.msgType == "ITEM_MARKET_REMOVE"):
 				itemListing = incommingPacket.payload
 				updateThread =  threading.Thread(target=self.removeItemListing, args=(itemListing, incommingPacket))
 				updateThread.start()
+			elif (incommingPacket.msgType == "ITEM_MARKET_SAMPLE"):
+				itemContainer = incommingPacket.payload["itemContainer"]
+				sampleSize = incommingPacket.payload["sampleSize"]
+				sampleThread =  threading.Thread(target=self.sampleItemListings, args=(itemContainer, sampleSize, incommingPacket))
+				sampleThread.start()
 
 			#Handle incoming information requests
 			elif (incommingPacket.msgType == "INFO_REQ"):
@@ -328,6 +331,7 @@ class Agent:
 				if (acquired_currencyBalanceLock):
 					#Lock acquired. Increment balance
 					self.currencyBalance = self.currencyBalance + int(cents)
+					self.logger.debug("New balance = ${}".format(self.currencyBalance/100))
 					self.currencyBalanceLock.release()  #<== release currencyBalanceLock
 
 					transferSuccess = True
@@ -379,6 +383,7 @@ class Agent:
 			if (acquired_currencyBalanceLock):
 				#Decrement balance
 				self.currencyBalance -= int(cents)
+				self.logger.debug("New balance = ${}".format(self.currencyBalance/100))
 				self.currencyBalanceLock.release()  #<== release currencyBalanceLock
 
 				#Send payment packet
@@ -671,7 +676,7 @@ class Agent:
 	#########################
 	# Market functions
 	#########################
-	def updateItemListing(self, itemListing, incommingPacket=None):
+	def updateItemListing(self, itemListing):
 		'''
 		Update the item marketplace.
 		Returns True if succesful, False otherwise
@@ -680,29 +685,23 @@ class Agent:
 
 		updateSuccess = False
 		
-		#Update local item market with listing
-		acquired_itemMarketLock = self.itemMarketLock.acquire(timeout=self.lockTimeout)  # <== itemMarketLock acquire
-		if (acquired_itemMarketLock):
-			if not (itemListing.itemId in self.itemMarket):
-				self.itemMarket[itemListing.itemId] = {}
-			self.itemMarket[itemListing.itemId][itemListing.sellerId] = itemListing
-
-			self.itemMarketLock.release()  # <== itemMarketLock release
-			updateSuccess = True
-		else:
-			self.logger.error("updateItemListing() Lock \"itemMarketLock\" acquisition timeout")
-			updateSuccess = False
-
-		#If we're the seller, send out update broadcast to other agents
-		if ((itemListing.sellerId == self.agentId) and (incommingPacket==None)):
-			updatePacket = NetworkPacket(senderId=self.agentId, msgType="ITEM_MARKET_UPDATE_BROADCAST", payload=itemListing)
+		#If we're the seller, send out update to item market
+		if (itemListing.sellerId == self.agentId):
+			transactionId = itemListing.listingStr
+			updatePacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType="ITEM_MARKET_UPDATE", payload=itemListing)
 			self.sendPacket(updatePacket)
+			updateSuccess = True
+
+		else:
+			#We are not the item seller
+			self.logger.error("{}.updateItemListing({}) failed. {} is not the seller".format(self.agentId, itemListing, self.agentId))
+			updateSuccess = False
 
 		#Return status
 		self.logger.debug("{}.updateItemListing({}) return {}".format(self.agentId, itemListing, updateSuccess))
 		return updateSuccess
 
-	def removeItemListing(self, itemListing, incommingPacket=None):
+	def removeItemListing(self, itemListing):
 		'''
 		Remove a listing from the item marketplace
 		Returns True if succesful, False otherwise
@@ -710,28 +709,56 @@ class Agent:
 		self.logger.debug("{}.removeItemListing({}) start".format(self.agentId, itemListing))
 
 		updateSuccess = False
-		
-		#Update local item market with listing
-		acquired_itemMarketLock = self.itemMarketLock.acquire(timeout=self.lockTimeout)  # <== itemMarketLock acquire
-		if (acquired_itemMarketLock):
-			if (itemListing.itemId in self.itemMarket):
-				if (itemListing.sellerId in self.itemMarket[itemListing.itemId]):
-					del self.itemMarket[itemListing.itemId][itemListing.sellerId]
 
-			self.itemMarketLock.release()  # <== itemMarketLock release
-			updateSuccess = True
-		else:
-			self.logger.error("removeItemListing() Lock \"itemMarketLock\" acquisition timeout")
-			updateSuccess = False
-
-		#If we're the seller, and this is not a rebound broadcast, send out update broadcast to other agents
-		if ((itemListing.sellerId == self.agentId) and (incommingPacket==None)):
-			updatePacket = NetworkPacket(senderId=self.agentId, msgType="ITEM_MARKET_REMOVE_BROADCAST", payload=itemListing)
+		#If we're the seller, send out update to item market
+		if (itemListing.sellerId == self.agentId):
+			transactionId = itemListing.listingStr
+			updatePacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType="ITEM_MARKET_REMOVE", payload=itemListing)
 			self.sendPacket(updatePacket)
+			updateSuccess = True
+
+		else:
+			#We are not the item market or the seller
+			self.logger.error("{}.removeItemListing({}) failed. {} is not the itemMarket or the seller".format(self.agentId, itemListing, self.agentId))
+			updateSuccess = False
 
 		#Return status
 		self.logger.debug("{}.removeItemListing({}) return {}".format(self.agentId, itemListing, updateSuccess))
 		return updateSuccess
+
+	def sampleItemListings(self, itemContainer, sampleSize=3, delResponse=True):
+		'''
+		Returns a list of randomly sampled item listings that match itemContainer
+			ItemListing.itemId == itemContainer.id
+
+		List length can be 0 if none are found, or up to sampleSize.
+		Returns False if there was an error
+		'''
+		sampledListings = []
+		
+		#Send request to itemMarketAgent
+		transactionId = "ITEM_MARKET_SAMPLE_{}_{}".format(itemContainer, time.time())
+		requestPayload = {"itemContainer": itemContainer, "sampleSize": sampleSize}
+		requestPacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType="ITEM_MARKET_SAMPLE", payload=requestPayload)
+		self.sendPacket(requestPacket)
+
+		#Wait for response from itemMarket
+		while not (transactionId in self.responseBuffer):
+			time.sleep(0.0001)
+			pass
+		responsePacket = self.responseBuffer[transactionId]
+		sampledListings = responsePacket.payload
+
+		#Remove response from response buffer
+		if (delResponse):
+			acquired_responseBufferLock = self.responseBufferLock.acquire(timeout=self.lockTimeout)  #<== acquire responseBufferLock
+			if (acquired_responseBufferLock):
+				del self.responseBuffer[transactionId]
+				self.responseBufferLock.release()  #<== release responseBufferLock
+			else:
+				self.logger.error("getItemListings() Lock \"responseBufferLock\" acquisition timeout")
+
+		return sampledListings
 
 	#########################
 	# Utility functions

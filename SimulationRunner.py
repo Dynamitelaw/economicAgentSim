@@ -12,6 +12,7 @@ import sys
 import traceback
 
 from EconAgent import *
+from NetworkClasses import *
 from ConnectionNetwork import *
 from TradeClasses import *
 from SimulationManager import *
@@ -119,7 +120,7 @@ def launchAgents(launchDict, allAgentDict, procName, managerId, managementPipe):
 			print(traceback.format_exc())
 
 
-def RunSimulation(settingsDict):
+def RunSimulation(settingsDict, logLevel="INFO"):
 	'''
 	Run's a single simulation with the specified settings
 	'''
@@ -193,7 +194,7 @@ def RunSimulation(settingsDict):
 				agentId = "{}_{}".format(agentType, i)
 				procNum = i%numProcess
 
-				agentSeed = AgentSeed(agentId, agentType, simManagerId=managerId, itemDict=allItemsDict)
+				agentSeed = AgentSeed(agentId, agentType, simManagerId=managerId, itemDict=allItemsDict, fileLevel=logLevel)
 				spawnDict[procNum][agentId] = agentSeed
 				allAgentDict[agentId] = agentSeed.agentInfo
 		print("\n")
@@ -206,7 +207,7 @@ def RunSimulation(settingsDict):
 		##########################
 		# Setup ConnectionNetwork
 		##########################
-		xactNetwork = ConnectionNetwork()
+		xactNetwork = ConnectionNetwork(itemDict=allItemsDict)
 		xactNetwork.addConnection(agentId=managerId, networkLink=simManagerSeed.networkLink)
 		for procNum in spawnDict:
 			for agentId in spawnDict[procNum]:

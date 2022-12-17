@@ -6,7 +6,7 @@ import os
 from SimulationRunner import RunSimulation
 
 
-def runSim(settingsFilePath):
+def runSim(settingsFilePath, logLevel="INFO"):
 	if (not os.path.exists(settingsFilePath)):
 		raise ValueError("\"{}\" does not exist".format(settingsFilePath))
 
@@ -27,13 +27,14 @@ def runSim(settingsFilePath):
 		raise ValueError("\"settings\" missing from \"{}\"".format(settingsFilePath))
 
 	settingsDict = fileDict["settings"]
-	RunSimulation(settingsDict)
+	RunSimulation(settingsDict, logLevel)
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
 	parser.add_argument("-cfg", dest="cfgPath", default="SimulationSettings\\test.json", help="Path to simulation cfg json. Defaults to \"SimulationSettings\\test.json\"")
+	parser.add_argument("-log", dest="logLevel", default="INFO", help="Determine output level for generated agent/controller log files. Options are [CRITICAL, ERROR, WARNING, INFO, DEBUG]. Defaults to WARNING.")
 
 	args = parser.parse_args()
 
 	settingsFilePath = args.cfgPath
-	runSim(settingsFilePath)
+	runSim(settingsFilePath, args.logLevel)

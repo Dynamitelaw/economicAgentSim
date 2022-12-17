@@ -4,7 +4,7 @@ import logging
 import os
 
 
-def getLogger(name, console="WARNING", outputdir="LOGS", logFile=True):
+def getLogger(name, console="WARNING", outputdir="LOGS", logFile=True, fileLevel="INFO"):
 	'''
 	Returns logger object
 	'''
@@ -28,6 +28,16 @@ def getLogger(name, console="WARNING", outputdir="LOGS", logFile=True):
 		logPath = os.path.join(outputdir, "{}.log".format(name).replace(":", "_"))
 		fh = logging.FileHandler(logPath, mode="w")
 		fh.setLevel(logging.DEBUG)
+		if (fileLevel=="CRITICAL"):
+			fh.setLevel(logging.CRITICAL)
+		if (fileLevel=="ERROR"):
+			fh.setLevel(logging.ERROR)
+		if (fileLevel=="WARNING"):
+			fh.setLevel(logging.WARNING)
+		if (fileLevel=="INFO"):
+			fh.setLevel(logging.INFO)
+		if (fileLevel=="DEBUG"):
+			fh.setLevel(logging.DEBUG)
 
 	# create console handler with a higher log level
 	ch = logging.StreamHandler()

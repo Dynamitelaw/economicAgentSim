@@ -11,7 +11,7 @@ from datetime import timedelta
 from tqdm import tqdm
 
 from EconAgent import *
-from ConnectionNetwork import *
+from NetworkClasses import *
 from TradeClasses import *
 import utils
 
@@ -238,9 +238,13 @@ class SimulationManager:
 			self.timeTickBlockers[controllerMsg.senderId] = True
 			self.timeTickBlockers_Lock.release()
 		if (controllerMsg.msgType == "TICK_BLOCKED"):
-			self.timeTickBlockers_Lock.acquire()
+			#self.timeTickBlockers_Lock.acquire()
 			self.timeTickBlockers[controllerMsg.senderId] = True  #This agent is now blocked by time ticks
-			self.timeTickBlockers_Lock.release()
+			#self.timeTickBlockers_Lock.release()
+
+		#Handle error messages
+		if (controllerMsg.msgType == "TERMINATE_SIMULATION"):
+			self.terminate()
 
 	def evalTradeRequest(self, request):
 		return False

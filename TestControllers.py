@@ -8,19 +8,19 @@ import threading
 
 import utils
 from TradeClasses import *
-from ConnectionNetwork import *
+from NetworkClasses import *
 
 
 class PushoverController:
 	'''
 	This controller will accept all valid trade requests, and will not take any other action. Used for testing.
 	'''
-	def __init__(self, agent, logFile=True):
+	def __init__(self, agent, logFile=True, fileLevel="INFO"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.name = "{}_PushoverController".format(agent.agentId)
 
-		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"))
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
 
 		#Keep track of agent assets
 		self.currencyBalance = agent.currencyBalance  #(int) cents  #This prevents accounting errors due to float arithmetic (plus it's faster)
@@ -61,12 +61,12 @@ class TestSnooper:
 	'''
 	All this controller does is snoop on packets in the network. Used for testing
 	'''
-	def __init__(self, agent, logFile=True):
+	def __init__(self, agent, logFile=True, fileLevel="INFO"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.name = "{}_TestSnooper".format(agent.agentId)
 
-		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"))
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
 
 	def controllerStart(self, incommingPacket):
 		'''
@@ -96,14 +96,14 @@ class TestSeller:
 	Will create items out of thin air.
 	Used for testing.
 	'''
-	def __init__(self, agent, logFile=True):
+	def __init__(self, agent, logFile=True, fileLevel="INFO"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.simManagerId = agent.simManagerId
 
 		self.name = "{}_TestSeller".format(agent.agentId)
 
-		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"))
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
 
 		#Keep track of agent assets
 		self.currencyBalance = agent.currencyBalance  #(int) cents  #This prevents accounting errors due to float arithmetic (plus it's faster)
@@ -112,14 +112,12 @@ class TestSeller:
 		#Keep track of time ticks
 		self.timeTicks = 0
 
-		#Marketplaces
-		self.itemMarket = agent.itemMarket
 
 		#Agent preferences
 		self.utilityFunctions = agent.utilityFunctions
 
 		#Determine what to sell
-		itemList = self.itemMarket.keys()
+		itemList = self.utilityFunctions.keys()
 		self.sellItemId = random.sample(itemList, 1)[0]
 
 		baseUtility = self.utilityFunctions[self.sellItemId].baseUtility
@@ -131,11 +129,9 @@ class TestSeller:
 		inventoryEntry = ItemContainer(self.sellItemId, initialQuantity)
 		self.agent.receiveItem(inventoryEntry)
 
-		#Post item listing
+		#Initialize item listing
 		self.myItemListing = ItemListing(sellerId=self.agentId, itemId=self.sellItemId, unitPrice=self.sellPrice, maxQuantity=initialQuantity)
 		self.myItemListing_Lock = threading.Lock()
-		self.logger.info("OUTBOUND {}".format(self.myItemListing))
-		self.agent.updateItemListing(self.myItemListing)
 
 		
 	def controllerStart(self, incommingPacket):
@@ -250,21 +246,18 @@ class TestBuyer:
 	Will create currency out of thin air.
 	Used for testing.
 	'''
-	def __init__(self, agent, logFile=True):
+	def __init__(self, agent, logFile=True, fileLevel="INFO"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.simManagerId = agent.simManagerId
 
 		self.name = "{}_TestBuyer".format(agent.agentId)
 
-		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"))
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
 
 		#Keep track of agent assets
 		self.currencyBalance = agent.currencyBalance  #(int) cents  #This prevents accounting errors due to float arithmetic (plus it's faster)
 		self.inventory = agent.inventory
-
-		#Marketplaces
-		self.itemMarket = agent.itemMarket
 
 		#Agent preferences
 		self.utilityFunctions = agent.utilityFunctions
@@ -317,18 +310,14 @@ class TestBuyer:
 			if (self.timeTicks > 0):  #We have timeTicks to use
 				itemsBought = False
 
-				for itemId in self.itemMarket:
+				for itemId in self.utilityFunctions:
 					#Find best price/seller from sample
-					possibeSellers = self.itemMarket[itemId].keys()
-					sampleSize = 3
-					if (sampleSize > len(possibeSellers)):
-						sampleSize = len(possibeSellers)
-					consideredSellers = random.sample(possibeSellers, sampleSize)
-
 					minPrice = None
 					bestSeller = None
-					for sellerId in consideredSellers:
-						itemListing = self.itemMarket[itemId][sellerId]
+
+					itemContainer = ItemContainer(itemId, 1)
+					sampledListings = self.agent.sampleItemListings(itemContainer, sampleSize=3)
+					for itemListing in sampledListings:
 						if (minPrice):
 							if (itemListing.unitPrice < minPrice):
 								minPrice = itemListing.unitPrice
@@ -359,10 +348,6 @@ class TestBuyer:
 							if (self.timeTicks <= 0):
 								#End shopping spree
 								break
-
-				if (len(self.itemMarket) == 0):
-					self.logger.info("No item listing in the market right now. Relinquishing time timeTicks")
-					self.timeTicks = 0
 				
 				if (not itemsBought):
 					self.logger.info("No good item listings found in the market right now. Relinquishing time timeTicks")

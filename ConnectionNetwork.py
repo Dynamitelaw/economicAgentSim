@@ -1,11 +1,12 @@
 '''
-The ConnectionNetwork is how all agents in the simulation communicate with each other.
+The ConnectionNetwork is how all agents in the simulation communicate with each other. 
+It is also the place where all marketplaces are instantiated.
 
 It's set up as a hub and spoke topology, where all agents have a single connection to the ConnectionNetwork object.
 Each agent connection is monitored with it's own thread. 
 Agents communicate using NetworkPacket objects. Each agent has a unique id to identify it on the network.
 
-The ConnectionNetwork routes all packets to the specified recipient, or to all agents if msgTpye ends with "_BROADCAST"
+The ConnectionNetwork routes all packets to the specified recipient, or to all agents if msgTpye ends with "_BROADCAST", or to the specified market manager.
 The network also supports packet snooping, where an agent controller can request to be sent all packets of a specified type, regardless of recipient.
 
 The network will route any packet with a valid destination, regardless of content.
@@ -18,29 +19,12 @@ import time
 import traceback
 
 import utils
+from NetworkClasses import *
+from Marketplace import *
 
-
-class NetworkPacket:
-	def __init__(self, senderId, msgType, destinationId=None, payload=None, transactionId=None):
-		self.msgType = msgType
-		self.payload = payload
-		self.senderId = senderId
-		self.destinationId = destinationId
-		self.transactionId = transactionId
-
-		hashStr = "{}{}{}{}{}{}".format(msgType, payload, senderId, destinationId, transactionId, time.time())
-		self.hash = hashlib.sha256(hashStr.encode('utf-8')).hexdigest()[:8 ]
-
-	def __str__(self):
-		return "({}_{}, {}, {}, {})".format(self.msgType, self.hash, self.senderId, self.destinationId, self.transactionId)
-
-class Link:
-	def __init__(self, sendPipe, recvPipe):
-		self.sendPipe = sendPipe
-		self.recvPipe = recvPipe
 
 class ConnectionNetwork:
-	def __init__(self, logFile=True):
+	def __init__(self, itemDict, logFile=True):
 		self.id = "ConnectionNetwork"
 
 		self.logger = utils.getLogger("{}".format(__name__), logFile=logFile)
@@ -56,10 +40,29 @@ class ConnectionNetwork:
 		self.killAllFlag = False
 		self.killAllLock = threading.Lock()
 
+		#Instantiate Item Marketplace
+		self.itemMarketplace = self.addMarketplace("ItemMarketplace", itemDict)
+
 	def addConnection(self, agentId, networkLink):
 		self.logger.info("Adding connection to {}".format(agentId))
 		self.agentConnections[agentId] = networkLink
 		self.sendLocks[agentId] = threading.Lock()
+
+	def addMarketplace(self, marketType, marketDict):
+		#Instantiate communication pipes
+		networkPipeRecv, marketPipeSend = multiprocessing.Pipe()
+		marketPipeRecv, networkPipeSend = multiprocessing.Pipe()
+
+		market_networkLink = Link(sendPipe=networkPipeSend, recvPipe=networkPipeRecv)
+		market_agentLink = Link(sendPipe=marketPipeSend, recvPipe=marketPipeRecv)
+
+		#Instantiate marketplace
+		marketplaceObj = None
+		if (marketType=="ItemMarketplace"):
+			marketplaceObj = ItemMarketplace(marketDict, market_agentLink)
+			self.addConnection(marketplaceObj.agentId, market_networkLink)
+
+		return marketplaceObj
 
 	def startMonitors(self):
 		for agentId in self.agentConnections:
@@ -73,14 +76,14 @@ class ConnectionNetwork:
 			acquired_sendLock = self.sendLocks[pipeId].acquire()
 			if (acquired_sendLock):
 				self.logger.debug("Acquired lock sendLocks[{}]".format(pipeId))
-				self.logger.info("OUTBOUND {}".format(packet))
+				self.logger.info("OUTBOUND {} {}".format(packet, pipeId))
 				self.agentConnections[pipeId].sendPipe.send(packet)
 				self.sendLocks[pipeId].release()
 				self.logger.debug("Release lock sendLocks[{}]".format(pipeId))
 			else:
 				self.logger.error("ConnectionNetwork.sendPacket() Lock sendLocks[{}] acquire timeout".format(pipeId))
 		else:
-			self.logger.warning("Cannot send {}. Pipe[{}] already killed".format(packet, pipeId))
+			self.logger.warning("Cannot send {}. Pipe[{}] already killed".format(pipeId, packet))
 
 	def setupSnoop(self, incommingPacket):
 		'''
@@ -119,6 +122,7 @@ class ConnectionNetwork:
 			self.logger.info("INBOUND {} {}".format(agentId, incommingPacket))
 			destinationId = incommingPacket.destinationId
 
+			#Handle kill packets
 			if (incommingPacket.msgType == "KILL_PIPE_NETWORK"):
 					#We've received a kill command for this pipe. Remove destPipe from connections, then kill this monitor thread
 					self.logger.info("Killing pipe {} {}".format(agentId, agentLink))
@@ -132,6 +136,7 @@ class ConnectionNetwork:
 						self.logger.error("monitorLink() Lock \"agentConnectionsLock\" acquisition timeout")
 						break
 
+			#Handle broadcasts
 			elif ("_BROADCAST" in incommingPacket.msgType):
 					#Check if this is a KILL_ALL broadcast
 					if (incommingPacket.msgType == "KILL_ALL_BROADCAST"):
@@ -148,8 +153,7 @@ class ConnectionNetwork:
 					self.agentConnectionsLock.release()  #<== release agentConnectionsLock
 
 					for pipeId in pipeIdList:
-						sendThread = threading.Thread(target=self.sendPacket, args=(pipeId, incommingPacket))
-						sendThread.start()
+						self.sendPacket(pipeId, incommingPacket)
 
 					self.logger.debug("Ending broadcast")
 
@@ -159,21 +163,24 @@ class ConnectionNetwork:
 						self.killAllFlag = True
 						self.killAllLock.release()
 
+			#Handle snoop requests
 			elif ("SNOOP_START" in incommingPacket.msgType):
 					#We've received a snoop start request. Add to snooping dict
-					snoopStartThread = threading.Thread(target=self.setupSnoop, args=(incommingPacket, ))
-					snoopStartThread.start()
+					self.setupSnoop(incommingPacket)
 
+			#Handle marketplace packets
+			elif ("ITEM_MARKET" in incommingPacket.msgType):
+					#We've received an item market packet
+					self.itemMarketplace.handlePacket(incommingPacket, self.agentConnections[incommingPacket.senderId], self.sendLocks[incommingPacket.senderId])
+					
 			elif (destinationId in self.agentConnections):
 				#Foward packet to destination
-				sendThread = threading.Thread(target=self.sendPacket, args=(destinationId, incommingPacket))
-				sendThread.start()
+				self.sendPacket(destinationId, incommingPacket)
 
 				#Check for active snoops
 				if (incommingPacket.msgType in self.snoopDict):
 					for snooperId in self.snoopDict[incommingPacket.msgType]:
-						snoopThread = threading.Thread(target=self.handleSnoop, args=(snooperId, incommingPacket))
-						snoopThread.start()
+						self.handleSnoop(snooperId, incommingPacket)
 
 			else:
 				#Invalid packet destination
