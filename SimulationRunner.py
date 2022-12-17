@@ -44,7 +44,7 @@ def launchAgents(launchDict, allAgentDict, procName, managerId, managementPipe):
 		logger = utils.getLogger("{}:{}".format(__name__, procName), console="INFO")
 
 		curr_proc = multiprocessing.current_process()
-		logger.info("{}".format(curr_proc.name))
+		logger.info("{} started".format(procName))
 
 		logger.debug("launchAgents() start")
 		logger.debug("launchDict = {}".format(launchDict))
