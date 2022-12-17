@@ -796,3 +796,48 @@ class Agent:
 	def __str__(self):
 		return str(self.agentInfo)
 
+'''
+Item Json format
+{
+	"id": <str> itemId,
+	"unit": <str> itemUnit,
+	"category": <str> itemCategory,
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {
+				"MaxYield": <float> or <bool>, #How many units of itemId can 1 unit of land (1 hectare) produce in 1 time tick (1 hour). Can be set to <bool> false if it does not apply.
+				"MinQuantity": <float>,        #What is the smallest amount of land you need before you can start production.
+				"Quantized": <bool>            #If True, land can only be productive in increments of MinQuantity
+			},
+			"FixedItemCosts": {
+				<str> costItemId_f0: {
+					"MaxYield": <float> or <bool>, #How many units of itemId can 1 unit of costItemId_f0 produce in 1 time tick (1 hour). Can be set to <bool> false if it does not apply.
+					"MinQuantity": <float>,        #What is the smallest amount of costItemId_f0 you need before you can start production. (ex. 1/2 of a tractor is not particularly useful)
+					"Quantized": <bool>            #If True, costItemId_f0 can only be productive in increments of MinQuantity (ex. After buying 1 whole tractor, buying 0.5 more tractors does not help you)
+				},
+				...
+			},
+			"FixedLaborCosts": <int>,  #How many ticks of labor does it take before you can start producing itemId
+			"FixedTimeCosts": <int>    #How many ticks of time must you wait before you can start producting itemId
+		},
+		"VariableCosts": {
+			"VariableItemCosts": {
+				<str> costItemId_v0: <float>, #How many units of costItemId_v0 does it take to produce 1 unit of itemId
+				<str> costItemId_v1: <float>, #How many units of costItemId_v1 does it take to produce 1 unit of itemId
+				...
+			},
+			"VariableLaborCosts": <float>  #How much ticks of labor does it take to produce 1 unit of itemId
+		}
+	},
+	"UtilityFunctions": {
+		"BaseUtility": {
+			"mean": <float>,
+			"stdDev": <float>
+		},
+		"DiminishingFactor": {
+			"mean": <float>,
+			"stdDev": <float>
+		}
+	}
+}
+'''

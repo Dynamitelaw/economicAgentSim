@@ -1,0 +1,39 @@
+{
+	"id": "apple",
+	"unit": "kg",
+	"category": "agriculture",
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {
+				"MaxYield": 0.143,
+				"MinQuantity": 1,
+				"Quantized": true
+			},
+			"FixedItemCosts": {
+				"basket": {
+					"MaxYield": false,
+					"MinQuantity": 1,
+					"Quantized": true
+				}
+			},
+			"FixedLaborCosts": 24,
+			"FixedTimeCosts": 24
+		},
+		"VariableCosts": {
+			"VariableItemCosts": {
+				"water": 822
+			},
+			"VariableLaborCosts": 0.017
+		}
+	},
+	"UtilityFunctions": {
+		"BaseUtility": {
+			"mean": 476,
+			"stdDev": 1
+		},
+		"DiminishingFactor": {
+			"mean": 1.5,
+			"stdDev": 0.2
+		}
+	}
+}

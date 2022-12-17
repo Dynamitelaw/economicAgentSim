@@ -138,12 +138,22 @@ def RunSimulation(settingsDict, logLevel="INFO"):
 		allItemsDict = {}
 		for fileName in os.listdir("Items"):
 			try:
-				filePath = os.path.join("Items", fileName)
-				itemDictFile = open(filePath, "r")
-				itemDict = json.load(itemDictFile)
-				itemDictFile.close()
+				path = os.path.join("Items", fileName)
+				if (os.path.isfile(path)):
+					itemDictFile = open(path, "r")
+					itemDict = json.load(itemDictFile)
+					itemDictFile.close()
 
-				allItemsDict[itemDict["id"]] = itemDict
+					allItemsDict[itemDict["id"]] = itemDict
+				elif (os.path.isdir(path)):
+					for subFileName in os.listdir(path):
+						subPath = os.path.join(path, subFileName)
+						if (os.path.isfile(subPath)):
+							itemDictFile = open(subPath, "r")
+							itemDict = json.load(itemDictFile)
+							itemDictFile.close()
+
+							allItemsDict[itemDict["id"]] = itemDict
 			except:
 				pass
 

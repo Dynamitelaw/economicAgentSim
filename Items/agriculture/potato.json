@@ -1,0 +1,39 @@
+{
+	"id": "potato",
+	"unit": "kg",
+	"category": "agriculture",
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {
+				"MaxYield": 4.92,
+				"MinQuantity": 0.5,
+				"Quantized": true
+			},
+			"FixedItemCosts": {
+				"shovel": {
+					"MaxYield": false,
+					"MinQuantity": 1,
+					"Quantized": true
+				}
+			},
+			"FixedLaborCosts": 24,
+			"FixedTimeCosts": 24
+		},
+		"VariableCosts": {
+			"VariableItemCosts": {
+				"water": 287
+			},
+			"VariableLaborCosts": 0.7
+		}
+	},
+	"UtilityFunctions": {
+		"BaseUtility": {
+			"mean": 269,
+			"stdDev": 0.5
+		},
+		"DiminishingFactor": {
+			"mean": 0.5,
+			"stdDev": 0.1
+		}
+	}
+}
