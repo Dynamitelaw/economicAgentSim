@@ -110,7 +110,8 @@ class TestSeller:
 		self.inventory = agent.inventory
 
 		#Keep track of time ticks
-		self.timeTicks = 0
+		self.timeTicks = self.agent.timeTicks
+		self.tickBlockFlag = self.agent.tickBlockFlag
 
 
 		#Agent preferences
@@ -143,16 +144,17 @@ class TestSeller:
 
 
 	def receiveMsg(self, incommingPacket):
-		controllerMsg = incommingPacket.payload
-		self.logger.info("INBOUND {}".format(controllerMsg))
-		
-		if (controllerMsg.msgType == "STOP_TRADING"):
-			self.killThreads = True
-
-		if (controllerMsg.msgType == "TICK_GRANT"):
-			self.timeTicks += int(controllerMsg.payload)
+		self.logger.info("INBOUND {}".format(incommingPacket))
+		if ((incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST")):
 			#Launch production function
 			self.produceItems()
+
+		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+			controllerMsg = incommingPacket.payload
+			self.logger.info("INBOUND {}".format(controllerMsg))
+			
+			if (controllerMsg.msgType == "STOP_TRADING"):
+				self.killThreads = True
 
 
 	def produceItems(self):
@@ -174,14 +176,7 @@ class TestSeller:
 		self.agent.updateItemListing(self.myItemListing)
 
 		#Relinquish time ticks
-		self.logger.info("Relinquishing time ticks")
-		self.timeTicks = 0
-
-		tickBlocked = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCKED")
-		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlocked)
-		self.logger.debug("OUTBOUND {}->{}".format(tickBlocked, tickBlockPacket))
-		self.agent.sendPacket(tickBlockPacket)
-
+		self.agent.relinquishTimeTicks()
 		self.logger.debug("Waiting for tick grant")
 
 
@@ -265,11 +260,6 @@ class TestBuyer:
 		#Initiate thread kill flag to false
 		self.killThreads = False
 
-		#Keep track of time ticks
-		self.timeTicks = 0
-		self.tickBlockFlag = False
-		self.tickBlockFlag_Lock = threading.Lock()
-
 
 	def controllerStart(self, incommingPacket):
 		#Subscribe for tick blocking
@@ -279,21 +269,19 @@ class TestBuyer:
 		self.agent.sendPacket(tickBlockPacket)
 
 	def receiveMsg(self, incommingPacket):
-		controllerMsg = incommingPacket.payload
-		self.logger.info("INBOUND {}".format(controllerMsg))
-		
-		if (controllerMsg.msgType == "STOP_TRADING"):
-			self.killThreads = True
+		self.logger.info("INBOUND {}".format(incommingPacket))
 
-		if (controllerMsg.msgType == "TICK_GRANT"):
-			self.timeTicks += int(controllerMsg.payload)
-
-			self.tickBlockFlag_Lock.acquire()
-			self.tickBlockFlag = False
-			self.tickBlockFlag_Lock.release()
-
+		if (incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST"):
 			#Launch buying loop
 			self.shoppingSpree()
+
+		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+			controllerMsg = incommingPacket.payload
+			self.logger.info("INBOUND {}".format(controllerMsg))
+			
+			if (controllerMsg.msgType == "STOP_TRADING"):
+				self.killThreads = True
+
 		
 	def shoppingSpree(self):
 		'''
@@ -302,12 +290,12 @@ class TestBuyer:
 		self.logger.info("Starting shopping spree")
 
 		numSellerCheck = 3
-		while ((not self.tickBlockFlag) and (not self.killThreads)):
+		while ((not self.agent.tickBlockFlag) and (not self.killThreads)):
 			if (self.killThreads):
 				self.logger.debug("Received kill command")
 				break
 
-			if (self.timeTicks > 0):  #We have timeTicks to use
+			if (self.agent.timeTicks > 0):  #We have timeTicks to use
 				itemsBought = False
 
 				for itemId in self.utilityFunctions:
@@ -344,33 +332,19 @@ class TestBuyer:
 							self.logger.debug("Trade completed={} | {}".format(tradeCompleted, tradeRequest))
 
 							#We used up a tick for this trade. Decrement allotment
-							self.timeTicks -= 1
-							if (self.timeTicks <= 0):
+							self.agent.useTimeTicks(1)
+							if (self.agent.timeTicks <= 0):
 								#End shopping spree
 								break
 				
 				if (not itemsBought):
 					self.logger.info("No good item listings found in the market right now. Relinquishing time timeTicks")
-					self.timeTicks = 0
+					self.agent.relinquishTimeTicks()
 
 			else:
 				#We are out of timeTicks
-				if (not self.tickBlockFlag):
-					#We have not set the block flag yet. Set blocked flag to True
-					self.tickBlockFlag_Lock.acquire()
-					self.tickBlockFlag = True
-					self.tickBlockFlag_Lock.release()
-
-					#Send blocking signal to sim manager
-					self.logger.debug("We're tick blocked. Sending TICK_BLOCKED to simManager")
-
-					tickBlocked = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCKED")
-					tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlocked)
-					self.logger.debug("OUTBOUND {}->{}".format(tickBlocked, tickBlockPacket))
-					self.agent.sendPacket(tickBlockPacket)
-
-					self.logger.debug("Waiting for tick grant")
-					break  #exit while loop
+				self.logger.debug("Waiting for tick grant")
+				break  #exit while loop
 
 
 		self.logger.info("Ending shopping spree")

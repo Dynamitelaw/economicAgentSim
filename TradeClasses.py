@@ -25,7 +25,7 @@ class ItemListing:
 
 		tempListingStr = "ItemListing(seller={}, item={}, price={}, max={})".format(sellerId, itemId, unitPrice, maxQuantity)
 		self.hash = hashlib.sha256(tempListingStr.encode('utf-8')).hexdigest()[:8 ]
-		self.listingStr = "ItemListing_{}(seller={}, item={}, price={}, max={})".format(sellerId, itemId, unitPrice, maxQuantity, self.hash)
+		self.listingStr = "ItemListing_{}(seller={}, item={}, price={}, max={})".format(self.hash, sellerId, itemId, unitPrice, maxQuantity)
 
 	def __str__(self):
 		return self.listingStr
@@ -106,6 +106,22 @@ class ItemContainer:
 			return self
 		else:
 			raise ValueError("Cannot subtract {} and {}".format(typeOther, type(self)))
+
+
+class LaborListing:
+	def __init__(self, employerId, ticksPerStep, wagePerTick, minSkillLevel, contractLength):
+		self.employerId = employerId
+		self.ticksPerStep = ticksPerStep
+		self.wagePerTick = wagePerTick
+		self.minSkillLevel = minSkillLevel
+		self.contractLength = contractLength
+
+		tempListingStr = "LaborListing(employerId={}, ticksPerStep={}, wagePerTick={}, minSkillLevel={}, contractLength={})".format(employerId, ticksPerStep, wagePerTick, minSkillLevel, contractLength)
+		self.hash = hashlib.sha256(tempListingStr.encode('utf-8')).hexdigest()[:8 ]
+		self.listingStr = "LaborListing_{}(employerId={}, ticksPerStep={}, wagePerTick={}, minSkillLevel={}, contractLength={})".format(self.hash, employerId, ticksPerStep, wagePerTick, minSkillLevel, contractLength)
+
+	def __str__(self):
+		return self.listingStr
 
 
 class TradeRequest:

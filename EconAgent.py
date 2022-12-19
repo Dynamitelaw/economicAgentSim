@@ -1,20 +1,10 @@
 '''
-The Agent class is a generic class used by all agents running in a simulation.
-
-The behavior of any given agent instance is determined by it's controller, which handles all decision making.
-The Agent class is instead mostly responsible for the controller's interface to the rest of the simulation.
-
-The Agent class handles:
-	-item transfers
-	-currency transfers
-	-trade execution
-	-currency balance
-	-item inventory
-	-ConnectionNetwork interactions
-	-item utility calculations
-	-marketplace updates and polling
-
+This file contains:
+	-Generic Agent class
+	-item UtilityFunction class
+	-item CostFunction class
 '''
+
 import math
 import threading
 import logging
@@ -143,6 +133,23 @@ class AgentSeed:
 
 
 class Agent:
+	'''
+	The Agent class is a generic class used by all agents running in a simulation.
+
+	The behavior of any given agent instance is determined by it's controller, which handles all decision making.
+	The Agent class is instead mostly responsible for the controller's interface to the rest of the simulation.
+
+	The Agent class handles:
+		-item transfers
+		-currency transfers
+		-trade execution
+		-currency balance
+		-item inventory
+		-ConnectionNetwork interactions
+		-item utility calculations
+		-marketplace updates and polling
+
+	'''
 	def __init__(self, agentInfo, simManagerId=None, itemDict=None, allAgentDict=None, networkLink=None, logFile=True, fileLevel="INFO", controller=None):
 		self.info = agentInfo
 		self.agentId = agentInfo.agentId
@@ -172,6 +179,12 @@ class Agent:
 		self.debtBalance = 0
 		self.debtBalanceLock = threading.Lock()
 		self.tradeRequestLock = threading.Lock()
+
+		#Keep track of time ticks
+		self.timeTicks = 0
+		self.timeTickLock = threading.Lock()
+		self.tickBlockFlag = False
+		self.tickBlockFlag_Lock = threading.Lock()
 		
 		#Instantiate agent preferences (utility functions)
 		self.utilityFunctions = {}
@@ -287,6 +300,29 @@ class Agent:
 				infoRequest = incommingPacket.payload
 				infoThread =  threading.Thread(target=self.handleInfoRequest, args=(infoRequest, ))
 				infoThread.start()
+
+			#Hanle incoming tick grants
+			elif ((incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST")):
+				ticksGranted = incommingPacket.payload
+				acquired_timeTickLock = self.timeTickLock.acquire(timeout=self.lockTimeout)  #<== timeTickLock acquire
+				if (acquired_timeTickLock):
+					self.timeTicks += ticksGranted
+					self.timeTickLock.release()  #<== timeTickLock release
+
+					acquired_tickBlockFlag_Lock = self.tickBlockFlag_Lock.acquire(timeout=self.lockTimeout)  #<== tickBlockFlag_Lock acquire
+					if (acquired_tickBlockFlag_Lock):
+						self.tickBlockFlag = False
+						self.tickBlockFlag_Lock.release()  #<== tickBlockFlag_Lock release
+					else:
+						self.logger.error("TICK_GRANT tickBlockFlag_Lock acquire timeout")
+
+				else:
+					self.logger.error("TICK_GRANT timeTickLock acquire timeout")
+
+				#Foward tick grant to controller
+				if (self.controller):
+					controllerGrantThread = threading.Thread(target=self.controller.receiveMsg, args=(incommingPacket, ))
+					controllerGrantThread.start()
 
 			#Unhandled packet type
 			else:
@@ -776,6 +812,66 @@ class Agent:
 		return utilityFunction.getMarginalUtility(quantity)
 
 	#########################
+	# Time functions
+	#########################
+	def useTimeTicks(self, amount):
+		'''
+		Consume the specified amount of time ticks. 
+		If we run out in the process, set the tickBlocked flag and send a TICK_BLOCKED packet to sim manager.
+
+		Returns True if successful, False if not
+		'''
+		self.logger.debug("{}.useTimeTicks({}) start".format(self.agentId, amount))
+		useSuccess = False
+
+		acquired_timeTickLock = self.timeTickLock.acquire(timeout=self.lockTimeout)  #<== timeTickLock acquire
+		if (acquired_timeTickLock):
+			if (self.timeTicks >= amount):
+				#We have enought ticks. Decrement tick counter
+				self.logger.debug("Using {} time ticks".format(amount))
+				self.timeTicks -= amount
+				self.logger.debug("Time tick balance = {}".format(self.timeTicks))
+				useSuccess = True
+
+				if (self.timeTicks == 0):
+					#We are out of time ticks. Set blocked flag
+					acquired_tickBlockFlag_Lock = self.tickBlockFlag_Lock.acquire(timeout=self.lockTimeout)  #<== tickBlockFlag_Lock acquire
+					if (acquired_tickBlockFlag_Lock):
+						self.tickBlockFlag = True
+						self.tickBlockFlag_Lock.release()  #<== tickBlockFlag_Lock release
+					else:
+						self.logger.error("TICK_GRANT tickBlockFlag_Lock acquire timeout")
+
+					#Send blocked signal to sim manager
+					self.logger.debug("We're tick blocked. Sending TICK_BLOCKED to simManager")
+
+					tickBlocked = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCKED")
+					tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlocked)
+					self.logger.info("OUTBOUND {}->{}".format(tickBlocked, tickBlockPacket))
+					self.sendPacket(tickBlockPacket)
+			else:
+				#We do not have enought time ticks
+				self.logger.error("Cannot use {} time ticks. Only have {} available".format(amount, self.timeTicks))
+				useSuccess = False
+
+			self.timeTickLock.release()  #<== timeTickLock release
+		else:
+			#Lock timout
+			self.logger.error("{}.useTimeTicks({}) timeTickLock acquire timeout".format(self.agentId, amount))
+			useSuccess = False
+
+		self.logger.debug("{}.useTimeTicks({}) return {}".format(self.agentId, amount, useSuccess))
+		return useSuccess
+
+
+	def relinquishTimeTicks(self):
+		'''
+		Relinquish all time ticks for this sim step
+		'''
+		self.useTimeTicks(self.timeTicks)
+
+
+	#########################
 	# Misc functions
 	#########################
 	def handleInfoRequest(self, infoRequest):
@@ -817,7 +913,11 @@ Item Json format
 				},
 				...
 			},
-			"FixedLaborCosts": <int>,  #How many ticks of labor does it take before you can start producing itemId
+			"FixedLaborCosts": {
+				<float> MinSkillLevel_a: <int> ticks, #How many ticks of labor with skill >= MinSkillLevel_a it takes to enable production of itemId
+				<float> MinSkillLevel_b: <int> ticks, #How many ticks of labor with skill >= MinSkillLevel_b it takes to enable production of itemId
+				...
+			}, 
 			"FixedTimeCosts": <int>    #How many ticks of time must you wait before you can start producting itemId
 		},
 		"VariableCosts": {
@@ -826,7 +926,11 @@ Item Json format
 				<str> costItemId_v1: <float>, #How many units of costItemId_v1 does it take to produce 1 unit of itemId
 				...
 			},
-			"VariableLaborCosts": <float>  #How much ticks of labor does it take to produce 1 unit of itemId
+			"VariableLaborCosts": {
+				<float> MinSkillLevel_a: <float> ticks, #How many ticks of labor with skill >= MinSkillLevel_a it takes to produce 1 unit of itemId
+				<float> MinSkillLevel_b: <float> ticks, #How many ticks of labor with skill >= MinSkillLevel_b it takes to produce 1 unit of itemId
+				...
+			}
 		}
 	},
 	"UtilityFunctions": {

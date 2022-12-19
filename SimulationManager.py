@@ -126,11 +126,10 @@ class SimulationManager:
 						self.timeTickBlockers[agentId] = False  #this agent is no longer blocked by time ticks
 					self.timeTickBlockers_Lock.release()
 
-					#Distribute ticks to agent controllers
-					tickGrantPayload = NetworkPacket(senderId=self.agentId, msgType="TICK_GRANT", payload=ticksPerStep)
-					tickGrantBroadcast = NetworkPacket(senderId=self.agentId, msgType="CONTROLLER_MSG_BROADCAST", payload=tickGrantPayload)
-					self.logger.debug("OUTBOUND {}->{}".format(tickGrantPayload, tickGrantBroadcast))
-					self.agent.sendPacket(tickGrantBroadcast)
+					#Distribute ticks to agents
+					tickGrantPacket = NetworkPacket(senderId=self.agentId, msgType="TICK_GRANT_BROADCAST", payload=ticksPerStep)
+					self.logger.debug("OUTBOUND {}".format(tickGrantPacket))
+					self.agent.sendPacket(tickGrantPacket)
 
 					#Wait for all tick blockers to be set before advancing to next day
 					self.logger.debug("Waiting for all agents to be tick blocked")
@@ -217,34 +216,37 @@ class SimulationManager:
 		return
 
 	def receiveMsg(self, incommingPacket):
-		controllerMsg = incommingPacket.payload
-		self.logger.debug("INBOUND {}".format(controllerMsg))
+		self.logger.debug("INBOUND {}".format(incommingPacket))
 
-		#Handle process messages
-		if (controllerMsg.msgType == "PROC_READY"):
-			self.procReadyDictLock.acquire()
-			self.procReadyDict[controllerMsg.senderId] = True
-			self.procReadyDictLock.release()
-		if (controllerMsg.msgType == "PROC_ERROR"):
-			self.procReadyDictLock.acquire()
-			self.procReadyDict[controllerMsg.senderId] = False
-			self.procErrors[controllerMsg.senderId] = controllerMsg.payload
-			self.procReadyDictLock.release()
+		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+			controllerMsg = incommingPacket.payload
+			self.logger.debug("INBOUND {}".format(controllerMsg))
+			
+			#Handle process messages
+			if (controllerMsg.msgType == "PROC_READY"):
+				self.procReadyDictLock.acquire()
+				self.procReadyDict[controllerMsg.senderId] = True
+				self.procReadyDictLock.release()
+			if (controllerMsg.msgType == "PROC_ERROR"):
+				self.procReadyDictLock.acquire()
+				self.procReadyDict[controllerMsg.senderId] = False
+				self.procErrors[controllerMsg.senderId] = controllerMsg.payload
+				self.procReadyDictLock.release()
 
-		#Handle time tick messages
-		if (controllerMsg.msgType == "TICK_BLOCK_SUBSCRIBE"):
-			self.logger.debug("{} has subscribed to tick blocking".format(controllerMsg.senderId))
-			self.timeTickBlockers_Lock.acquire()
-			self.timeTickBlockers[controllerMsg.senderId] = True
-			self.timeTickBlockers_Lock.release()
-		if (controllerMsg.msgType == "TICK_BLOCKED"):
-			#self.timeTickBlockers_Lock.acquire()
-			self.timeTickBlockers[controllerMsg.senderId] = True  #This agent is now blocked by time ticks
-			#self.timeTickBlockers_Lock.release()
+			#Handle time tick messages
+			if (controllerMsg.msgType == "TICK_BLOCK_SUBSCRIBE"):
+				self.logger.debug("{} has subscribed to tick blocking".format(controllerMsg.senderId))
+				self.timeTickBlockers_Lock.acquire()
+				self.timeTickBlockers[controllerMsg.senderId] = True
+				self.timeTickBlockers_Lock.release()
+			if (controllerMsg.msgType == "TICK_BLOCKED"):
+				#self.timeTickBlockers_Lock.acquire()
+				self.timeTickBlockers[controllerMsg.senderId] = True  #This agent is now blocked by time ticks
+				#self.timeTickBlockers_Lock.release()
 
-		#Handle error messages
-		if (controllerMsg.msgType == "TERMINATE_SIMULATION"):
-			self.terminate()
+			#Handle error messages
+			if (controllerMsg.msgType == "TERMINATE_SIMULATION"):
+				self.terminate()
 
 	def evalTradeRequest(self, request):
 		return False
