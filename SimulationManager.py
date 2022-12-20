@@ -49,7 +49,7 @@ class SimulationManager:
 		self.agentType = agentInfo.agentType
 
 		self.logger = utils.getLogger("{}:{}".format("SimulationManager", self.agentId), console="INFO", logFile=logFile)
-		self.logger.debug("{} instantiated".format(self.info))
+		self.logger.info("{} instantiated".format(self.info))
 
 		self.agentDict = allAgentDict
 		self.procDict = allProcDict
@@ -221,7 +221,7 @@ class SimulationManager:
 		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
 			controllerMsg = incommingPacket.payload
 			self.logger.debug("INBOUND {}".format(controllerMsg))
-			
+
 			#Handle process messages
 			if (controllerMsg.msgType == "PROC_READY"):
 				self.procReadyDictLock.acquire()

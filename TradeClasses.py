@@ -109,16 +109,17 @@ class ItemContainer:
 
 
 class LaborListing:
-	def __init__(self, employerId, ticksPerStep, wagePerTick, minSkillLevel, contractLength):
+	def __init__(self, employerId, ticksPerStep, wagePerTick, minSkillLevel, contractLength, listingName="Employee"):
 		self.employerId = employerId
 		self.ticksPerStep = ticksPerStep
 		self.wagePerTick = wagePerTick
 		self.minSkillLevel = minSkillLevel
 		self.contractLength = contractLength
+		self.listingName = listingName
 
-		tempListingStr = "LaborListing(employerId={}, ticksPerStep={}, wagePerTick={}, minSkillLevel={}, contractLength={})".format(employerId, ticksPerStep, wagePerTick, minSkillLevel, contractLength)
+		tempListingStr = "LaborListing(employerId={}, ticksPerStep={}, wagePerTick={}, minSkillLevel={}, contractLength={}, listingName={})".format(employerId, ticksPerStep, wagePerTick, minSkillLevel, contractLength, listingName)
 		self.hash = hashlib.sha256(tempListingStr.encode('utf-8')).hexdigest()[:8 ]
-		self.listingStr = "LaborListing_{}(employerId={}, ticksPerStep={}, wagePerTick={}, minSkillLevel={}, contractLength={})".format(self.hash, employerId, ticksPerStep, wagePerTick, minSkillLevel, contractLength)
+		self.listingStr = "LaborListing_{}(employerId={}, ticksPerStep={}, wagePerTick={}, minSkillLevel={}, contractLength={}, listingName={})".format(self.hash, employerId, ticksPerStep, wagePerTick, minSkillLevel, contractLength, listingName)
 
 	def __str__(self):
 		return self.listingStr

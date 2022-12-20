@@ -42,13 +42,14 @@ class ConnectionNetwork:
 
 		#Instantiate Item Marketplace
 		self.itemMarketplace = self.addMarketplace("ItemMarketplace", itemDict)
+		self.laborMarketplace = self.addMarketplace("LaborMarketplace")
 
 	def addConnection(self, agentId, networkLink):
 		self.logger.info("Adding connection to {}".format(agentId))
 		self.agentConnections[agentId] = networkLink
 		self.sendLocks[agentId] = threading.Lock()
 
-	def addMarketplace(self, marketType, marketDict):
+	def addMarketplace(self, marketType, marketDict=None):
 		#Instantiate communication pipes
 		networkPipeRecv, marketPipeSend = multiprocessing.Pipe()
 		marketPipeRecv, networkPipeSend = multiprocessing.Pipe()
@@ -60,6 +61,10 @@ class ConnectionNetwork:
 		marketplaceObj = None
 		if (marketType=="ItemMarketplace"):
 			marketplaceObj = ItemMarketplace(marketDict, market_agentLink)
+			self.addConnection(marketplaceObj.agentId, market_networkLink)
+
+		if (marketType=="LaborMarketplace"):
+			marketplaceObj = LaborMarketplace(market_agentLink)
 			self.addConnection(marketplaceObj.agentId, market_networkLink)
 
 		return marketplaceObj
@@ -172,7 +177,11 @@ class ConnectionNetwork:
 			elif ("ITEM_MARKET" in incommingPacket.msgType):
 					#We've received an item market packet
 					self.itemMarketplace.handlePacket(incommingPacket, self.agentConnections[incommingPacket.senderId], self.sendLocks[incommingPacket.senderId])
+			elif ("LABOR_MARKET" in incommingPacket.msgType):
+					#We've received an item market packet
+					self.laborMarketplace.handlePacket(incommingPacket, self.agentConnections[incommingPacket.senderId], self.sendLocks[incommingPacket.senderId])
 					
+			#Route all over packets
 			elif (destinationId in self.agentConnections):
 				#Foward packet to destination
 				self.sendPacket(destinationId, incommingPacket)
@@ -266,6 +275,22 @@ ITEM_MARKET_SAMPLE
 ITEM_MARKET_SAMPLE_ACK
 	payload = <list> [<ItemListing>, ...]
 	Returns a list of item listings
+
+LABOR_MARKET_UPDATE
+	payload = <LaborListing>
+	Will update the agent's labor listing in the LaborMarketplace
+
+LABOR_MARKET_REMOVE
+	payload = <LaborListing>
+	Will remove the agent's labor listing in the LaborMarketplace
+
+LABOR_MARKET_SAMPLE
+	payload = <dict> {"agentSkillLevel": <float>, "sampleSize": <int>}
+	Request a sample of sellers for a given labor from the LaborMarketplace
+
+LABOR_MARKET_SAMPLE_ACK
+	payload = <list> [<LaborListing>, ...]
+	Returns a list of labor listings
 
 #########################
 # Other Agent Packets

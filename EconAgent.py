@@ -158,7 +158,7 @@ class Agent:
 		self.simManagerId = simManagerId
 
 		self.logger = utils.getLogger("{}:{}".format(__name__, self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Agent_Logs"), fileLevel=fileLevel)
-		self.logger.debug("{} instantiated".format(self.info))
+		self.logger.info("{} instantiated".format(self.info))
 
 		self.lockTimeout = 5
 

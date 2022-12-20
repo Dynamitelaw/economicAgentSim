@@ -243,7 +243,8 @@ class LaborMarketplace:
 
 		#Labor marketplace dict
 		self.laborMarket = {}
-		self.laborMarketLock = threading.lock()
+		self.laborMarketLock = threading.Lock()
+		self.laborMarketEmployerLocks = {}
 
 		#Start monitoring network link
 		if (self.networkLink):
@@ -326,28 +327,33 @@ class LaborMarketplace:
 		Update the labor marketplace.
 		Returns True if succesful, False otherwise
 		'''
-		itemListing = incommingPacket.payload
+		laborListing = incommingPacket.payload
 
-		self.logger.debug("{}.updateItemListing({}) start".format(self.agentId, itemListing))
+		self.logger.debug("{}.updateItemListing({}) start".format(self.agentId, laborListing))
 
 		updateSuccess = False
+		#Update local labor market with listing
+		skillLevel = laborListing.minSkillLevel
+		if (not skillLevel in self.laborMarket):
+			self.laborMarketLock.acquire()
+			self.laborMarket[skillLevel] = {}
+			self.laborMarketLock.release()
 
-		if not (itemListing.sellerId in self.itemMarket[itemListing.itemId]):
-			#Seller is new to this item. Add them to the market
-			itemLock = self.itemMarketLocks[itemListing.itemId]
-			acquired_itemMarketLock = itemLock.acquire(timeout=self.lockTimeout)  # <== itemMarketLock acquire
-			if (acquired_itemMarketLock):
-				self.itemMarket[itemListing.itemId][itemListing.sellerId] = itemListing
-				itemLock.release()  # <== itemMarketLock release
-			else:
-				self.logger.error("updateItemListing() Lock \"itemMarketLock\" acquisition timeout")
-				updateSuccess = False
-		else:
-			#Seller is already in selling this item. Dict size won't change. No need to acquire thread lock
-			self.itemMarket[itemListing.itemId][itemListing.sellerId] = itemListing
+		employerId = laborListing.employerId
+		if (not employerId in self.laborMarket[skillLevel]):
+			self.laborMarketEmployerLocks[employerId] = threading.Lock()
+			self.laborMarketLock.acquire()
+			self.laborMarket[skillLevel][employerId] = {}
+			self.laborMarketLock.release()
+
+		self.laborMarketEmployerLocks[employerId].acquire()
+		self.laborMarket[skillLevel][employerId][laborListing.listingStr] = laborListing
+		self.laborMarketEmployerLocks[employerId].release()
+
+		updateSuccess = True
 
 		#Return status
-		self.logger.debug("{}.updateItemListing({}) return {}".format(self.agentId, itemListing, updateSuccess))
+		self.logger.debug("{}.updateItemListing({}) return {}".format(self.agentId, laborListing, updateSuccess))
 		return updateSuccess
 
 	def removeLaborListing(self, incommingPacket):
@@ -355,54 +361,90 @@ class LaborMarketplace:
 		Remove a listing from the labor marketplace
 		Returns True if succesful, False otherwise
 		'''
-		itemListing = incommingPacket.payload
+		laborListing = incommingPacket.payload
 
-		self.logger.debug("{}.removeItemListing({}) start".format(self.agentId, itemListing))
+		self.logger.debug("{}.removeItemListing({}) start".format(self.agentId, laborListing))
 
 		updateSuccess = False
 
-		#Update local item market with listing
-		itemLock = self.itemMarketLocks[itemListing.itemId]
-		acquired_itemMarketLock = itemLock.acquire(timeout=self.lockTimeout)  # <== itemMarketLock acquire
-		if (acquired_itemMarketLock):
-			if (itemListing.itemId in self.itemMarket):
-				if (itemListing.sellerId in self.itemMarket[itemListing.itemId]):
-					del self.itemMarket[itemListing.itemId][itemListing.sellerId]
-
-			itemLock.release()  # <== itemMarketLock release
-			updateSuccess = True
-		else:
-			self.logger.error("removeItemListing() Lock \"itemMarketLock\" acquisition timeout")
+		#Remove listing from local labor market
+		skillLevel = laborListing.minSkillLevel
+		if (not skillLevel in self.laborMarket):
+			self.logger.error("{}.removeItemListing({}) failed. Listing not in labor market".format(self.agentId, laborListing))
 			updateSuccess = False
+			return updateSuccess
+
+		employerId = laborListing.employerId
+		if (not employerId in self.laborMarket[skillLevel]):
+			self.logger.error("{}.removeItemListing({}) failed. Listing not in labor market".format(self.agentId, laborListing))
+			updateSuccess = False
+			return updateSuccess
+
+		if (not laborListing.listingStr in self.laborMarket[skillLevel][employerId]):
+			self.logger.error("{}.removeItemListing({}) failed. Listing not in labor market".format(self.agentId, laborListing))
+			updateSuccess = False
+			return updateSuccess
+
+		self.laborMarketEmployerLocks[employerId].acquire()
+		del self.laborMarket[skillLevel][employerId][laborListing.listingStr]
+
+		if (len(self.laborMarket[skillLevel][employerId]) == 0):
+			self.laborMarketLock.acquire()
+			del self.laborMarket[skillLevel][employerId]
+			self.laborMarketLock.release()
+
+		self.laborMarketEmployerLocks[employerId].release()
+
+		updateSuccess = True
 
 		#Return status
-		self.logger.debug("{}.removeItemListing({}) return {}".format(self.agentId, itemListing, updateSuccess))
+		self.logger.debug("{}.removeItemListing({}) return {}".format(self.agentId, laborListing, updateSuccess))
 		return updateSuccess
 
-	def sampleItemListings(self, incommingPacket, agentLink, agentSendLock):
+	def sampleLaborListings(self, incommingPacket, agentLink, agentSendLock):
 		'''
-		Sends a list of randomly sampled item listings that match itemContainer to the requesting agent.
-			ItemListing.itemId == itemContainer.id
+		Sends a list of sampled labor listings that agent qualifies for (listing.minSkillLevel <= agent.skillLevel).
+		Will sample listings in order of decreasing skill level, returning the highest possible skill-level listings. Samples are randomized within skill levels.
+		Sends list directly to agent over agentLink
 
 		Returns True if successful
 		'''
 
-		itemContainer = incommingPacket.payload["itemContainer"]
+		agentSkillLevel = incommingPacket.payload["agentSkillLevel"]
 		sampleSize = incommingPacket.payload["sampleSize"]
-
-		sampledListings = []
 		
-		#We are the item market. Get information from itemMarket dict
-		if (itemContainer.id in self.itemMarket):
-			itemListings = self.itemMarket[itemContainer.id]
-			if (len(itemListings) > sampleSize):
-				sampledListings = random.sample(list(itemListings.values()), sampleSize).copy()
-			else:
-				sampledListings = list(itemListings.values()).copy()
+		#Get all valid skill levels
+		possibleSkillKeys = [i for i in self.laborMarket.keys() if i <= agentSkillLevel]
+		possibleSkillKeys.sort(reverse=True)
+
+		#Sample listings, starting from highest skill level
+		sampledListings = []
+		for skillLevel in possibleSkillKeys:
+			possibleEmployers = self.laborMarket[skillLevel].keys()
+			if (len(possibleEmployers) > (sampleSize-len(sampledListings))):
+				#Too many employers. Randomly sample from them
+				possibleEmployers = random.sample(list(possibleEmployers), sampleSize-len(sampledListings))
+
+			for employerId in possibleEmployers:
+				employerListings = self.laborMarket[skillLevel][employerId]
+
+				sampledListingStr = None
+				if (len(employerListings) > 1):
+					#Employer has multiple listings at this skill level. Sample one of them
+					sampledListingStr = random.sample(list(employerListings.keys()), 1)
+				else:
+					sampledListingStr = employerListings.keys()[0]
+
+				sampledListing = employerListings[sampledListingStr]
+				sampledListings.append(sampledListing)
+
+			if (len(sampledListings) >= sampleSize):
+				#We've already found enough listings. Exit loop
+				break
 
 		#Send out sampled listings if request came from network
 		if (incommingPacket):
-			responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, transactionId=incommingPacket.transactionId, msgType="ITEM_MARKET_SAMPLE_ACK", payload=sampledListings)
+			responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, transactionId=incommingPacket.transactionId, msgType="LABOR_MARKET_SAMPLE_ACK", payload=sampledListings)
 			self.sendPacket(responsePacket, agentLink, agentSendLock)
 
 
