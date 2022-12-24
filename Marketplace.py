@@ -433,7 +433,7 @@ class LaborMarketplace:
 					#Employer has multiple listings at this skill level. Sample one of them
 					sampledListingStr = random.sample(list(employerListings.keys()), 1)
 				else:
-					sampledListingStr = employerListings.keys()[0]
+					sampledListingStr = list(employerListings.keys())[0]
 
 				sampledListing = employerListings[sampledListingStr]
 				sampledListings.append(sampledListing)

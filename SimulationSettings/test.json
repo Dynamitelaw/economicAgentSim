@@ -5,10 +5,10 @@
 		"SimulationSteps": 10,
 		"TicksPerStep": 24,
 		"AgentSpawns":{
-			"TestSeller": {
+			"TestWorker":{
 				"quantity": 10
 			},
-			"TestBuyer":{
+			"TestEmployer":{
 				"quantity": 10
 			}
 		}

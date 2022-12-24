@@ -109,7 +109,7 @@ class ItemContainer:
 
 
 class LaborListing:
-	def __init__(self, employerId, ticksPerStep, wagePerTick, minSkillLevel, contractLength, listingName="Employee"):
+	def __init__(self, employerId, ticksPerStep, wagePerTick, minSkillLevel, contractLength, listingName="JobListing"):
 		self.employerId = employerId
 		self.ticksPerStep = ticksPerStep
 		self.wagePerTick = wagePerTick
@@ -121,9 +121,31 @@ class LaborListing:
 		self.hash = hashlib.sha256(tempListingStr.encode('utf-8')).hexdigest()[:8 ]
 		self.listingStr = "LaborListing_{}(employerId={}, ticksPerStep={}, wagePerTick={}, minSkillLevel={}, contractLength={}, listingName={})".format(self.hash, employerId, ticksPerStep, wagePerTick, minSkillLevel, contractLength, listingName)
 
+	def generateLaborContract(self, workerId, workerSkillLevel, startStep):
+		return LaborContract(self.employerId, workerId, self.ticksPerStep, self.wagePerTick, workerSkillLevel, self.contractLength, startStep, startStep+self.contractLength-1, self.hash, "EmploymentContract_{}_{}_{}".format(self.employerId, workerId, startStep))
+
 	def __str__(self):
 		return self.listingStr
 
+
+class LaborContract:
+	def __init__(self, employerId, workerId, ticksPerStep, wagePerTick, workerSkillLevel, contractLength, startStep, endStep, listingHash, contractName="EmploymentContract"):
+		self.employerId = employerId
+		self.workerId = workerId
+		self.ticksPerStep = ticksPerStep
+		self.wagePerTick = wagePerTick
+		self.workerSkillLevel = workerSkillLevel
+		self.contractLength = contractLength
+		self.startStep = startStep
+		self.endStep = endStep
+		self.contractName = contractName
+
+		tempContractStr = "LaborContract(employerId={}, workerId={}, ticksPerStep={}, wagePerTick={}, workerSkillLevel={}, contractLength={}, startStep={}, endStep={}, contractName={})".format(employerId, workerId, ticksPerStep, wagePerTick, workerSkillLevel, contractLength, startStep, endStep, contractName)
+		self.hash = hashlib.sha256(tempContractStr.encode('utf-8')).hexdigest()[:8 ]
+		self.contractStr = "LaborContract_{}(employerId={}, workerId={}, ticksPerStep={}, wagePerTick={}, workerSkillLevel={}, contractLength={}, startStep={}, endStep={}, contractName={})".format(self.hash, employerId, workerId, ticksPerStep, wagePerTick, workerSkillLevel, contractLength, startStep, endStep, contractName)
+
+	def __str__(self):
+		return self.contractStr
 
 class TradeRequest:
 	def __init__(self, sellerId, buyerId, currencyAmount, itemPackage):

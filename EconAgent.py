@@ -99,6 +99,12 @@ def getAgentController(agent, logFile=True, fileLevel="INFO"):
 	if (agentInfo.agentType == "TestBuyer"):
 		#Return TestBuyer controller
 		return TestBuyer(agent, logFile=logFile, fileLevel=fileLevel)
+	if (agentInfo.agentType == "TestEmployer"):
+		#Return TestEmployer controller
+		return TestEmployer(agent, logFile=logFile, fileLevel=fileLevel)
+	if (agentInfo.agentType == "TestWorker"):
+		#Return TestWorker controller
+		return TestWorker(agent, logFile=logFile, fileLevel=fileLevel)
 
 	#Unhandled agent type. Return default controller
 	return None
@@ -180,11 +186,24 @@ class Agent:
 		self.debtBalanceLock = threading.Lock()
 		self.tradeRequestLock = threading.Lock()
 
+		#Keep track of labor stuff
+		self.skillLevel = random.betavariate(2,5)  #TODO: Set this with simulation settings
+		self.laborContracts = {}
+		self.laborContractsLock = threading.Lock()
+		self.laborInventory = {}  #Keep track of all the labor supplied to a firm for this step
+		self.laborInventoryLock = threading.Lock()
+		self.commitedTicks = 0
+		self.commitedTicksLock = threading.Lock()
+		self.commitedTicks_nextStep = 0
+		self.commitedTicks_nextStepLock = threading.Lock()
+
 		#Keep track of time ticks
 		self.timeTicks = 0
 		self.timeTickLock = threading.Lock()
 		self.tickBlockFlag = False
 		self.tickBlockFlag_Lock = threading.Lock()
+		self.stepNum = -1
+		self.ticksPerStep = 24  #TODO: Set this with simulation settings
 		
 		#Instantiate agent preferences (utility functions)
 		self.utilityFunctions = {}
@@ -280,20 +299,21 @@ class Agent:
 				transferThread =  threading.Thread(target=self.receiveTradeRequest, args=(tradeRequest, incommingPacket.senderId))
 				transferThread.start()
 
-			#Handle incoming item marketplace updates
-			elif (incommingPacket.msgType == "ITEM_MARKET_UPDATE"):
-				itemListing = incommingPacket.payload
-				updateThread =  threading.Thread(target=self.updateItemListing, args=(itemListing, incommingPacket))
-				updateThread.start()
-			elif (incommingPacket.msgType == "ITEM_MARKET_REMOVE"):
-				itemListing = incommingPacket.payload
-				updateThread =  threading.Thread(target=self.removeItemListing, args=(itemListing, incommingPacket))
-				updateThread.start()
-			elif (incommingPacket.msgType == "ITEM_MARKET_SAMPLE"):
-				itemContainer = incommingPacket.payload["itemContainer"]
-				sampleSize = incommingPacket.payload["sampleSize"]
-				sampleThread =  threading.Thread(target=self.sampleItemListings, args=(itemContainer, sampleSize, incommingPacket))
-				sampleThread.start()
+			#Handle incoming job applications
+			elif (incommingPacket.msgType == "LABOR_APPLICATION"):
+				applicationPayload = incommingPacket.payload
+				contractThread =  threading.Thread(target=self.receiveJobApplication, args=(applicationPayload, incommingPacket.senderId))
+				contractThread.start()
+
+			#Handle incoming labor
+			elif (incommingPacket.msgType == "LABOR_TIME_SEND"):
+				laborTicks = incommingPacket.payload["ticks"]
+				skillLevel = incommingPacket.payload["skillLevel"]
+				self.laborInventoryLock.acquire()
+				if not (skillLevel in self.laborInventory):
+					self.laborInventory[skillLevel] = 0
+				self.laborInventory[skillLevel] += laborTicks
+				self.laborInventoryLock.release()
 
 			#Handle incoming information requests
 			elif (incommingPacket.msgType == "INFO_REQ"):
@@ -308,6 +328,7 @@ class Agent:
 				if (acquired_timeTickLock):
 					self.timeTicks += ticksGranted
 					self.timeTickLock.release()  #<== timeTickLock release
+					self.stepNum += 1
 
 					acquired_tickBlockFlag_Lock = self.tickBlockFlag_Lock.acquire(timeout=self.lockTimeout)  #<== tickBlockFlag_Lock acquire
 					if (acquired_tickBlockFlag_Lock):
@@ -318,6 +339,18 @@ class Agent:
 
 				else:
 					self.logger.error("TICK_GRANT timeTickLock acquire timeout")
+
+				#Update time tick commitments
+				self.commitedTicks_nextStepLock.acquire()
+				self.commitedTicksLock.acquire()
+				self.commitedTicks += self.commitedTicks_nextStep
+				self.commitedTicks_nextStep = 0
+				self.commitedTicksLock.release()
+				self.commitedTicks_nextStepLock.release()
+
+				#Fulfill labor contracts
+				contractThread = threading.Thread(target=self.fulfillAllLaborContracts)
+				contractThread.start()
 
 				#Foward tick grant to controller
 				if (self.controller):
@@ -710,7 +743,184 @@ class Agent:
 			raise ValueError("sendTradeRequest() Exception")
 
 	#########################
-	# Market functions
+	# Labor functions
+	#########################
+	def fulfillAllLaborContracts(self):
+		'''
+		Fulfills all non-expired labor contracts
+		'''
+		for endStep in list(self.laborContracts.keys()):
+			if (self.stepNum > endStep):
+				self.logger.debug("Removing all contracts that expire on step {}".format(endStep))
+
+				self.commitedTicksLock.acquire()
+				for laborContractHash in self.laborContracts[endStep]:
+					self.commitedTicks -= self.laborContracts[endStep][laborContractHash].ticksPerStep
+				self.commitedTicksLock.release()
+
+				self.laborContractsLock.acquire()
+				del self.laborContracts[endStep]
+				self.laborContractsLock.release()
+			else:
+				for laborContractHash in self.laborContracts[endStep]:
+					self.fulfillLaborContract(self.laborContracts[endStep][laborContractHash])
+
+
+	def fulfillLaborContract(self, laborContract):
+		'''
+		Fulfills an existing laborContract
+		'''
+		contractFulfilled = False
+		self.logger.info("Fulfilling {}".format(laborContract))
+
+		if (self.stepNum <= laborContract.endStep):
+			if (self.agentId == laborContract.workerId):
+				#We are the worker. Send labor to employer
+				ticks = laborContract.ticksPerStep
+				employerId = laborContract.employerId
+				contractHash = laborContract.hash
+
+				if (ticks > self.timeTicks):
+					self.logger.error("{}.sendLaborTime({}, {}) failed. Not enough time ticks ({})".format(self.agentId, ticks, employerId, self.timeTicks))
+					contractFulfilled = False
+				else:
+					ticksSpent = self.useTimeTicks(ticks)
+					if (ticksSpent):
+						payload = {"ticks": ticks, "skillLevel": self.skillLevel}
+						laborId = "LaborSend(agentId={}, employerId={}, ticks={}, contractHash={})".format(self.agentId, employerId, ticks, contractHash)
+						laborPacket = NetworkPacket(senderId=self.agentId, destinationId=laborContract.employerId, transactionId=laborId, payload=payload, msgType="LABOR_TIME_SEND")
+						self.sendPacket(laborPacket)
+						contractFulfilled = True
+					else:
+						self.logger.error("{} failed".format(laborId))
+						contractFulfilled = False
+
+			if (self.agentId == laborContract.employerId):
+				#We are the employer. Send wages
+				ticks = laborContract.ticksPerStep
+				wage = laborContract.wagePerTick
+				netPayment = ticks*wage
+				paymentId = "LaborPayment_{}".format(laborContract.hash)
+
+				paymentSent = self.sendCurrency(netPayment, laborContract.workerId, transactionId=paymentId)
+				if not (paymentSent):
+					self.logger.error("{} failed".format(paymentId))
+
+				contractFulfilled = paymentSent
+		else:
+			self.logger.error("{} already expired".format(laborContract))
+			contractFulfilled = False
+
+		return contractFulfilled
+		
+
+	def receiveJobApplication(self, applicationPayload, senderId):
+		'''
+		Will pass along job application to agent controller for approval. Will finalizae labor contract if approved.
+		Returns True if contract is completed, False if not
+		'''
+		try:
+			laborContract = applicationPayload["laborContract"]
+			applicationId = applicationPayload["applicationId"]
+
+			#Evaluate offer
+			applicationAccepted = False
+			if (self.agentId != laborContract.employerId):
+				#This application is for a different employer. Reject it
+				applicationAccepted = False
+			elif (senderId != laborContract.workerId):
+				#This was sent by a third party. Reject it
+				applicationAccepted = False
+			else:
+				#Offer is valid. Evaluate offer
+				self.logger.debug("Fowarding {} to controller {}".format(laborContract, self.controller.name))
+				applicationAccepted = self.controller.evalJobApplication(laborContract)
+
+			#Notify counter party of response
+			respPayload = {"laborContract": laborContract, "accepted": applicationAccepted}
+			responsePacket = NetworkPacket(senderId=self.agentId, destinationId=senderId, msgType="LABOR_APPLICATION_ACK", payload=respPayload, transactionId=applicationId)
+			self.sendPacket(responsePacket)
+
+			#If accepted, add to existing labor contracts
+			if (applicationAccepted):
+				self.logger.debug("{} accepted".format(laborContract))
+				self.laborContractsLock.acquire()
+				
+				if not (laborContract.endStep in self.laborContracts):
+					self.laborContracts[laborContract.endStep] = {}
+				self.laborContracts[laborContract.endStep][laborContract.hash] = laborContract
+
+				self.laborContractsLock.release()
+			else:
+				self.logger.debug("{} rejected".format(laborContract))
+
+			return applicationAccepted
+
+		except Exception as e:
+			self.logger.critical("receiveJobApplication() Exception")
+			self.logger.critical("selg.agentId={}, applicationPayload={}, senderId={}".format(self.agentId, applicationPayload, senderId))
+			raise ValueError("receiveJobApplication() Exception")
+		
+
+	def sendJobApplication(self, laborListing):
+		'''
+		Send a job application to an employer.
+		Returns True if the application accepted. Returns False if not
+		'''
+		if (laborListing.ticksPerStep > (self.ticksPerStep - self.commitedTicks)):
+			#This agent does not have the time for the job
+			self.logger.error("{} cannot apply for {}. {}/{} ticks per day are already commited".format(self.agentId, laborListing, self.commitedTicks, self.ticksPerStep))
+			return False
+
+		try:
+			self.logger.debug("{}.sendJobApplication({}) start".format(self.agentId, laborListing))
+			applicationAccepted = False
+
+			#Send job application
+			laborContract = laborListing.generateLaborContract(workerId=self.agentId, workerSkillLevel=self.skillLevel, startStep=self.stepNum+1)
+			applicationId = "LaborApplication_{}(contract={})".format(laborContract.hash, laborContract)
+			applicationPayload = {"laborContract": laborContract, "applicationId": applicationId}
+			applicationPacket = NetworkPacket(senderId=self.agentId, destinationId=laborListing.employerId, msgType="LABOR_APPLICATION", payload=applicationPayload, transactionId=applicationId)
+			self.sendPacket(applicationPacket)
+			
+			#Wait for application response
+			while not (applicationId in self.responseBuffer):
+				time.sleep(0.00001)
+				pass
+			responsePacket = self.responseBuffer[applicationId]
+
+			#Execute trade if request accepted
+			employerAccepted = bool(responsePacket.payload["accepted"])
+			if (employerAccepted):
+				self.logger.info("{} was accepted".format(applicationId))
+				#Add contract to contract dict
+				self.laborContractsLock.acquire()
+
+				if not (laborContract.endStep in self.laborContracts):
+					self.laborContracts[laborContract.endStep] = {}
+				self.laborContracts[laborContract.endStep][laborContract.hash] = laborContract
+				applicationAccepted = True
+
+				self.laborContractsLock.release()
+				
+				#Reserve ticks for this job
+				self.commitedTicks_nextStepLock.acquire()
+				self.commitedTicks_nextStep += laborContract.ticksPerStep
+				self.commitedTicks_nextStepLock.release()
+			else:
+				self.logger.info("{} was rejected".format(applicationId))
+				applicationAccepted = False
+
+			self.logger.debug("{}.sendJobApplication({}) return {}".format(self.agentId, laborListing, applicationAccepted))
+			return applicationAccepted
+
+		except Exception as e:
+			self.logger.critical("sendJobApplication() Exception")
+			self.logger.critical("selg.agentId={}, listing={}".format(self.agentId, laborListing))
+			raise ValueError("sendJobApplication() Exception")
+
+	#########################
+	# Item Market functions
 	#########################
 	def updateItemListing(self, itemListing):
 		'''
@@ -792,7 +1002,91 @@ class Agent:
 				del self.responseBuffer[transactionId]
 				self.responseBufferLock.release()  #<== release responseBufferLock
 			else:
-				self.logger.error("getItemListings() Lock \"responseBufferLock\" acquisition timeout")
+				self.logger.error("sampleItemListings() Lock \"responseBufferLock\" acquisition timeout")
+
+		return sampledListings
+
+	#########################
+	# Labor Market functions
+	#########################
+	def updateLaborListing(self, laborListing):
+		'''
+		Update the labor marketplace.
+		Returns True if succesful, False otherwise
+		'''
+		self.logger.debug("{}.updateLaborListing({}) start".format(self.agentId, laborListing))
+
+		updateSuccess = False
+		
+		#If we're the employer, send out update to labor market
+		if (laborListing.employerId == self.agentId):
+			transactionId = laborListing.listingStr
+			updatePacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType="LABOR_MARKET_UPDATE", payload=laborListing)
+			self.sendPacket(updatePacket)
+			updateSuccess = True
+
+		else:
+			#We are not the employer
+			self.logger.error("{}.updateLaborListing({}) failed. {} is not the employer".format(self.agentId, itemListing, self.agentId))
+			updateSuccess = False
+
+		#Return status
+		self.logger.debug("{}.updateLaborListing({}) return {}".format(self.agentId, laborListing, updateSuccess))
+		return updateSuccess
+
+	def removeLaborListing(self, laborListing):
+		'''
+		Remove a listing from the labor marketplace
+		Returns True if succesful, False otherwise
+		'''
+		self.logger.debug("{}.removeLaborListing({}) start".format(self.agentId, laborListing))
+
+		updateSuccess = False
+
+		#If we're the seller, send out update to item market
+		if (laborListing.employerId == self.agentId):
+			transactionId = laborListing.listingStr
+			updatePacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType="LABOR_MARKET_REMOVE", payload=laborListing)
+			self.sendPacket(updatePacket)
+			updateSuccess = True
+
+		else:
+			#We are not the employer
+			self.logger.error("{}.removeLaborListing({}) failed. {} is not the itemMarket or the seller".format(self.agentId, laborListing, self.agentId))
+			updateSuccess = False
+
+		#Return status
+		self.logger.debug("{}.removeLaborListing({}) return {}".format(self.agentId, laborListing, updateSuccess))
+		return updateSuccess
+
+	def sampleLaborListings(self, sampleSize=3, delResponse=True):
+		'''
+		Returns a list of sampled labor listings that agent qualifies for (listing.minSkillLevel <= agent.skillLevel).
+		Will sample listings in order of decreasing skill level, returning the highest possible skill-level listings. Samples are randomized within skill levels.
+		'''
+		sampledListings = []
+		
+		#Send request to itemMarketAgent
+		transactionId = "LABOR_MARKET_SAMPLE_{}_{}".format(self.agentId, time.time())
+		requestPayload = {"agentSkillLevel": self.skillLevel, "sampleSize": sampleSize}
+		requestPacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType="LABOR_MARKET_SAMPLE", payload=requestPayload)
+		self.sendPacket(requestPacket)
+
+		#Wait for response from itemMarket
+		while not (transactionId in self.responseBuffer):
+			time.sleep(0.0001)
+			pass
+		responsePacket = self.responseBuffer[transactionId]
+		sampledListings = responsePacket.payload
+
+		#Remove response from response buffer
+		if (delResponse):
+			acquired_responseBufferLock = self.responseBufferLock.acquire(timeout=self.lockTimeout)  #<== acquire responseBufferLock
+			if (acquired_responseBufferLock):
+				del self.responseBuffer[transactionId]
+				self.responseBufferLock.release()  #<== release responseBufferLock
+			else:
+				self.logger.error("sampleLaborListings() Lock \"responseBufferLock\" acquisition timeout")
 
 		return sampledListings
 
@@ -868,7 +1162,8 @@ class Agent:
 		'''
 		Relinquish all time ticks for this sim step
 		'''
-		self.useTimeTicks(self.timeTicks)
+		self.logger.debug("{}.relinquishTimeTicks() start".format(self.agentId))
+		self.useTimeTicks(self.ticksPerStep-self.commitedTicks)
 
 
 	#########################

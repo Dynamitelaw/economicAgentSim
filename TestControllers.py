@@ -348,3 +348,127 @@ class TestBuyer:
 
 
 		self.logger.info("Ending shopping spree")
+
+
+class TestEmployer:
+	'''
+	This controller will submit random job listings. 
+	Will create currency out of thin air.
+	Used for testing.
+	'''
+	def __init__(self, agent, logFile=True, fileLevel="INFO"):
+		self.agent = agent
+		self.agentId = agent.agentId
+		self.simManagerId = agent.simManagerId
+
+		self.name = "{}_TestEmployer".format(agent.agentId)
+
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
+
+		#Initiate thread kill flag to false
+		self.killThreads = False
+
+		#Keep track of job listings we've posted
+		self.openJobListings = {}
+
+
+	def controllerStart(self, incommingPacket):
+		#Subscribe for tick blocking
+		#tickBlockReq = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCK_SUBSCRIBE")
+		#tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlockReq)
+		#self.logger.debug("OUTBOUND {}->{}".format(tickBlockReq, tickBlockPacket))
+		#self.agent.sendPacket(tickBlockPacket)
+
+		#Post random job listings
+		self.postRandomListings(3)
+
+	def evalJobApplication(self, laborContract):
+		#Span money needed for this contract
+		totalWages = laborContract.wagePerTick * laborContract.ticksPerStep * laborContract.contractLength
+		self.agent.receiveCurrency(totalWages)
+
+		#Accept application
+		return True
+
+	def receiveMsg(self, incommingPacket):
+		self.logger.info("INBOUND {}".format(incommingPacket))
+
+		if (incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST"):
+			pass
+
+		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+			controllerMsg = incommingPacket.payload
+			self.logger.info("INBOUND {}".format(controllerMsg))
+			
+			if (controllerMsg.msgType == "STOP_TRADING"):
+				self.killThreads = True
+
+	def postRandomListings(self, numListings):
+		'''
+		Post random job listings to job market
+		'''
+		for i in range(numListings):
+			wage = random.randint(800, 5000)
+			minSkill = float((wage-800)/4200)
+			contractLength = 4
+			listing = LaborListing(employerId=self.agentId, ticksPerStep=8, wagePerTick=wage, minSkillLevel=minSkill, contractLength=contractLength, listingName="Employee_{}_{}".format(self.agentId, i))
+			self.openJobListings[listing.hash] = listing
+			listingUpdated = self.agent.updateLaborListing(listing)
+	
+
+class TestWorker:
+	'''
+	This controller will accept random job listings. 
+	Used for testing.
+	'''
+	def __init__(self, agent, logFile=True, fileLevel="INFO"):
+		self.agent = agent
+		self.agentId = agent.agentId
+		self.simManagerId = agent.simManagerId
+
+		self.name = "{}_TestWorker".format(agent.agentId)
+
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
+
+		#Initiate thread kill flag to false
+		self.killThreads = False
+
+
+	def controllerStart(self, incommingPacket):
+		#Subscribe for tick blocking
+		tickBlockReq = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCK_SUBSCRIBE")
+		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlockReq)
+		self.logger.debug("OUTBOUND {}->{}".format(tickBlockReq, tickBlockPacket))
+		self.agent.sendPacket(tickBlockPacket)
+
+
+	def receiveMsg(self, incommingPacket):
+		self.logger.info("INBOUND {}".format(incommingPacket))
+
+		if (incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST"):
+			self.searchJobs()
+
+		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+			controllerMsg = incommingPacket.payload
+			self.logger.info("INBOUND {}".format(controllerMsg))
+			
+			if (controllerMsg.msgType == "STOP_TRADING"):
+				self.killThreads = True
+
+	def searchJobs(self):
+		if (len(self.agent.laborContracts) == 0):
+			#Select a job listing
+			sampledListings = self.agent.sampleLaborListings()
+
+			highestWage = 0
+			bestListing = None
+			for listing in sampledListings:
+				if (listing.wagePerTick > highestWage):
+					highestWage = listing.wagePerTick
+					bestListing = listing
+
+			#Send application
+			if (bestListing):
+				applicationAccepted = self.agent.sendJobApplication(bestListing)
+
+		self.agent.relinquishTimeTicks()
