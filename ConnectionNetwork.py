@@ -292,6 +292,18 @@ LABOR_MARKET_SAMPLE_ACK
 	payload = <list> [<LaborListing>, ...]
 	Returns a list of labor listings
 
+LABOR_APPLICATION
+	payload = <dict> {"laborContract": <LaborContract>, "applicationId": <str>}
+	Send by an agent to an employer agent to apply for a job listing
+
+LABOR_APPLICATION_ACK
+	payload = <dict> {"laborContract": <LaborContract>, "accepted": <bool>}
+	Ack sent by employer to applying agent
+
+LABOR_TIME_SEND
+	payload = <dict> {"ticks": <int>, "skillLevel": <float>}
+	Send time ticks from an agent to an employer
+
 #########################
 # Other Agent Packets
 #########################
