@@ -204,7 +204,7 @@ def RunSimulation(settingsDict, logLevel="INFO"):
 				agentId = "{}_{}".format(agentType, i)
 				procNum = i%numProcess
 
-				agentSeed = AgentSeed(agentId, agentType, simManagerId=managerId, itemDict=allItemsDict, fileLevel=logLevel)
+				agentSeed = AgentSeed(agentId, agentType, ticksPerStep=settingsDict["TicksPerStep"], settings=agentSettings["settings"], simManagerId=managerId, itemDict=allItemsDict, fileLevel=logLevel)
 				spawnDict[procNum][agentId] = agentSeed
 				allAgentDict[agentId] = agentSeed.agentInfo
 		print("\n")

@@ -2,7 +2,7 @@
 This file contains:
 	-Generic Agent class
 	-item UtilityFunction class
-	-item CostFunction class
+	-item ProductionFunction class
 '''
 
 import math
@@ -19,6 +19,9 @@ from TradeClasses import *
 import utils
 
 
+#######################
+# Utility Function
+#######################
 class UtilityFunction:
 	'''
 	Determines the utility for an object
@@ -71,6 +74,21 @@ class UtilityFunction:
 		return str(self)
 
 
+#######################
+# Production Function
+#######################
+class ProductionFunction:
+	'''
+	Used to calculate production costs for items
+	'''
+	def __init__(self):
+		pass
+
+
+#######################
+# Economic Agent
+#######################
+
 class AgentInfo:
 	def __init__(self, agentId, agentType):
 		self.agentId = agentId
@@ -117,8 +135,10 @@ class AgentSeed:
 	So the AgentSeed class is a pickle-safe info container that can be passed to child processes.
 	The process can then call AgentSeed.spawnAgent() to instantiate an Agent obj.
 	'''
-	def __init__(self, agentId, agentType, simManagerId=None, itemDict=None, allAgentDict=None, logFile=True, fileLevel="INFO"):
+	def __init__(self, agentId, agentType, ticksPerStep=24, settings={}, simManagerId=None, itemDict=None, allAgentDict=None, logFile=True, fileLevel="INFO"):
 		self.agentInfo = AgentInfo(agentId, agentType)
+		self.ticksPerStep = ticksPerStep
+		self.settings = settings
 		self.simManagerId = simManagerId
 		self.itemDict = itemDict
 		self.allAgentDict = allAgentDict
@@ -132,7 +152,7 @@ class AgentSeed:
 		self.agentLink = Link(sendPipe=agentPipeSend, recvPipe=agentPipeRecv)
 
 	def spawnAgent(self):
-		return Agent(self.agentInfo, simManagerId=self.simManagerId, itemDict=self.itemDict, allAgentDict=self.allAgentDict, networkLink=self.agentLink, logFile=self.logFile, fileLevel=self.fileLevel)
+		return Agent(self.agentInfo, simManagerId=self.simManagerId, ticksPerStep=self.ticksPerStep, settings=self.settings, itemDict=self.itemDict, allAgentDict=self.allAgentDict, networkLink=self.agentLink, logFile=self.logFile, fileLevel=self.fileLevel)
 
 	def __str__(self):
 		return "AgentSeed({})".format(self.agentInfo)
@@ -156,7 +176,7 @@ class Agent:
 		-marketplace updates and polling
 
 	'''
-	def __init__(self, agentInfo, simManagerId=None, itemDict=None, allAgentDict=None, networkLink=None, logFile=True, fileLevel="INFO", controller=None):
+	def __init__(self, agentInfo, simManagerId=None, ticksPerStep=24, settings={}, itemDict=None, allAgentDict=None, networkLink=None, logFile=True, fileLevel="INFO", controller=None):
 		self.info = agentInfo
 		self.agentId = agentInfo.agentId
 		self.agentType = agentInfo.agentType
@@ -187,7 +207,17 @@ class Agent:
 		self.tradeRequestLock = threading.Lock()
 
 		#Keep track of labor stuff
-		self.skillLevel = random.betavariate(2,5)  #TODO: Set this with simulation settings
+		alpha = 2  #Default alpha
+		beta = 5   #Default beta
+		if ("skillDistribution" in settings):
+			if ("alpha" in settings["skillDistribution"]):
+				alpha = settings["skillDistribution"]["alpha"]
+
+			if ("beta" in settings["skillDistribution"]):
+				beta = settings["skillDistribution"]["beta"]
+
+		self.skillLevel = random.betavariate(alpha, beta)
+
 		self.laborContracts = {}
 		self.laborContractsLock = threading.Lock()
 		self.laborInventory = {}  #Keep track of all the labor supplied to a firm for this step
@@ -203,7 +233,7 @@ class Agent:
 		self.tickBlockFlag = False
 		self.tickBlockFlag_Lock = threading.Lock()
 		self.stepNum = -1
-		self.ticksPerStep = 24  #TODO: Set this with simulation settings
+		self.ticksPerStep = ticksPerStep
 		
 		#Instantiate agent preferences (utility functions)
 		self.utilityFunctions = {}
@@ -787,7 +817,7 @@ class Agent:
 					ticksSpent = self.useTimeTicks(ticks)
 					if (ticksSpent):
 						payload = {"ticks": ticks, "skillLevel": self.skillLevel}
-						laborId = "LaborSend(agentId={}, employerId={}, ticks={}, contractHash={})".format(self.agentId, employerId, ticks, contractHash)
+						laborId = "LaborSend_{}(agentId={}, employerId={}, ticks={})".format(contractHash, self.agentId, employerId, ticks, contractHash)
 						laborPacket = NetworkPacket(senderId=self.agentId, destinationId=laborContract.employerId, transactionId=laborId, payload=payload, msgType="LABOR_TIME_SEND")
 						self.sendPacket(laborPacket)
 						contractFulfilled = True

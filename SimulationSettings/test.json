@@ -6,10 +6,22 @@
 		"TicksPerStep": 24,
 		"AgentSpawns":{
 			"TestWorker":{
-				"quantity": 10
+				"quantity": 10,
+				"settings": {
+					"skillDistribution": {
+						"alpha": 2,
+						"beta": 5
+					}
+				}
 			},
 			"TestEmployer":{
-				"quantity": 10
+				"quantity": 10,
+				"settings": {
+					"skillDistribution": {
+						"alpha": 2,
+						"beta": 5
+					}
+				}
 			}
 		}
 	}
