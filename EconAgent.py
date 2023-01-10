@@ -81,7 +81,46 @@ class ProductionFunction:
 	'''
 	Used to calculate production costs for items
 	'''
-	def __init__(self):
+	def __init__(self, prductionDict, baseEfficiency=0.9):
+		self.prductionDict = prductionDict
+
+		#Fixed costs
+		self.fixedLandCosts = {}
+		self.fixedItemCosts = {}
+		self.fixedLaborCosts = {}
+		self.fixedTimeCost = 0
+
+		#Variable costs
+
+		#Generate costs
+		self.updateCosts(baseEfficiency=baseEfficiency)
+
+	def updateCosts(baseEfficiency=0.9):
+		#Fixed costs
+		if ("FixedCosts" in self.prductionDict):
+			if ("FixedLandCosts" in self.prductionDict["FixedCosts"]):
+				self.fixedLandCosts["MaxYield"] = bool(self.prductionDict["FixedCosts"]["FixedLandCosts"]["MaxYield"])
+				if (self.prductionDict["FixedCosts"]["FixedLandCosts"]["MaxYield"]):
+					self.fixedLandCosts["MaxYield"] = float(baseEfficiency*self.prductionDict["FixedCosts"]["FixedLandCosts"]["MaxYield"])
+
+				self.fixedLandCosts["MinQuantity"] = float(self.prductionDict["FixedCosts"]["FixedLandCosts"]["MinQuantity"])
+				self.fixedLandCosts["Quantized"] = bool(self.prductionDict["FixedCosts"]["FixedLandCosts"]["Quantized"])
+			if ("FixedItemCosts" in self.prductionDict["FixedCosts"]):
+				for itemId in self.prductionDict["FixedCosts"]["FixedItemCosts"]:
+					itemCosts = self.prductionDict["FixedCosts"]["FixedItemCosts"][itemId]
+					self.fixedItemCosts["MaxYield"] = bool(itemCosts["MaxYield"])
+					if (itemCosts["MaxYield"]):
+						self.fixedItemCosts["MaxYield"] = float(baseEfficiency*itemCosts["MaxYield"])
+
+					self.fixedItemCosts["MinQuantity"] = float(itemCosts["MinQuantity"])
+					self.fixedItemCosts["Quantized"] = bool(itemCosts["Quantized"])
+			if ("FixedLaborCosts" in self.prductionDict["FixedCosts"]):
+				for skillLevel in self.prductionDict["FixedCosts"]["FixedLaborCosts"]:
+					self.fixedLaborCosts[skillLevel] = int(self.prductionDict["FixedCosts"]["FixedLaborCosts"][skillLevel])
+			if ("FixedTimeCost" in self.prductionDict["FixedCosts"]):
+				self.fixedTimeCost = int(self.prductionDict["FixedCosts"]["FixedTimeCost"])
+
+		#Variable costs
 		pass
 
 
@@ -1239,11 +1278,11 @@ Item Json format
 				...
 			},
 			"FixedLaborCosts": {
-				<float> MinSkillLevel_a: <int> ticks, #How many ticks of labor with skill >= MinSkillLevel_a it takes to enable production of itemId
-				<float> MinSkillLevel_b: <int> ticks, #How many ticks of labor with skill >= MinSkillLevel_b it takes to enable production of itemId
+				<float> MinSkillLevel_a: <int> ticks, #How many ticks per step of labor with skill >= MinSkillLevel_a it takes to enable production of itemId
+				<float> MinSkillLevel_b: <int> ticks, #How many ticks per step of labor with skill >= MinSkillLevel_b it takes to enable production of itemId
 				...
 			}, 
-			"FixedTimeCosts": <int>    #How many ticks of time must you wait before you can start producting itemId
+			"FixedTimeCost": <int>    #How many ticks of time must you wait before you can start producting itemId. Basically production setup time
 		},
 		"VariableCosts": {
 			"VariableItemCosts": {

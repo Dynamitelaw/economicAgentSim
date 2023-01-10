@@ -3,7 +3,7 @@
 	"settings": {
 		"NumProcesses": 2,
 		"SimulationSteps": 10,
-		"TicksPerStep": 24,
+		"TicksPerStep": 16,
 		"AgentSpawns":{
 			"TestWorker":{
 				"quantity": 10,
