@@ -12,6 +12,7 @@ import time
 import os
 import random
 import multiprocessing
+import copy
 
 from NetworkClasses import *
 from TestControllers import *
@@ -81,8 +82,9 @@ class ProductionFunction:
 	'''
 	Used to calculate production costs for items
 	'''
-	def __init__(self, prductionDict, baseEfficiency=0.9):
-		self.prductionDict = prductionDict
+	def __init__(self, itemDict, baseEfficiency=0.9):
+		self.itemId = itemDict["id"]
+		self.prductionDict = itemDict["ProductionInputs"]
 
 		#Fixed costs
 		self.fixedLandCosts = {}
@@ -91,11 +93,13 @@ class ProductionFunction:
 		self.fixedTimeCost = 0
 
 		#Variable costs
+		self.variableItemCosts = {}
+		self.variableLaborCosts = {}
 
 		#Generate costs
 		self.updateCosts(baseEfficiency=baseEfficiency)
 
-	def updateCosts(baseEfficiency=0.9):
+	def updateCosts(self, baseEfficiency=0.9):
 		#Fixed costs
 		if ("FixedCosts" in self.prductionDict):
 			if ("FixedLandCosts" in self.prductionDict["FixedCosts"]):
@@ -107,21 +111,181 @@ class ProductionFunction:
 				self.fixedLandCosts["Quantized"] = bool(self.prductionDict["FixedCosts"]["FixedLandCosts"]["Quantized"])
 			if ("FixedItemCosts" in self.prductionDict["FixedCosts"]):
 				for itemId in self.prductionDict["FixedCosts"]["FixedItemCosts"]:
+					self.fixedItemCosts[itemId] = {}
 					itemCosts = self.prductionDict["FixedCosts"]["FixedItemCosts"][itemId]
-					self.fixedItemCosts["MaxYield"] = bool(itemCosts["MaxYield"])
+					self.fixedItemCosts[itemId]["MaxYield"] = bool(itemCosts["MaxYield"])
 					if (itemCosts["MaxYield"]):
-						self.fixedItemCosts["MaxYield"] = float(baseEfficiency*itemCosts["MaxYield"])
+						self.fixedItemCosts[itemId]["MaxYield"] = float(baseEfficiency*itemCosts["MaxYield"])
 
-					self.fixedItemCosts["MinQuantity"] = float(itemCosts["MinQuantity"])
-					self.fixedItemCosts["Quantized"] = bool(itemCosts["Quantized"])
+					self.fixedItemCosts[itemId]["MinQuantity"] = float(itemCosts["MinQuantity"])
+					self.fixedItemCosts[itemId]["Quantized"] = bool(itemCosts["Quantized"])
 			if ("FixedLaborCosts" in self.prductionDict["FixedCosts"]):
 				for skillLevel in self.prductionDict["FixedCosts"]["FixedLaborCosts"]:
-					self.fixedLaborCosts[skillLevel] = int(self.prductionDict["FixedCosts"]["FixedLaborCosts"][skillLevel])
+					self.fixedLaborCosts[float(skillLevel)] = int(self.prductionDict["FixedCosts"]["FixedLaborCosts"][skillLevel])
 			if ("FixedTimeCost" in self.prductionDict["FixedCosts"]):
 				self.fixedTimeCost = int(self.prductionDict["FixedCosts"]["FixedTimeCost"])
 
 		#Variable costs
+		if ("VariableCosts" in self.prductionDict):
+			if ("VariableItemCosts" in self.prductionDict["VariableCosts"]):
+				for itemId in self.prductionDict["VariableCosts"]["VariableItemCosts"]:
+					self.variableItemCosts[itemId] = float(self.prductionDict["VariableCosts"]["VariableItemCosts"][itemId]/baseEfficiency)
+
+			if ("VariableLaborCosts" in self.prductionDict["VariableCosts"]):
+				for skillLevel in self.prductionDict["VariableCosts"]["VariableLaborCosts"]:
+					self.variableLaborCosts[float(skillLevel)] = float(self.prductionDict["VariableCosts"]["VariableLaborCosts"][skillLevel]/baseEfficiency)
+
+	def getMaxProduction(self, agent):
+		'''
+		Returns the maximum amount of this item that can be produced at this time
+		'''
+		maxQuantity = -1
+		maxTickYield = -1  #Maximum amount that can be produced in a single time tick
+
+		#Check land requirements
+		if (len(self.fixedLandCosts) > 0):
+			#This item requires land to produce
+			if (self.itemId in agent.landHoldings):
+				#This agent has allocated land to this item
+				allocatedLand = agent.landHoldings[self.itemId]
+				maxTickYield = allocatedLand * self.fixedLandCosts["MaxYield"]
+
+				if (self.fixedLandCosts["MinQuantity"] > 0):
+					#This item has a min land requirement
+					if (allocatedLand < self.fixedLandCosts["MinQuantity"]):
+						#Agent has not allocated enough land
+						maxQuantity = 0
+						return maxQuantity
+					elif (self.fixedLandCosts["Quantized"]):
+						#Land use is quantized
+						usableLand = int(allocatedLand / self.fixedLandCosts["MinQuantity"]) * self.fixedLandCosts["MinQuantity"]
+						maxTickYieldTemp = usableLand * self.fixedLandCosts["MaxYield"]
+						if ((maxTickYield==-1) or (maxTickYieldTemp<maxTickYield)):
+							maxTickYield = maxTickYieldTemp
+			else:
+				#This agent has not allocated land to produce this item
+				maxQuantity = 0
+				return maxQuantity
+
+
+		#Check fixed item requriements
+		for fixedCostItemId in self.fixedItemCosts:
+			if (fixedCostItemId in agent.inventory):
+				#This agent has the required item
+				itemCost = self.fixedItemCosts[fixedCostItemId]
+				currentInventory = agent.inventory[fixedCostItemId]
+
+				if (itemCost["MinQuantity"] > 0):
+					if (currentInventory < itemCost["MinQuantity"]):
+						#Agent has not have enough of this item to start production
+						maxQuantity = 0
+						return maxQuantity
+					elif (self.fixedLandCosts["Quantized"]):
+						#item use is quantized
+						usableInventory = int(currentInventory / itemCost["MinQuantity"]) * itemCost["MinQuantity"]
+						if (itemCost["MaxYield"]):
+							maxTickYieldTemp = usableInventory * itemCost["MaxYield"]
+							if ((maxTickYield==-1) or (maxTickYieldTemp<maxTickYield)):
+								maxTickYield = maxTickYieldTemp
+			else:
+				#This agent does not have the required item
+				maxQuantity = 0
+				return maxQuantity
+
+
+		#Check fixed labor requirements
+		tempLaborInventory =  copy.deepcopy(agent.laborInventory)
+		availableSkillLevels = [i for i in agent.laborInventory.keys()]
+		availableSkillLevels.sort(reverse=True)
+
+		if (len(self.fixedLaborCosts) > 0):
+			requiredSkillLevels = [i for i in self.fixedLaborCosts.keys()]
+			requiredSkillLevels.sort(reverse=True)
+
+			#Check labor requirements in descending skill level
+			for reqSkillLevel in requiredSkillLevels:
+				requiredLaborTicks = self.fixedLaborCosts[reqSkillLevel]
+				while (requiredLaborTicks > 0):
+					if (len(availableSkillLevels) > 0):
+						highestAvailSkill = availableSkillLevels[0]
+						if (highestAvailSkill >= reqSkillLevel):
+							availTicks = tempLaborInventory[highestAvailSkill]
+							if (availTicks <= requiredLaborTicks):
+								requiredLaborTicks -= availTicks
+								tempLaborInventory[highestAvailSkill] -= availTicks
+								availableSkillLevels.pop(0)
+							else:
+								tempLaborInventory[highestAvailSkill] -= requiredLaborTicks
+								requiredLaborTicks = 0
+
+						else:
+							#We don't have skilled enough labor
+							maxQuantity = 0
+							return maxQuantity
+					else:
+						#Do not have enough labor
+						maxQuantity = 0
+						return maxQuantity
+
+		#Check fixed time costs
 		pass
+
+		#Initialize max quantity using maxTickYield
+		maxQuantity = maxTickYield * agent.timeTicks
+
+		#Check variable item costs
+		for varCostId in self.variableItemCosts:
+			if (varCostId in agent.inventory):
+				varUnitCost = self.variableItemCosts[varCostId]
+				maxQuantityTemp = agent.inventory[varCostId] / varUnitCost
+				if ((maxQuantity==-1) or (maxQuantityTemp<maxQuantity)):
+					maxQuantity = maxQuantityTemp
+			else:
+				#Agent does not have needed variable cost
+				maxQuantity = 0
+				return maxQuantity
+
+		#Check variable labor costs
+		if (len(self.variableLaborCosts) > 0):
+			requiredSkillLevels = [i for i in self.variableLaborCosts.keys()]
+			requiredSkillLevels.sort(reverse=True)
+
+			#Check labor requirements in descending skill level
+			for reqSkillLevel in requiredSkillLevels:
+				requiredLaborTicks = maxQuantity / self.variableLaborCosts[reqSkillLevel]
+				allocatedLaborTicks = 0
+				while (requiredLaborTicks > 0):
+					if (len(availableSkillLevels) > 0):
+						highestAvailSkill = availableSkillLevels[0]
+						if (highestAvailSkill >= reqSkillLevel):
+							availTicks = tempLaborInventory[highestAvailSkill]
+							if (availTicks <= requiredLaborTicks):
+								requiredLaborTicks -= availTicks
+								tempLaborInventory[highestAvailSkill] -= availTicks
+								allocatedLaborTicks += availTicks
+								availableSkillLevels.pop(0)
+							else:
+								tempLaborInventory[highestAvailSkill] -= requiredLaborTicks
+								requiredLaborTicks = 0
+								allocatedLaborTicks += availTicks
+
+						else:
+							maxQuantityTemp = allocatedLaborTicks / self.variableLaborCosts[reqSkillLevel]
+							if (maxQuantityTemp<maxQuantity):
+								maxQuantity = maxQuantityTemp
+							break
+					else:
+						maxQuantityTemp = allocatedLaborTicks / self.variableLaborCosts[reqSkillLevel]
+						if (maxQuantityTemp<maxQuantity):
+							maxQuantity = maxQuantityTemp
+						break
+		
+		return maxQuantity
+
+	def __str__(self):
+		funcString = "ProductionFunction(itemId={}, fixedLandCosts={}, fixedItemCosts={}, fixedLaborCosts={}, fixedTimeCost={}, variableItemCosts={}, variableLaborCosts={})".format(
+			self.itemId, self.fixedLandCosts, self.fixedItemCosts, self.fixedLaborCosts, self.fixedTimeCost, self.variableItemCosts, self.variableLaborCosts)
+		return funcString
 
 
 #######################
@@ -174,7 +338,7 @@ class AgentSeed:
 	So the AgentSeed class is a pickle-safe info container that can be passed to child processes.
 	The process can then call AgentSeed.spawnAgent() to instantiate an Agent obj.
 	'''
-	def __init__(self, agentId, agentType, ticksPerStep=24, settings={}, simManagerId=None, itemDict=None, allAgentDict=None, logFile=True, fileLevel="INFO"):
+	def __init__(self, agentId, agentType=None, ticksPerStep=24, settings={}, simManagerId=None, itemDict=None, allAgentDict=None, logFile=True, fileLevel="INFO"):
 		self.agentInfo = AgentInfo(agentId, agentType)
 		self.ticksPerStep = ticksPerStep
 		self.settings = settings
@@ -244,6 +408,8 @@ class Agent:
 		self.debtBalance = 0
 		self.debtBalanceLock = threading.Lock()
 		self.tradeRequestLock = threading.Lock()
+		self.landHoldings = {"UNALLOCATED": 0}
+		self.landHoldingsLock = threading.Lock()
 
 		#Keep track of labor stuff
 		alpha = 2  #Default alpha

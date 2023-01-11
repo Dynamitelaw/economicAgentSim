@@ -16,14 +16,18 @@
 					"Quantized": true
 				}
 			},
-			"FixedLaborCosts": 24,
+			"FixedLaborCosts": {
+				"0.5" : 8
+			},
 			"FixedTimeCosts": 24
 		},
 		"VariableCosts": {
 			"VariableItemCosts": {
 				"water": 822
 			},
-			"VariableLaborCosts": 0.017
+			"VariableLaborCosts": {
+				"0": 0.01
+			}
 		}
 	},
 	"UtilityFunctions": {
