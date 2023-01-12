@@ -1,8 +1,28 @@
 '''
 This file contains:
-	-Generic Agent class
-	-item UtilityFunction class
-	-item ProductionFunction class
+	-Agent class
+		The Agent class is a generic class used by all agents running in a simulation.
+
+		The behavior and actions of any given agent instance is decided by it's controller, which handles all decision making.
+		The Agent class is instead responsible for the controller's interface to the rest of the simulation.
+
+		The Agent class handles:
+			-item transfers
+			-item consumption
+			-item production
+			-currency transfers
+			-trade execution
+			-currency balance management
+			-item inventory management
+			-ConnectionNetwork interactions
+			-item utility calculations
+			-marketplace updates and polling
+
+	-UtilityFunction class
+		Determines the utility of an object for a given agent
+
+	-ProductionFunction class
+		Used to calculate production costs for a given item
 '''
 
 import math
@@ -80,11 +100,19 @@ class UtilityFunction:
 #######################
 class ProductionFunction:
 	'''
-	Used to calculate production costs for items
+	Used to calculate production costs for a given item
 	'''
-	def __init__(self, itemDict, baseEfficiency=0.9):
+	def __init__(self, itemDict):
+		self.itemDict = itemDict
 		self.itemId = itemDict["id"]
 		self.prductionDict = itemDict["ProductionInputs"]
+
+		#Production learning curve
+		learningCurveDict = itemDict["ProductionLearningCurve"]
+		self.efficiency = learningCurveDict["StartingEfficiency"]
+		self.startInnefficiency = 1 - learningCurveDict["StartingEfficiency"]
+		self.halfLifeQuant = learningCurveDict["HalfLifeQuant"]
+		self.producedItems = 0
 
 		#Fixed costs
 		self.fixedLandCosts = {}
@@ -97,15 +125,19 @@ class ProductionFunction:
 		self.variableLaborCosts = {}
 
 		#Generate costs
-		self.updateCosts(baseEfficiency=baseEfficiency)
+		self.updateCosts()
 
-	def updateCosts(self, baseEfficiency=0.9):
-		#Fixed costs
+	def updateCosts(self):
+		#Update current production efficiency
+		newInnefficiency = self.startInnefficiency / math.pow(2, (self.producedItems/self.halfLifeQuant))
+		self.efficiency = 1 - newInnefficiency
+
+		#Update fixed costs
 		if ("FixedCosts" in self.prductionDict):
 			if ("FixedLandCosts" in self.prductionDict["FixedCosts"]):
 				self.fixedLandCosts["MaxYield"] = bool(self.prductionDict["FixedCosts"]["FixedLandCosts"]["MaxYield"])
 				if (self.prductionDict["FixedCosts"]["FixedLandCosts"]["MaxYield"]):
-					self.fixedLandCosts["MaxYield"] = float(baseEfficiency*self.prductionDict["FixedCosts"]["FixedLandCosts"]["MaxYield"])
+					self.fixedLandCosts["MaxYield"] = float(self.efficiency*self.prductionDict["FixedCosts"]["FixedLandCosts"]["MaxYield"])
 
 				self.fixedLandCosts["MinQuantity"] = float(self.prductionDict["FixedCosts"]["FixedLandCosts"]["MinQuantity"])
 				self.fixedLandCosts["Quantized"] = bool(self.prductionDict["FixedCosts"]["FixedLandCosts"]["Quantized"])
@@ -115,7 +147,7 @@ class ProductionFunction:
 					itemCosts = self.prductionDict["FixedCosts"]["FixedItemCosts"][itemId]
 					self.fixedItemCosts[itemId]["MaxYield"] = bool(itemCosts["MaxYield"])
 					if (itemCosts["MaxYield"]):
-						self.fixedItemCosts[itemId]["MaxYield"] = float(baseEfficiency*itemCosts["MaxYield"])
+						self.fixedItemCosts[itemId]["MaxYield"] = float(self.efficiency*itemCosts["MaxYield"])
 
 					self.fixedItemCosts[itemId]["MinQuantity"] = float(itemCosts["MinQuantity"])
 					self.fixedItemCosts[itemId]["Quantized"] = bool(itemCosts["Quantized"])
@@ -125,15 +157,15 @@ class ProductionFunction:
 			if ("FixedTimeCost" in self.prductionDict["FixedCosts"]):
 				self.fixedTimeCost = int(self.prductionDict["FixedCosts"]["FixedTimeCost"])
 
-		#Variable costs
+		#Update variable costs
 		if ("VariableCosts" in self.prductionDict):
 			if ("VariableItemCosts" in self.prductionDict["VariableCosts"]):
 				for itemId in self.prductionDict["VariableCosts"]["VariableItemCosts"]:
-					self.variableItemCosts[itemId] = float(self.prductionDict["VariableCosts"]["VariableItemCosts"][itemId]/baseEfficiency)
+					self.variableItemCosts[itemId] = float(self.prductionDict["VariableCosts"]["VariableItemCosts"][itemId]/self.efficiency)
 
 			if ("VariableLaborCosts" in self.prductionDict["VariableCosts"]):
 				for skillLevel in self.prductionDict["VariableCosts"]["VariableLaborCosts"]:
-					self.variableLaborCosts[float(skillLevel)] = float(self.prductionDict["VariableCosts"]["VariableLaborCosts"][skillLevel]/baseEfficiency)
+					self.variableLaborCosts[float(skillLevel)] = float(self.prductionDict["VariableCosts"]["VariableLaborCosts"][skillLevel]/self.efficiency)
 
 	def getMaxProduction(self, agent):
 		'''
@@ -173,7 +205,7 @@ class ProductionFunction:
 			if (fixedCostItemId in agent.inventory):
 				#This agent has the required item
 				itemCost = self.fixedItemCosts[fixedCostItemId]
-				currentInventory = agent.inventory[fixedCostItemId]
+				currentInventory = agent.inventory[fixedCostItemId].quantity
 
 				if (itemCost["MinQuantity"] > 0):
 					if (currentInventory < itemCost["MinQuantity"]):
@@ -237,7 +269,7 @@ class ProductionFunction:
 		for varCostId in self.variableItemCosts:
 			if (varCostId in agent.inventory):
 				varUnitCost = self.variableItemCosts[varCostId]
-				maxQuantityTemp = agent.inventory[varCostId] / varUnitCost
+				maxQuantityTemp = agent.inventory[varCostId].quantity / varUnitCost
 				if ((maxQuantity==-1) or (maxQuantityTemp<maxQuantity)):
 					maxQuantity = maxQuantityTemp
 			else:
@@ -281,6 +313,144 @@ class ProductionFunction:
 						break
 		
 		return maxQuantity
+
+	def produceItem(self, agent, productionAmount):
+		'''
+		Returns an item container if successful. Returns false if not
+		'''
+		maxQuantity = self.getMaxProduction(agent)
+		if (productionAmount > maxQuantity):
+			agent.logger.error("Cannot produce {} \"{}\". Max possible production = {}".format(productionAmount, self.itemId, maxQuantity))
+			return False
+
+		#Set aside fixed labor
+		agent.laborInventoryLock.acquire()  #acquire labor lock
+
+		availableLabor = copy.deepcopy(agent.laborInventory)
+		availableSkillLevels = [i for i in agent.laborInventory.keys()]
+		availableSkillLevels.sort(reverse=True)
+
+		if (len(self.fixedLaborCosts) > 0):
+			requiredSkillLevels = [i for i in self.fixedLaborCosts.keys()]
+			requiredSkillLevels.sort(reverse=True)
+
+			#Check labor requirements in descending skill level
+			for reqSkillLevel in requiredSkillLevels:
+				requiredLaborTicks = self.fixedLaborCosts[reqSkillLevel]
+				while (requiredLaborTicks > 0):
+					if (len(availableSkillLevels) > 0):
+						highestAvailSkill = availableSkillLevels[0]
+						if (highestAvailSkill >= reqSkillLevel):
+							availTicks = availableLabor[highestAvailSkill]
+							if (availTicks <= requiredLaborTicks):
+								requiredLaborTicks -= availTicks
+								availableLabor[highestAvailSkill] -= availTicks
+								availableSkillLevels.pop(0)
+							else:
+								availableLabor[highestAvailSkill] -= requiredLaborTicks
+								requiredLaborTicks = 0
+
+						else:
+							#We don't have skilled enough labor
+							agent.laborInventoryLock.release()  #release labor lock
+							agent.logger.error("Cannot produce {} {} \"{}\". Not enough fixed-cost labor (skillLevel>={})".format(reqSkillLevel, productionAmount, self.itemDict["unit"], self.itemId))
+							return False
+					else:
+						#Do not have enough labor
+						agent.laborInventoryLock.release()  #release labor lock
+						agent.logger.error("Cannot produce {} {} \"{}\". Not enough fixed-cost labor (skillLevel>={})".format(reqSkillLevel, productionAmount, self.itemDict["unit"], self.itemId))
+						return False
+
+		#Calculate labor required
+		consumedLabor = {}
+
+		if (len(self.variableLaborCosts) > 0):
+			requiredSkillLevels = [i for i in self.variableLaborCosts.keys()]
+			requiredSkillLevels.sort(reverse=True)
+
+			#Check labor requirements in descending skill level
+			for reqSkillLevel in requiredSkillLevels:
+				requiredLaborTicks = productionAmount * self.variableLaborCosts[reqSkillLevel]
+				allocatedLaborTicks = 0
+				while (requiredLaborTicks > 0):
+					if (len(availableSkillLevels) > 0):
+						highestAvailSkill = availableSkillLevels[0]
+						if (highestAvailSkill >= reqSkillLevel):
+							availTicks = availableLabor[highestAvailSkill]
+							if (availTicks <= requiredLaborTicks):
+								requiredLaborTicks -= availTicks
+								availableLabor[highestAvailSkill] -= availTicks
+								consumedLabor[highestAvailSkill] = availTicks
+								allocatedLaborTicks += availTicks
+								availableSkillLevels.pop(0)
+							else:
+								availableLabor[highestAvailSkill] -= requiredLaborTicks
+								consumedLabor[highestAvailSkill] = requiredLaborTicks
+								requiredLaborTicks = 0
+								allocatedLaborTicks += availTicks
+
+						else:
+							#We don't have skilled enough labor
+							agent.laborInventoryLock.release()  #release labor lock
+							agent.logger.error("Cannot produce {} {} \"{}\". Not enough variable-cost labor (skillLevel>={})".format(productionAmount, self.itemDict["unit"], self.itemId, reqSkillLevel))
+							return False
+					else:
+						#We don't have skilled enough labor
+						agent.laborInventoryLock.release()  #release labor lock
+						agent.logger.error("Cannot produce {} {} \"{}\". Not enough variable-cost labor (skillLevel>={})".format(productionAmount, self.itemDict["unit"], self.itemId, reqSkillLevel))
+						print("consumedLabor = {}".format(consumedLabor))
+						print("requiredLaborTicks = {}".format(requiredLaborTicks))
+						return False
+
+		#Calculate variable item inputs required
+		consumedItems = {}
+		for varCostId in self.variableItemCosts:
+			consumedAmount = self.variableItemCosts[varCostId] * productionAmount
+			consumedItems[varCostId] = consumedAmount
+
+		#Ensure we have enough items
+		agent.inventoryLock.acquire()
+
+		enoughItems = True
+		for itemId in consumedItems:
+			if (itemId in agent.inventory):
+				if (consumedItems[itemId] > agent.inventory[itemId].quantity):
+					enoughItems = False
+					agent.logger.error("Cannot produce {} {} \"{}\". Not enough {}".format(productionAmount, self.itemDict["unit"], self.itemId, itemId))
+					break
+			else:
+				enoughItems = False
+				break
+
+		#Consume required labor
+		if (enoughItems):
+			for skillLevel in consumedLabor:
+				agent.laborInventory[skillLevel] -= consumedLabor[skillLevel]
+
+			agent.laborInventoryLock.release()  #release labor lock
+
+		#Consume required items
+		if (enoughItems):
+			for itemId in consumedItems:
+				consumedQuantity = consumedItems[itemId]
+				agent.inventory[itemId].quantity -= consumedQuantity
+		else:
+			#We do not have enough items
+			agent.inventoryLock.release()
+			return False
+
+		agent.inventoryLock.release()
+
+		#Generate items
+		producedItem = ItemContainer(self.itemId, productionAmount)
+		agent.receiveItem(producedItem)
+
+		#Update production costs
+		self.producedItems += productionAmount
+		self.updateCosts()
+
+		return producedItem
+
 
 	def __str__(self):
 		funcString = "ProductionFunction(itemId={}, fixedLandCosts={}, fixedItemCosts={}, fixedLaborCosts={}, fixedTimeCost={}, variableItemCosts={}, variableLaborCosts={})".format(
@@ -338,7 +508,7 @@ class AgentSeed:
 	So the AgentSeed class is a pickle-safe info container that can be passed to child processes.
 	The process can then call AgentSeed.spawnAgent() to instantiate an Agent obj.
 	'''
-	def __init__(self, agentId, agentType=None, ticksPerStep=24, settings={}, simManagerId=None, itemDict=None, allAgentDict=None, logFile=True, fileLevel="INFO"):
+	def __init__(self, agentId, agentType=None, ticksPerStep=24, settings={}, simManagerId=None, itemDict=None, allAgentDict=None, logFile=True, fileLevel="INFO", disableNetworkLink=False):
 		self.agentInfo = AgentInfo(agentId, agentType)
 		self.ticksPerStep = ticksPerStep
 		self.settings = settings
@@ -348,11 +518,15 @@ class AgentSeed:
 		self.logFile = logFile
 		self.fileLevel = fileLevel
 
-		networkPipeRecv, agentPipeSend = multiprocessing.Pipe()
-		agentPipeRecv, networkPipeSend = multiprocessing.Pipe()
+		if (disableNetworkLink):
+			self.networkLink = None
+			self.agentLink = None
+		else:
+			networkPipeRecv, agentPipeSend = multiprocessing.Pipe()
+			agentPipeRecv, networkPipeSend = multiprocessing.Pipe()
 
-		self.networkLink = Link(sendPipe=networkPipeSend, recvPipe=networkPipeRecv)
-		self.agentLink = Link(sendPipe=agentPipeSend, recvPipe=agentPipeRecv)
+			self.networkLink = Link(sendPipe=networkPipeSend, recvPipe=networkPipeRecv)
+			self.agentLink = Link(sendPipe=agentPipeSend, recvPipe=agentPipeRecv)
 
 	def spawnAgent(self):
 		return Agent(self.agentInfo, simManagerId=self.simManagerId, ticksPerStep=self.ticksPerStep, settings=self.settings, itemDict=self.itemDict, allAgentDict=self.allAgentDict, networkLink=self.agentLink, logFile=self.logFile, fileLevel=self.fileLevel)
@@ -366,10 +540,12 @@ class Agent:
 	The Agent class is a generic class used by all agents running in a simulation.
 
 	The behavior of any given agent instance is determined by it's controller, which handles all decision making.
-	The Agent class is instead mostly responsible for the controller's interface to the rest of the simulation.
+	The Agent class is instead responsible for the controller's interface to the rest of the simulation.
 
 	The Agent class handles:
 		-item transfers
+		-item consumption
+		-item production
 		-currency transfers
 		-trade execution
 		-currency balance
@@ -441,11 +617,16 @@ class Agent:
 		self.ticksPerStep = ticksPerStep
 		
 		#Instantiate agent preferences (utility functions)
+		self.itemDict = itemDict
 		self.utilityFunctions = {}
 		if (itemDict):
 			for itemName in itemDict:
 				itemFunctionParams = itemDict[itemName]["UtilityFunctions"]
 				self.utilityFunctions[itemName] = UtilityFunction(itemFunctionParams["BaseUtility"]["mean"], itemFunctionParams["BaseUtility"]["stdDev"], itemFunctionParams["DiminishingFactor"]["mean"], itemFunctionParams["DiminishingFactor"]["stdDev"])
+
+		#Production functions
+		self.productionFunctions = {}
+		self.productionFunctionsLock = threading.Lock()
 
 		#Instantiate AI agent controller
 		if (controller):
@@ -737,7 +918,7 @@ class Agent:
 			raise ValueError("sendCurrency() Exception")
 
 	#########################
-	# Item transfer functions
+	# Item functions
 	#########################
 	def receiveItem(self, itemPackage, incommingPacket=None):
 		'''
@@ -859,6 +1040,87 @@ class Agent:
 			self.logger.critical("selg.agentId={}, itemPackage={}, recipientId={}, transactionId={}, delResponse={}".format(self.agentId, itemPackage, recipientId, transactionId, delResponse))
 			raise ValueError("sendItem() Exception")
 
+
+	def consumeItem(self, itemContainer):
+		'''
+		Consumes an item. Returns True if successful, False if not
+		'''
+		self.logger.debug("consumeItem({}) start".format(itemContainer))
+
+		consumeSuccess = False
+
+		#Make sure we have the item in our inventory
+		if (itemContainer.id in self.inventory):
+			acquired_inventoryLock = self.inventoryLock.acquire(timeout=self.lockTimeout)  #<== acquire inventoryLock
+			if (acquired_inventoryLock):
+				#Make sure we have enough of the item
+				if (itemContainer.quantity > self.inventory[itemContainer.id].quantity):
+					self.logger.error("Cannot consume {}. Current inventory of {}".format(itemContainer, self.inventory[itemContainer.id]))
+					consumeSuccess = False
+				else:
+					#Consume the item
+					self.inventory[itemContainer.id] -= itemContainer
+				self.inventoryLock.release()
+
+				consumeSuccess = True
+			else:
+				#Lock acquisition timout
+				self.logger.error("consumeItem() Lock \"inventoryLock\" acquisition timeout")
+				consumeSuccess = False
+		else:
+			self.logger.error("Cannot consume {}. Item missing from inventory".format(itemContainer))
+			consumeSuccess = False
+
+		return consumeSuccess
+
+
+	def produceItem(self, itemContainer):
+		'''
+		Returns an item container of produced items if successful, False if not.
+		'''
+		itemId = itemContainer.id
+		if not (self.itemDict):
+			self.logger.error("Cannot produce {}. No global item dictionary set for this agent".format(itemContainer, itemId))
+			return False
+
+		if not (itemId in self.itemDict):
+			self.logger.error("Cannot produce {}. \"{}\" missing from global item dictionary".format(itemContainer, itemId))
+			return False
+
+		if not (itemId in self.productionFunctions):
+			#Have not produced this item before. Create new production function
+			newProductionFunction = ProductionFunction(self.itemDict[itemId])
+			self.productionFunctionsLock.acquire()
+			self.productionFunctions[itemId] = newProductionFunction
+			self.productionFunctionsLock.release()
+
+		productionFunction = self.productionFunctions[itemId]
+		producedItems = productionFunction.produceItem(self, itemContainer.quantity)
+		return producedItems
+
+
+	def getMaxProduction(self, itemId):
+		'''
+		Returns the max amount of itemId this agent can produce at this time
+		'''
+		if not (self.itemDict):
+			self.logger.error("Cannot produce {}. No global item dictionary set for this agent".format(itemId))
+			return False
+
+		if not (itemId in self.itemDict):
+			self.logger.error("Cannot produce {}. \"{}\" missing from global item dictionary".format(itemId, itemId))
+			return False
+
+		if not (itemId in self.productionFunctions):
+			#Have not produced this item before. Create new production function
+			newProductionFunction = ProductionFunction(self.itemDict[itemId])
+			self.productionFunctionsLock.acquire()
+			self.productionFunctions[itemId] = newProductionFunction
+			self.productionFunctionsLock.release()
+
+		productionFunction = self.productionFunctions[itemId]
+		maxQuantity = productionFunction.getMaxProduction(self)
+		return maxQuantity
 
 	#########################
 	# Trading functions
@@ -1428,7 +1690,11 @@ Item Json format
 	"id": <str> itemId,
 	"unit": <str> itemUnit,
 	"category": <str> itemCategory,
-	"ProductionInputs": {
+	"ProductionLearningCurve": {   #How quickly do new firms approach perfect production efficiency
+		"StartingEfficiency": <float>,  #What is the starting efficiency for new firms producing this item
+		"HalfLifeQuant": <float> or <int>   #How many units of this item does a firm have to produce to cut their current production innefficiency in half
+	},
+	"ProductionInputs": {   #What is required to produce this item, assuming perfect production efficiency
 		"FixedCosts": {
 			"FixedLandCosts": {
 				"MaxYield": <float> or <bool>, #How many units of itemId can 1 unit of land (1 hectare) produce in 1 time tick (1 hour). Can be set to <bool> false if it does not apply.
@@ -1463,7 +1729,7 @@ Item Json format
 			}
 		}
 	},
-	"UtilityFunctions": {
+	"UtilityFunctions": {   #How much utility do household get from one unit of this item
 		"BaseUtility": {
 			"mean": <float>,
 			"stdDev": <float>

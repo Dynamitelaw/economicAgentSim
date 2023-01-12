@@ -32,31 +32,28 @@ if __name__ == "__main__":
 						allItemsDict[itemDict["id"]] = itemDict
 		except:
 			pass
-
-	potatoFunction = ProductionFunction(allItemsDict["potato"], baseEfficiency=1)
 	
 	#Create test agent
-	farmerSeed = AgentSeed("potatoFarmer", agentType="TestProducer")
+	farmerSeed = AgentSeed("potatoFarmer", agentType="TestProducer", itemDict=allItemsDict, disableNetworkLink=True)
 	farmer = farmerSeed.spawnAgent()
 	farmer.timeTicks = 16
 
 	#Give agent needed production inputs
-	#maxQuant = potatoFunction.getMaxProduction(farmer)
-	#print(maxQuant)
-
 	farmer.landHoldings["potato"] = 2
-	#maxQuant = potatoFunction.getMaxProduction(farmer)
-	#print(maxQuant)
 
-	farmer.inventory["shovel"] = 1
-	#maxQuant = potatoFunction.getMaxProduction(farmer)
-	#print(maxQuant)
+	farmer.receiveItem(ItemContainer("shovel", 1))
 
 	farmer.laborInventory[0.6] = 8
 	farmer.laborInventory[0.2] = 5
-	#maxQuant = potatoFunction.getMaxProduction(farmer)
-	#print(maxQuant)
 
-	farmer.inventory["water"] = 900
-	maxQuant = potatoFunction.getMaxProduction(farmer)
+	farmer.receiveItem(ItemContainer("water", 1000))
+	maxQuant = farmer.getMaxProduction("potato")
 	print(maxQuant)
+
+	#Produce some potatos
+	farmer.produceItem(ItemContainer("potato", 1))
+	print(farmer.inventory)
+	farmer.produceItem(ItemContainer("potato", 1))
+	print(farmer.inventory)
+	farmer.produceItem(ItemContainer("potato", 1))
+	print(farmer.inventory)

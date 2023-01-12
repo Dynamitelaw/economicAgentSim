@@ -36,16 +36,11 @@ class ItemContainer:
 		self.id = itemId
 		self.quantity = itemQuantity
 
-		tempStr = "{}_{}".format(itemId, itemQuantity)
-		self.hash = hashlib.sha256(tempStr.encode('utf-8')).hexdigest()[:8 ]
-		self.string = "ItemContainer_{}(ID={}, Quant={})".format(self.hash, self.id, self.quantity)
-
-
 	def __repr__(self):
 		return str(self)
 
 	def __str__(self):
-		return self.string
+		return "ItemContainer(ID={}, Quant={})".format(self.id, self.quantity)
 
 	def __add__(self, other):
 		typeOther = type(other)

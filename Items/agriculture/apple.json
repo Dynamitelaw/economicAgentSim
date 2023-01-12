@@ -2,6 +2,10 @@
 	"id": "apple",
 	"unit": "kg",
 	"category": "agriculture",
+	"ProductionLearningCurve": {
+		"StartingEfficiency": 0.8,
+		"HalfLifeQuant": 1
+	},
 	"ProductionInputs": {
 		"FixedCosts": {
 			"FixedLandCosts": {
