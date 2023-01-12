@@ -11,7 +11,8 @@
 			"FixedLandCosts": {
 				"MaxYield": 4.92,
 				"MinQuantity": 0.5,
-				"Quantized": true
+				"Quantized": true,
+				"AllocationTime": 24
 			},
 			"FixedItemCosts": {
 				"shovel": {
@@ -22,8 +23,7 @@
 			},
 			"FixedLaborCosts": {
 				"0.5" : 8
-			},
-			"FixedTimeCosts": 24
+			}
 		},
 		"VariableCosts": {
 			"VariableItemCosts": {

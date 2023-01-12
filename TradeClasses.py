@@ -16,6 +16,7 @@ class InfoRequest:
 	def __str__(self):
 		return self.reqString
 
+
 class ItemListing:
 	def __init__(self, sellerId, itemId, unitPrice, maxQuantity):
 		self.sellerId = sellerId
@@ -142,6 +143,7 @@ class LaborContract:
 	def __str__(self):
 		return self.contractStr
 
+
 class TradeRequest:
 	def __init__(self, sellerId, buyerId, currencyAmount, itemPackage):
 		self.sellerId = sellerId
@@ -157,3 +159,17 @@ class TradeRequest:
 	def __str__(self):
 		return self.reqId
 
+
+class LandListing:
+	def __init__(self, sellerId, hectares, allocation, pricePerHectare):
+		self.sellerId = sellerId
+		self.hectares = hectares
+		self.allocation = allocation
+		self.pricePerHectare = pricePerHectare
+
+		tempListingStr = "LandListing(seller={}, hectares={}, pricePerHectare={}, allocation={})".format(sellerId, hectares, pricePerHectare, allocation)
+		self.hash = hashlib.sha256(tempListingStr.encode('utf-8')).hexdigest()[:8 ]
+		self.listingStr = "LandListing_{}(seller={}, hectares={}, pricePerHectare={}, allocation={})".format(self.hash, sellerId, hectares, pricePerHectare, allocation)
+
+	def __str__(self):
+		return self.listingStr

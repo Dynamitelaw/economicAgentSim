@@ -118,7 +118,6 @@ class ProductionFunction:
 		self.fixedLandCosts = {}
 		self.fixedItemCosts = {}
 		self.fixedLaborCosts = {}
-		self.fixedTimeCost = 0
 
 		#Variable costs
 		self.variableItemCosts = {}
@@ -154,8 +153,6 @@ class ProductionFunction:
 			if ("FixedLaborCosts" in self.prductionDict["FixedCosts"]):
 				for skillLevel in self.prductionDict["FixedCosts"]["FixedLaborCosts"]:
 					self.fixedLaborCosts[float(skillLevel)] = int(self.prductionDict["FixedCosts"]["FixedLaborCosts"][skillLevel])
-			if ("FixedTimeCost" in self.prductionDict["FixedCosts"]):
-				self.fixedTimeCost = int(self.prductionDict["FixedCosts"]["FixedTimeCost"])
 
 		#Update variable costs
 		if ("VariableCosts" in self.prductionDict):
@@ -258,9 +255,6 @@ class ProductionFunction:
 						#Do not have enough labor
 						maxQuantity = 0
 						return maxQuantity
-
-		#Check fixed time costs
-		pass
 
 		#Initialize max quantity using maxTickYield
 		maxQuantity = maxTickYield * agent.timeTicks
@@ -584,7 +578,7 @@ class Agent:
 		self.debtBalance = 0
 		self.debtBalanceLock = threading.Lock()
 		self.tradeRequestLock = threading.Lock()
-		self.landHoldings = {"UNALLOCATED": 0}
+		self.landHoldings = {"UNALLOCATED": 0, "ALLOCATING": 0}
 		self.landHoldingsLock = threading.Lock()
 
 		#Keep track of labor stuff
@@ -1699,7 +1693,8 @@ Item Json format
 			"FixedLandCosts": {
 				"MaxYield": <float> or <bool>, #How many units of itemId can 1 unit of land (1 hectare) produce in 1 time tick (1 hour). Can be set to <bool> false if it does not apply.
 				"MinQuantity": <float>,        #What is the smallest amount of land you need before you can start production.
-				"Quantized": <bool>            #If True, land can only be productive in increments of MinQuantity
+				"Quantized": <bool>,           #If True, land can only be productive in increments of MinQuantity
+				"AllocationTime": <int>        #How many ticks of time must you wait before you can allocate the land to start producting itemId. Basically production setup time
 			},
 			"FixedItemCosts": {
 				<str> costItemId_f0: {
@@ -1713,8 +1708,7 @@ Item Json format
 				<float> MinSkillLevel_a: <int> ticks, #How many ticks per step of labor with skill >= MinSkillLevel_a it takes to enable production of itemId
 				<float> MinSkillLevel_b: <int> ticks, #How many ticks per step of labor with skill >= MinSkillLevel_b it takes to enable production of itemId
 				...
-			}, 
-			"FixedTimeCost": <int>    #How many ticks of time must you wait before you can start producting itemId. Basically production setup time
+			}
 		},
 		"VariableCosts": {
 			"VariableItemCosts": {

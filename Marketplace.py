@@ -5,6 +5,7 @@ They do not handle transactions.
 
 Types:
 	ItemMarketplace: Where sellers can post ItemListings
+	LaborMarketplace: Where employers can post LaborListings
 '''
 import threading
 import os
@@ -459,6 +460,224 @@ class LaborMarketplace:
 			infoKey = infoRequest.infoKey
 			if (infoKey == "laborMarket"):
 				infoRequest.info = self.laborMarket
+			elif (infoKey == "inventory"):
+				infoRequest.info = None
+			else:
+				infoRequest.info = None
+			
+			infoRespPacket = NetworkPacket(senderId=self.agentId, destinationId=infoRequest.requesterId, msgType="INFO_RESP", payload=infoRequest)
+			self.sendPacket(infoRespPacket)
+		else:
+			self.logger.warning("Received infoRequest for another agent {}".format(infoRequest))
+
+	def __str__(self):
+		return str(self.agentInfo)
+
+
+class LandMarketplace:
+	def __init__(self, networkLink, logFile=True, fileLevel="INFO"):
+		self.agentId = "LandMarketplace"
+		self.logger = utils.getLogger("LandMarketplace", logFile=logFile, outputdir=os.path.join("LOGS", "Markets"), fileLevel=fileLevel)
+		self.logger.info("LandMarketplace instantiated")
+
+		self.lockTimeout = 5
+
+		#Pipe connections to the connection network
+		self.networkLink = networkLink
+		self.networkSendLock = threading.Lock()
+		self.responseBuffer = {}
+		self.responseBufferLock = threading.Lock()
+
+		#Lane marketplace dict
+		self.landMarket = {"UNALLOCATED": {}}
+		self.landMarketLocks = {"UNALLOCATED": threading.Lock()}
+
+		#Start monitoring network link
+		if (self.networkLink):
+			linkMonitor = threading.Thread(target=self.monitorNetworkLink)
+			linkMonitor.start()	
+		
+
+	#########################
+	# Network functions
+	#########################
+	def monitorNetworkLink(self):
+		'''
+		Monitor/handle incoming packets on the pipe link to the ConnectionNetork
+		'''
+		self.logger.info("Monitoring networkLink {}".format(self.networkLink))
+		while True:
+			incommingPacket = self.networkLink.recvPipe.recv()
+			self.logger.info("INBOUND {}".format(incommingPacket))
+			if ((incommingPacket.msgType == "KILL_PIPE_AGENT") or (incommingPacket.msgType == "KILL_ALL_BROADCAST")):
+				#Kill the network pipe before exiting monitor
+				killPacket = NetworkPacket(senderId=self.agentId, destinationId=self.agentId, msgType="KILL_PIPE_NETWORK")
+				self.sendPacket(killPacket)
+				self.logger.info("Killing networkLink {}".format(self.networkLink))
+				break
+
+			#Handle errors
+			elif ("ERROR" in incommingPacket.msgType):
+				self.logger.error("{} {}".format(incommingPacket, incommingPacket.payload))
+
+			#Handle incoming information requests
+			elif (incommingPacket.msgType == "INFO_REQ"):
+				infoRequest = incommingPacket.payload
+				infoThread =  threading.Thread(target=self.handleInfoRequest, args=(infoRequest, ))
+				infoThread.start()
+
+		self.logger.info("Ending networkLink monitor".format(self.networkLink))
+
+
+	def sendPacket(self, packet, agentLink=None, agentSendLock=None):
+		if (agentLink):
+			#Bypass network and send packet directly to agent
+			if (agentSendLock):
+				acquired_agentSendLock = agentSendLock.acquire(timeout=self.lockTimeout)
+				if (acquired_agentSendLock):
+					self.logger.info("OUTBOUND {}".format(packet))
+					agentLink.sendPipe.send(packet)
+					agentSendLock.release()
+				else:
+					self.logger.error("{}.sendPacket() Lock networkSendLock acquire timeout".format(self.agentId))
+			else:
+				agentLink.sendPipe.send(packet)
+		else:
+			#Send this packet over the network
+			acquired_networkSendLock = self.networkSendLock.acquire(timeout=self.lockTimeout)
+			if (acquired_networkSendLock):
+				self.logger.info("OUTBOUND {}".format(packet))
+				self.networkLink.sendPipe.send(packet)
+				self.networkSendLock.release()
+			else:
+				self.logger.error("{}.sendPacket() Lock networkSendLock acquire timeout".format(self.agentId))
+
+
+	def handlePacket(self, incommingPacket, agentLink, agentSendLock):
+		self.logger.info("INBOUND {}".format(incommingPacket))
+		handled = False
+		if (incommingPacket.msgType == "LAND_MARKET_UPDATE"):
+			handled = self.updateLandListing(incommingPacket)
+		elif (incommingPacket.msgType == "LAND_MARKET_REMOVE"):
+			handled = self.removeLandListing(incommingPacket)
+		elif (incommingPacket.msgType == "LAND_MARKET_SAMPLE"):
+			handled = self.sampleLandListings(incommingPacket, agentLink, agentSendLock)
+
+		return handled
+
+	#########################
+	# Market functions
+	#########################
+	def updateLandListing(self, incommingPacket):
+		'''
+		Update the land marketplace.
+		Returns True if succesful, False otherwise
+		'''
+		landListing = incommingPacket.payload
+
+		self.logger.debug("{}.updateLandListing({}) start".format(self.agentId, landListing))
+
+		updateSuccess = False
+
+		if not (landListing.sellerId in self.landMarket[landListing.allocation]):
+			#Seller is new to this allocation type. Add them to the market
+			landLock = self.landMarketLocks[landListing.allocation]
+			acquired_landMarketLock = landLock.acquire(timeout=self.lockTimeout)  # <== landMarketLock acquire
+			if (acquired_landMarketLock):
+				self.landMarket[landListing.allocation][landListing.sellerId] = landListing
+				landLock.release()  # <== landMarketLock release
+			else:
+				self.logger.error("updateLandListing() Lock \"landMarketLock\" acquisition timeout")
+				updateSuccess = False
+		else:
+			#Seller is already in selling this land. Dict size won't change. No need to acquire thread lock
+			self.landMarket[landListing.allocation][landListing.sellerId] = landListing
+
+		#Return status
+		self.logger.debug("{}.updateLandListing({}) return {}".format(self.agentId, landListing, updateSuccess))
+		return updateSuccess
+
+	def removeLandListing(self, incommingPacket):
+		'''
+		Remove a listing from the land marketplace
+		Returns True if succesful, False otherwise
+		'''
+		landListing = incommingPacket.payload
+
+		self.logger.debug("{}.removeLandListing({}) start".format(self.agentId, landListing))
+
+		updateSuccess = False
+
+		#Update local land market with listing
+		landLock = self.landMarketLocks[landListing.allocation]
+		acquired_landMarketLock = landLock.acquire(timeout=self.lockTimeout)  # <== landMarketLock acquire
+		if (acquired_landMarketLock):
+			if (landListing.allocation in self.landMarket):
+				if (landListing.sellerId in self.landMarket[landListing.allocation]):
+					del self.landMarket[landListing.allocation][landListing.sellerId]
+
+			landLock.release()  # <== landMarketLock release
+			updateSuccess = True
+		else:
+			self.logger.error("removeLandListing() Lock \"landMarketLock\" acquisition timeout")
+			updateSuccess = False
+
+		#Return status
+		self.logger.debug("{}.removeLandListing({}) return {}".format(self.agentId, landListing, updateSuccess))
+		return updateSuccess
+
+	def sampleLandListings(self, incommingPacket, agentLink, agentSendLock):
+		'''
+		Sends a list of randomly sampled land listings that match landContainer to the requesting agent.
+			LandListing.allocation == allocation
+			LandListing.hectares >= hectares
+
+		Returns True if successful
+		'''
+
+		hectares = incommingPacket.payload["hectares"]
+		allocationType = incommingPacket.payload["allocation"]
+		sampleSize = incommingPacket.payload["sampleSize"]
+
+		sampledListings = []
+		
+		#We are the land market. Get information from landMarket dict
+		if (allocationType):
+			#Allocation type is specified. Only return land of that type
+			if (allocationType in self.landMarket):
+				landListings = [i for i in self.landMarket[allocationType].values() if i.hectares >= hectares]
+				if (len(landListings) > sampleSize):
+					sampledListings = random.sample(list(landListings.values()), sampleSize).copy()
+				else:
+					sampledListings = list(landListings.values()).copy()
+		else:
+			#No allocation type specified. All land listings are valid
+			landListings = []
+			for allocationType in self.landMarket:
+				landListings += [i for i in self.landMarket[allocationType].values() if i.hectares >= hectares]
+
+			if (len(landListings) > sampleSize):
+				sampledListings = random.sample(list(landListings.values()), sampleSize).copy()
+			else:
+				sampledListings = list(landListings.values()).copy()
+
+		#Send out sampled listings if request came from network
+		if (incommingPacket):
+			responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, transactionId=incommingPacket.transactionId, msgType="LAND_MARKET_SAMPLE_ACK", payload=sampledListings)
+			self.sendPacket(responsePacket, agentLink, agentSendLock)
+
+
+		return True
+
+
+	#########################
+	# Misc functions
+	#########################
+	def handleInfoRequest(self, infoRequest):
+		if (self.agentId == infoRequest.agentId):
+			infoKey = infoRequest.infoKey
+			if (infoKey == "landMarket"):
+				infoRequest.info = self.landMarket
 			elif (infoKey == "inventory"):
 				infoRequest.info = None
 			else:

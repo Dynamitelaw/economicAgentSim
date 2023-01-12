@@ -43,6 +43,7 @@ class ConnectionNetwork:
 		#Instantiate Item Marketplace
 		self.itemMarketplace = self.addMarketplace("ItemMarketplace", itemDict)
 		self.laborMarketplace = self.addMarketplace("LaborMarketplace")
+		self.landMarketplace = self.addMarketplace("LandMarketplace")
 
 	def addConnection(self, agentId, networkLink):
 		self.logger.info("Adding connection to {}".format(agentId))
@@ -65,6 +66,10 @@ class ConnectionNetwork:
 
 		if (marketType=="LaborMarketplace"):
 			marketplaceObj = LaborMarketplace(market_agentLink)
+			self.addConnection(marketplaceObj.agentId, market_networkLink)
+
+		if (marketType=="LandMarketplace"):
+			marketplaceObj = LandMarketplace(market_agentLink)
 			self.addConnection(marketplaceObj.agentId, market_networkLink)
 
 		return marketplaceObj
@@ -180,6 +185,9 @@ class ConnectionNetwork:
 			elif ("LABOR_MARKET" in incommingPacket.msgType):
 					#We've received an item market packet
 					self.laborMarketplace.handlePacket(incommingPacket, self.agentConnections[incommingPacket.senderId], self.sendLocks[incommingPacket.senderId])
+			elif ("LAND_MARKET" in incommingPacket.msgType):
+					#We've received an item market packet
+					self.landMarketplace.handlePacket(incommingPacket, self.agentConnections[incommingPacket.senderId], self.sendLocks[incommingPacket.senderId])
 					
 			#Route all over packets
 			elif (destinationId in self.agentConnections):
