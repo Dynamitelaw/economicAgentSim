@@ -264,6 +264,20 @@ TRADE_REQ
 TRADE_REQ_ACK
 	payload = <dict> {"tradeRequest": <TradeRequest>, "accepted": <bool>}
 
+LAND_TRANSFER
+	payload = <dict> {"transferId": <str>, "allocation": <str>, "hectares": <float>}
+	Transfer land from sender to recipient
+
+LAND_TRANSFER_ACK
+	payload = <dict> {"transferId": <str>, "transferSuccess": <bool>}
+	Sent from land recipient to land sender
+
+LAND_TRADE_REQ
+	payload = <LandTradeRequest>
+
+LAND_TRADE_REQ_ACK
+	payload = <dict> {"tradeRequest": <LandTradeRequest>, "accepted": <bool>}
+
 #########################
 # Market Packets
 #########################
@@ -311,6 +325,22 @@ LABOR_APPLICATION_ACK
 LABOR_TIME_SEND
 	payload = <dict> {"ticks": <int>, "skillLevel": <float>}
 	Send time ticks from an agent to an employer
+
+LAND_MARKET_UPDATE
+	payload = <LandListing>
+	Will update the agent's land listing in the LandMarketplace
+
+LAND_MARKET_REMOVE
+	payload = <LandListing>
+	Will remove the agent's land listing in the LandMarketplace
+
+LAND_MARKET_SAMPLE
+	payload = <dict> {"allocation": <str>, "hectares": <float>, "sampleSize": <int>}
+	Request a sample of sellers for a given land type from the LandMarketplace
+
+LAND_MARKET_SAMPLE_ACK
+	payload = <list> [<LandListing>, ...]
+	Returns a list of land listings
 
 #########################
 # Other Agent Packets

@@ -490,6 +490,7 @@ class LandMarketplace:
 
 		#Lane marketplace dict
 		self.landMarket = {"UNALLOCATED": {}}
+		self.landMarketLock = threading.Lock()
 		self.landMarketLocks = {"UNALLOCATED": threading.Lock()}
 
 		#Start monitoring network link
@@ -579,6 +580,13 @@ class LandMarketplace:
 
 		updateSuccess = False
 
+		if not (landListing.allocation in self.landMarket):
+			#New allocation type. Add empty dict to market
+			self.landMarketLock.acquire()
+			self.landMarket[landListing.allocation] = {}
+			self.landMarketLocks[landListing.allocation] = threading.Lock()
+			self.landMarketLock.release()
+
 		if not (landListing.sellerId in self.landMarket[landListing.allocation]):
 			#Seller is new to this allocation type. Add them to the market
 			landLock = self.landMarketLocks[landListing.allocation]
@@ -628,7 +636,7 @@ class LandMarketplace:
 
 	def sampleLandListings(self, incommingPacket, agentLink, agentSendLock):
 		'''
-		Sends a list of randomly sampled land listings that match landContainer to the requesting agent.
+		Sends a list of randomly sampled land listings where
 			LandListing.allocation == allocation
 			LandListing.hectares >= hectares
 
@@ -647,9 +655,9 @@ class LandMarketplace:
 			if (allocationType in self.landMarket):
 				landListings = [i for i in self.landMarket[allocationType].values() if i.hectares >= hectares]
 				if (len(landListings) > sampleSize):
-					sampledListings = random.sample(list(landListings.values()), sampleSize).copy()
+					sampledListings = random.sample(landListings, sampleSize).copy()
 				else:
-					sampledListings = list(landListings.values()).copy()
+					sampledListings = landListings
 		else:
 			#No allocation type specified. All land listings are valid
 			landListings = []

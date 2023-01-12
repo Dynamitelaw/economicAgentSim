@@ -21,12 +21,12 @@ class ItemListing:
 	def __init__(self, sellerId, itemId, unitPrice, maxQuantity):
 		self.sellerId = sellerId
 		self.itemId = itemId
-		self.unitPrice = unitPrice
+		self.unitPrice = int(unitPrice)
 		self.maxQuantity = maxQuantity
 
-		tempListingStr = "ItemListing(seller={}, item={}, price={}, max={})".format(sellerId, itemId, unitPrice, maxQuantity)
+		tempListingStr = "ItemListing(seller={}, item={}, price={}, max={})".format(sellerId, itemId, self.unitPrice, maxQuantity)
 		self.hash = hashlib.sha256(tempListingStr.encode('utf-8')).hexdigest()[:8 ]
-		self.listingStr = "ItemListing_{}(seller={}, item={}, price={}, max={})".format(self.hash, sellerId, itemId, unitPrice, maxQuantity)
+		self.listingStr = "ItemListing_{}(seller={}, item={}, price={}, max={})".format(self.hash, sellerId, itemId, self.unitPrice, maxQuantity)
 
 	def __str__(self):
 		return self.listingStr
@@ -108,14 +108,14 @@ class LaborListing:
 	def __init__(self, employerId, ticksPerStep, wagePerTick, minSkillLevel, contractLength, listingName="JobListing"):
 		self.employerId = employerId
 		self.ticksPerStep = ticksPerStep
-		self.wagePerTick = wagePerTick
+		self.wagePerTick = int(wagePerTick)
 		self.minSkillLevel = minSkillLevel
 		self.contractLength = contractLength
 		self.listingName = listingName
 
-		tempListingStr = "LaborListing(employerId={}, ticksPerStep={}, wagePerTick={}, minSkillLevel={}, contractLength={}, listingName={})".format(employerId, ticksPerStep, wagePerTick, minSkillLevel, contractLength, listingName)
+		tempListingStr = "LaborListing(employerId={}, ticksPerStep={}, wagePerTick={}, minSkillLevel={}, contractLength={}, listingName={})".format(employerId, ticksPerStep, self.wagePerTick, minSkillLevel, contractLength, listingName)
 		self.hash = hashlib.sha256(tempListingStr.encode('utf-8')).hexdigest()[:8 ]
-		self.listingStr = "LaborListing_{}(employerId={}, ticksPerStep={}, wagePerTick={}, minSkillLevel={}, contractLength={}, listingName={})".format(self.hash, employerId, ticksPerStep, wagePerTick, minSkillLevel, contractLength, listingName)
+		self.listingStr = "LaborListing_{}(employerId={}, ticksPerStep={}, wagePerTick={}, minSkillLevel={}, contractLength={}, listingName={})".format(self.hash, employerId, ticksPerStep, self.wagePerTick, minSkillLevel, contractLength, listingName)
 
 	def generateLaborContract(self, workerId, workerSkillLevel, startStep):
 		return LaborContract(self.employerId, workerId, self.ticksPerStep, self.wagePerTick, workerSkillLevel, self.contractLength, startStep, startStep+self.contractLength-1, self.hash, "EmploymentContract_{}_{}_{}".format(self.employerId, workerId, startStep))
@@ -129,16 +129,16 @@ class LaborContract:
 		self.employerId = employerId
 		self.workerId = workerId
 		self.ticksPerStep = ticksPerStep
-		self.wagePerTick = wagePerTick
+		self.wagePerTick = int(wagePerTick)
 		self.workerSkillLevel = workerSkillLevel
 		self.contractLength = contractLength
 		self.startStep = startStep
 		self.endStep = endStep
 		self.contractName = contractName
 
-		tempContractStr = "LaborContract(employerId={}, workerId={}, ticksPerStep={}, wagePerTick={}, workerSkillLevel={}, contractLength={}, startStep={}, endStep={}, contractName={})".format(employerId, workerId, ticksPerStep, wagePerTick, workerSkillLevel, contractLength, startStep, endStep, contractName)
+		tempContractStr = "LaborContract(employerId={}, workerId={}, ticksPerStep={}, wagePerTick={}, workerSkillLevel={}, contractLength={}, startStep={}, endStep={}, contractName={})".format(employerId, workerId, ticksPerStep, self.wagePerTick, workerSkillLevel, contractLength, startStep, endStep, contractName)
 		self.hash = hashlib.sha256(tempContractStr.encode('utf-8')).hexdigest()[:8 ]
-		self.contractStr = "LaborContract_{}(employerId={}, workerId={}, ticksPerStep={}, wagePerTick={}, workerSkillLevel={}, contractLength={}, startStep={}, endStep={}, contractName={})".format(self.hash, employerId, workerId, ticksPerStep, wagePerTick, workerSkillLevel, contractLength, startStep, endStep, contractName)
+		self.contractStr = "LaborContract_{}(employerId={}, workerId={}, ticksPerStep={}, wagePerTick={}, workerSkillLevel={}, contractLength={}, startStep={}, endStep={}, contractName={})".format(self.hash, employerId, workerId, ticksPerStep, self.wagePerTick, workerSkillLevel, contractLength, startStep, endStep, contractName)
 
 	def __str__(self):
 		return self.contractStr
@@ -148,13 +148,13 @@ class TradeRequest:
 	def __init__(self, sellerId, buyerId, currencyAmount, itemPackage):
 		self.sellerId = sellerId
 		self.buyerId = buyerId
-		self.currencyAmount = currencyAmount
+		self.currencyAmount = int(currencyAmount)
 		self.itemPackage = itemPackage
 
-		reqString = "TradeReq(seller={}, buyerId={}, currency={}, item={})_{}".format(sellerId, buyerId, currencyAmount, itemPackage, time.time())
+		reqString = "TradeReq(seller={}, buyerId={}, currency={}, item={})_{}".format(sellerId, buyerId, self.currencyAmount, itemPackage, time.time())
 
 		self.hash = hashlib.sha256(reqString.encode('utf-8')).hexdigest()[:8 ]
-		self.reqId = "TradeReq_{}(seller={}, buyerId={}, currency={}, item={})".format(self.hash, sellerId, buyerId, currencyAmount, itemPackage)
+		self.reqId = "TradeReq_{}(seller={}, buyerId={}, currency={}, item={})".format(self.hash, sellerId, buyerId, self.currencyAmount, itemPackage)
 
 	def __str__(self):
 		return self.reqId
@@ -173,3 +173,20 @@ class LandListing:
 
 	def __str__(self):
 		return self.listingStr
+
+
+class LandTradeRequest:
+	def __init__(self, sellerId, buyerId, hectares, allocation, currencyAmount):
+		self.sellerId = sellerId
+		self.buyerId = buyerId
+		self.hectares = hectares
+		self.allocation = allocation
+		self.currencyAmount = int(currencyAmount)
+
+		reqString = "LandTradeReq(seller={}, buyerId={}, hectares={}, allocation={}, currency={})_{}".format(sellerId, buyerId, hectares, allocation, self.currencyAmount, time.time())
+
+		self.hash = hashlib.sha256(reqString.encode('utf-8')).hexdigest()[:8 ]
+		self.reqId = "LandTradeReq_{}(seller={}, buyerId={}, hectares={}, allocation={}, currency={})".format(self.hash, sellerId, buyerId, hectares, allocation, self.currencyAmount)
+
+	def __str__(self):
+		return self.reqId

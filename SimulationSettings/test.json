@@ -5,7 +5,7 @@
 		"SimulationSteps": 10,
 		"TicksPerStep": 16,
 		"AgentSpawns":{
-			"TestWorker":{
+			"TestLandSeller":{
 				"quantity": 10,
 				"settings": {
 					"skillDistribution": {
@@ -14,7 +14,7 @@
 					}
 				}
 			},
-			"TestEmployer":{
+			"TestLandBuyer":{
 				"quantity": 10,
 				"settings": {
 					"skillDistribution": {

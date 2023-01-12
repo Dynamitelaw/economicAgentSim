@@ -472,3 +472,204 @@ class TestWorker:
 				applicationAccepted = self.agent.sendJobApplication(bestListing)
 
 		self.agent.relinquishTimeTicks()
+
+
+class TestLandSeller:
+	'''
+	This controller will sell a random amount of land for a random price. 
+	Will create land out of thin air.
+	Used for testing.
+	'''
+	def __init__(self, agent, logFile=True, fileLevel="INFO"):
+		self.agent = agent
+		self.agentId = agent.agentId
+		self.simManagerId = agent.simManagerId
+
+		self.name = "{}_TestLandSeller".format(agent.agentId)
+
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
+
+		#Determine what land to sell
+		landTypes = ["UNALLOCATED", "apple", "potato"]
+		allocation = random.sample(landTypes, 1)[0]
+
+		hectares = 200
+		pricePerHectare = 100*random.random()
+
+		#Spawn land into inventory
+		self.agent.receiveLand(allocation, hectares)
+
+		#Initialize item listing
+		self.myLandListing = LandListing(sellerId=self.agentId, allocation=allocation, hectares=hectares, pricePerHectare=pricePerHectare)
+		self.myLandListing_Lock = threading.Lock()
+
+		
+	def controllerStart(self, incommingPacket):
+		self.agent.updateLandListing(self.myLandListing)
+
+
+	def receiveMsg(self, incommingPacket):
+		self.logger.info("INBOUND {}".format(incommingPacket))
+		if ((incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST")):
+			pass
+
+		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+			controllerMsg = incommingPacket.payload
+			self.logger.info("INBOUND {}".format(controllerMsg))
+			
+			if (controllerMsg.msgType == "STOP_TRADING"):
+				self.killThreads = True
+
+
+	def evalLandTradeRequest(self, request):
+		'''
+		Accept trade request if it is possible
+		'''
+		self.logger.info("Evaluating land trade request {}".format(request))
+
+		offerAccepted = False
+		if (request.hectares == 0):
+			self.logger.warning("Invalid trade offer {}".format(request))
+			offerAccepted = False
+			return offerAccepted
+
+		if (self.agentId == request.sellerId):
+			#Check price and quantity
+			pricePerHectare = round(request.currencyAmount / request.hectares)
+			if (pricePerHectare >= self.myLandListing.pricePerHectare) and (request.hectares <= self.myLandListing.hectares):
+				#Trade terms are good. 
+				offerAccepted = True
+			else:
+				self.logger.debug("Bad term offers for {}".format(request))
+				self.logger.debug("{} | pricePerHectare >= self.myLandListing.pricePerHectare = {} | request.hectares <= self.myLandListing.hectares = {}".format(request.hash, pricePerHectare >= self.myLandListing.pricePerHectare, request.hectares <= self.myLandListing.hectares))
+				offerAccepted = False
+	
+		else:
+			self.logger.warning("Invalid trade offer {}".format(request))
+			self.logger.debug("{} | self.agentId({}) != request.sellerId({})".format(request.hash, self.agentId, request.sellerId))
+			offerAccepted = False
+
+		self.logger.info("{} accepted={}".format(request, offerAccepted))
+
+		#Remove land listing if we're out of land
+		newLandAmount = self.agent.landHoldings[request.allocation] - request.hectares
+		if (newLandAmount == 0) and (offerAccepted):
+			self.logger.info("Out of land. Removing land listing {}".format(self.myLandListing))
+			self.agent.removeItemListing(self.myLandListing)
+		elif (offerAccepted):
+			newListing = LandListing(sellerId=self.agentId, allocation=self.myLandListing.allocation, hectares=newLandAmount, pricePerHectare=self.myLandListing.pricePerHectare)
+			self.myLandListing_Lock.acquire()
+			self.myLandListing = newListing
+			self.myLandListing_Lock.release()
+
+			self.logger.info("Update land listing with new stock")
+			self.logger.info("OUTBOUND {}".format(newListing))
+			self.agent.updateLandListing(newListing)
+
+		return offerAccepted
+
+
+class TestLandBuyer:
+	'''
+	This controller will keep buying land until it runs out of money. 
+	Will create currency out of thin air.
+	Used for testing.
+	'''
+	def __init__(self, agent, logFile=True, fileLevel="INFO"):
+		self.agent = agent
+		self.agentId = agent.agentId
+		self.simManagerId = agent.simManagerId
+
+		self.name = "{}_TestLandBuyer".format(agent.agentId)
+
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
+
+		self.landTypes = ["UNALLOCATED", "apple", "potato"]
+
+		#Initiate thread kill flag to false
+		self.killThreads = False
+
+
+	def controllerStart(self, incommingPacket):
+		#Subscribe for tick blocking
+		tickBlockReq = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCK_SUBSCRIBE")
+		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlockReq)
+		self.logger.debug("OUTBOUND {}->{}".format(tickBlockReq, tickBlockPacket))
+		self.agent.sendPacket(tickBlockPacket)
+		self.agent.receiveCurrency(10000)
+
+	def receiveMsg(self, incommingPacket):
+		self.logger.info("INBOUND {}".format(incommingPacket))
+
+		if (incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST"):
+			#Launch buying loop
+			self.shoppingSpree()
+
+		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+			controllerMsg = incommingPacket.payload
+			self.logger.info("INBOUND {}".format(controllerMsg))
+			
+			if (controllerMsg.msgType == "STOP_TRADING"):
+				self.killThreads = True
+
+		
+	def shoppingSpree(self):
+		'''
+		Keep buying land until we're broke
+		'''
+		self.logger.info("Starting shopping spree")
+
+		numSellerCheck = 3
+		while ((not self.agent.tickBlockFlag) and (not self.killThreads)):
+			if (self.killThreads):
+				self.logger.debug("Received kill command")
+				break
+
+			if (self.agent.timeTicks > 0):  #We have timeTicks to use
+				#Find best price/seller from sample
+				minPrice = None
+				bestSeller = None
+
+				desiredLandType = random.sample(self.landTypes, 1)[0]
+				desiredLandAmount = int(20*random.random())+1
+
+				sampledListings = self.agent.sampleLandListings(desiredLandType, desiredLandAmount, sampleSize=3)
+				for landListing in sampledListings:
+					if (minPrice):
+						if (landListing.pricePerHectare < minPrice):
+							minPrice = landListing.pricePerHectare
+							bestSeller = landListing.sellerId
+					else:
+						minPrice = landListing.pricePerHectare
+						bestSeller = landListing.sellerId
+
+				#Determing whether to buy
+				if (minPrice):
+					#We're buying this land
+					landBought = True
+
+					#Print money required for purchase
+					currencyAmount = minPrice*desiredLandAmount
+					self.agent.receiveCurrency(currencyAmount)
+
+					#Send trade request
+					tradeRequest = LandTradeRequest(sellerId=bestSeller, buyerId=self.agentId, hectares=desiredLandAmount, allocation=desiredLandType, currencyAmount=currencyAmount)
+					self.logger.debug("Buying land | {}".format(tradeRequest))
+					tradeCompleted = self.agent.sendLandTradeRequest(request=tradeRequest, recipientId=bestSeller)
+					self.logger.debug("Trade completed={} | {}".format(tradeCompleted, tradeRequest))
+
+					#We bought land today. Relinquish time ticks
+					self.agent.relinquishTimeTicks()
+					break
+				
+				if (not landBought):
+					self.logger.info("No good land listings found in the market right now. Relinquishing time timeTicks")
+					self.agent.relinquishTimeTicks()
+
+			else:
+				#We are out of timeTicks
+				self.logger.debug("Waiting for tick grant")
+				break  #exit while loop
+
+
+		self.logger.info("Ending shopping spree")

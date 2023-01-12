@@ -12,6 +12,8 @@ This file contains:
 			-item production
 			-currency transfers
 			-trade execution
+			-land holdings
+			-land transfers
 			-currency balance management
 			-item inventory management
 			-ConnectionNetwork interactions
@@ -490,6 +492,12 @@ def getAgentController(agent, logFile=True, fileLevel="INFO"):
 	if (agentInfo.agentType == "TestWorker"):
 		#Return TestWorker controller
 		return TestWorker(agent, logFile=logFile, fileLevel=fileLevel)
+	if (agentInfo.agentType == "TestLandSeller"):
+		#Return TestLandSeller controller
+		return TestLandSeller(agent, logFile=logFile, fileLevel=fileLevel)
+	if (agentInfo.agentType == "TestLandBuyer"):
+		#Return TestLandBuyer controller
+		return TestLandBuyer(agent, logFile=logFile, fileLevel=fileLevel)
 
 	#Unhandled agent type. Return default controller
 	return None
@@ -544,6 +552,8 @@ class Agent:
 		-trade execution
 		-currency balance
 		-item inventory
+		-land holdings
+		-land transfers
 		-ConnectionNetwork interactions
 		-item utility calculations
 		-marketplace updates and polling
@@ -580,6 +590,7 @@ class Agent:
 		self.tradeRequestLock = threading.Lock()
 		self.landHoldings = {"UNALLOCATED": 0, "ALLOCATING": 0}
 		self.landHoldingsLock = threading.Lock()
+		self.landTradeRequestLock = threading.Lock()
 
 		#Keep track of labor stuff
 		alpha = 2  #Default alpha
@@ -703,10 +714,23 @@ class Agent:
 				transferThread =  threading.Thread(target=self.receiveItem, args=(itemPackage, incommingPacket))
 				transferThread.start()
 
+			#Handle incoming land
+			elif (incommingPacket.msgType == "LAND_TRANSFER"):
+				allocation = incommingPacket.payload["allocation"]
+				hectares = incommingPacket.payload["hectares"]
+				transferThread =  threading.Thread(target=self.receiveLand, args=(allocation, hectares, incommingPacket))
+				transferThread.start()
+
 			#Handle incoming trade requests
 			elif (incommingPacket.msgType == "TRADE_REQ"):
 				tradeRequest = incommingPacket.payload
 				transferThread =  threading.Thread(target=self.receiveTradeRequest, args=(tradeRequest, incommingPacket.senderId))
+				transferThread.start()
+
+			#Handle incoming land trade requests
+			elif (incommingPacket.msgType == "LAND_TRADE_REQ"):
+				tradeRequest = incommingPacket.payload
+				transferThread =  threading.Thread(target=self.receiveLandTradeRequest, args=(tradeRequest, incommingPacket.senderId))
 				transferThread.start()
 
 			#Handle incoming job applications
@@ -949,7 +973,7 @@ class Agent:
 
 		except Exception as e:
 			self.logger.critical("receiveItem() Exception")
-			self.logger.critical("selg.agentId={}, itemPackage={}, incommingPacket={}".format(self.agentId, itemPackage, incommingPacket))
+			self.logger.critical("self.agentId={}, itemPackage={}, incommingPacket={}".format(self.agentId, itemPackage, incommingPacket))
 			raise ValueError("receiveItem() Exception")
 
 
@@ -1017,7 +1041,7 @@ class Agent:
 						del self.responseBuffer[transferId]
 						self.responseBufferLock.release()  #<== release responseBufferLock
 					else:
-						self.logger.error("sendCurrency() Lock \"responseBufferLock\" acquisition timeout")
+						self.logger.error("sendItem() Lock \"responseBufferLock\" acquisition timeout")
 						transferSuccess = False
 
 			else:
@@ -1232,6 +1256,250 @@ class Agent:
 			self.logger.critical("sendTradeRequest() Exception")
 			self.logger.critical("selg.agentId={}, request={}, recipientId={}".format(self.agentId, request, recipientId))
 			raise ValueError("sendTradeRequest() Exception")
+
+	#########################
+	# Land functions
+	#########################
+	def deallocateLand(self, allocationType, hectares):
+		#TODO
+		return True
+
+	def allocateLand(self, allocationType, hectares):
+		#TODO
+		return True
+
+	def receiveLand(self, allocation, hectares, incommingPacket=None):
+		'''
+		Add land to agent land holdings.
+		Returns True if land was successfully added, False if not
+		'''
+		try:
+			self.logger.debug("{}.receiveLand({},{}) start".format(self.agentId, allocation, hectares))
+			received = False
+
+			acquired_landHoldingsLock = self.landHoldingsLock.acquire(timeout=self.lockTimeout)  #<== acquire landHoldingsLock
+			if (acquired_landHoldingsLock):
+				if not (allocation in self.landHoldings):
+					self.landHoldings[allocation] = hectares
+				else:
+					self.landHoldings[allocation] += hectares
+
+				self.landHoldingsLock.release()  #<== release landHoldingsLock
+
+				received = True
+				#Send ITEM_TRANSFER_ACK
+				if (incommingPacket):
+					respPayload = {"transferId": incommingPacket.payload["transferId"], "transferSuccess": received}
+					responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType="LAND_TRANSFER_ACK", payload=respPayload, transactionId=incommingPacket.transactionId)
+					self.sendPacket(responsePacket)
+			else:
+				self.logger.error("receiveLand() Lock \"landHoldingsLock\" acquisition timeout")
+				received = False
+
+			#Return status
+			self.logger.debug("{}.receiveLand({},{}) return {}".format(self.agentId, allocation, hectares, received))
+			return received
+
+		except Exception as e:
+			self.logger.critical("receiveLand() Exception")
+			self.logger.critical("self.agentId={}, allocation={}, hectares={}, incommingPacket={}".format(self.agentId, allocation, hectares, incommingPacket))
+			raise ValueError("receiveLand() Exception")
+
+
+	def sendLand(self, allocation, hectares, recipientId, transactionId=None, delResponse=True):
+		'''
+		Send land to another agent.
+		Returns True if land was successfully sent, False if not
+		'''
+		try:
+			self.logger.debug("{}.sendLand({}, {}, {}) start".format(self.agentId, allocation, hectares, recipientId))
+
+			transferSuccess = False
+			transferValid = False
+
+			acquired_landHoldingsLock = self.landHoldingsLock.acquire(timeout=self.lockTimeout)  #<== acquire landHoldingsLock
+			if (acquired_landHoldingsLock):
+				#Ensure we have enough land to send
+				if not (allocation in self.landHoldings):
+					self.logger.error("sendLand() Land type {} not in land holdings".format(allocation))
+					transferSuccess = False
+					transferValid = False
+				else:
+					currentAcres = self.landHoldings[allocation]
+					if(currentAcres < hectares):
+						self.logger.error("sendLand() Current land allocation={}, hectares={} not sufficient to send {} hectares".format(allocation, currentAcres, hectares))
+						transferSuccess = False
+						transferValid = False
+					else:
+						#We have enough stock. Subtract transfer amount from inventory
+						self.landHoldings[allocation] -= hectares
+						transferValid = True
+
+				self.landHoldingsLock.release()  #<== release landHoldingsLock
+
+				#Send items to recipient if transfer valid
+				transferId = "{}_LAND".format(transactionId)
+				if (not transactionId):
+					transferId = "{}_{}_LAND_{}_{}_{}".format(self.agentId, recipientId, allocation, hectares, time.time())
+
+				if (transferValid):
+					transferPayload = {"transferId": transferId, "allocation": allocation, "hectares": hectares}
+					transferPacket = NetworkPacket(senderId=self.agentId, destinationId=recipientId, msgType="LAND_TRANSFER", payload=transferPayload, transactionId=transferId)
+					self.sendPacket(transferPacket)
+
+				#Wait for transaction response
+				while not (transferId in self.responseBuffer):
+					time.sleep(0.00001)
+					pass
+				responsePacket = self.responseBuffer[transferId]
+
+				#Undo inventory change if not successful
+				transferSuccess = bool(responsePacket.payload["transferSuccess"])
+				if (not transferSuccess):
+					self.logger.error("{} {}".format(responsePacket, responsePacket.payload))
+					self.logger.error("Undoing land holdings change ({},{})".format(allocation, -1*hectares))
+					self.landHoldingsLock.acquire()  #<== acquire currencyBalanceLock
+					self.landHoldings[allocation] += hectares
+					self.landHoldingsLock.release()  #<== acquire currencyBalanceLock
+
+				#Remove transaction from response buffer
+				if (delResponse):
+					acquired_responseBufferLock = self.responseBufferLock.acquire(timeout=self.lockTimeout)  #<== acquire responseBufferLock
+					if (acquired_responseBufferLock):
+						del self.responseBuffer[transferId]
+						self.responseBufferLock.release()  #<== release responseBufferLock
+					else:
+						self.logger.error("sendLand() Lock \"responseBufferLock\" acquisition timeout")
+						transferSuccess = False
+
+			else:
+				#Lock acquisition timout
+				self.logger.error("sendLand() Lock \"inventoryLock\" acquisition timeout")
+				transferSuccess = False
+
+			#Return status
+			self.logger.debug("{}.sendLand({}, {}, {}) return {}".format(self.agentId, allocation, hectares, recipientId, transferSuccess))
+			return transferSuccess
+
+		except Exception as e:
+			self.logger.critical("sendLand() Exception")
+			self.logger.critical("self.agentId={}, allocation={}, hectares={}, recipientId={}, transactionId={}, delResponse={}".format(self.agentId, allocation, hectares, recipientId, transactionId, delResponse))
+			raise ValueError("sendLand() Exception")
+
+
+	def executeLandTrade(self, request):
+		'''
+		Execute a land trade request.
+		Returns True if trade is completed, False if not
+		'''
+		try:
+			self.logger.debug("Executing {}".format(request))
+			tradeCompleted = False
+
+			if (self.agentId == request.buyerId):
+				#We are the buyer. Send money
+				moneySent = self.sendCurrency(request.currencyAmount, request.sellerId, transactionId=request.reqId)
+				if (not moneySent):
+					self.logger.error("Money transfer failed {}".format(request))
+					
+				tradeCompleted = moneySent
+
+			if (self.agentId == request.sellerId):
+				#We are the seller. Send item package
+				landSent = self.sendLand(request.allocation, request.hectares, request.buyerId, transactionId=request.reqId)
+				if (not landSent):
+					self.logger.error("Land transfer failed {}".format(request))
+					
+				tradeCompleted = landSent
+
+			return tradeCompleted
+
+		except Exception as e:
+			self.logger.critical("executeLandTrade() Exception")
+			self.logger.critical("selg.agentId={}, request={}".format(self.agentId, request))
+			raise ValueError("executeLandTrade() Exception")
+
+
+	def receiveLandTradeRequest(self, request, senderId):
+		'''
+		Will pass along land trade request to agent controller for approval. Will execute land trade if approved.
+		Returns True if trade is completed, False if not
+		'''
+		try:
+			self.landTradeRequestLock.acquire()  #<== acquire landTradeRequestLock
+
+			tradeCompleted = False
+
+			#Evaluate offer
+			offerAccepted = False
+			if (senderId != request.sellerId) and (senderId != request.buyerId):
+				#This request was sent by a third party. Reject it
+				offerAccepted = False
+			else:
+				#Offer is valid. Evaluate offer
+				self.logger.debug("Fowarding {} to controller {}".format(request, self.controller.name))
+				offerAccepted = self.controller.evalLandTradeRequest(request)
+
+			#Notify counter party of response
+			respPayload = {"tradeRequest": request, "accepted": offerAccepted}
+			responsePacket = NetworkPacket(senderId=self.agentId, destinationId=senderId, msgType="LAND_TRADE_REQ_ACK", payload=respPayload, transactionId=request.reqId)
+			self.sendPacket(responsePacket)
+
+			#Execute trade if offer accepted
+			if (offerAccepted):
+				self.logger.debug("{} accepted".format(request))
+				tradeCompleted = self.executeLandTrade(request)
+			else:
+				self.logger.debug("{} rejected".format(request))
+
+			self.landTradeRequestLock.release()  #<== release landTradeRequestLock
+			return tradeCompleted
+
+		except Exception as e:
+			self.logger.critical("receiveLandTradeRequest() Exception")
+			self.logger.critical("selg.agentId={}, request={}, senderId={}".format(self.agentId, request, senderId))
+			raise ValueError("receiveLandTradeRequest() Exception")
+		
+
+	def sendLandTradeRequest(self, request, recipientId):
+		'''
+		Send a land trade request to another agent. Will execute trade if accepted by recipient.
+		Returns True if the trade completed. Returns False if not
+		'''
+		try:
+			self.landTradeRequestLock.acquire()  #<== acquire landTradeRequestLock
+
+			self.logger.debug("{}.sendLandTradeRequest({}, {}) start".format(self.agentId, request, recipientId))
+			tradeCompleted = False
+
+			#Send trade offer
+			tradeId = request.reqId
+			tradePacket = NetworkPacket(senderId=self.agentId, destinationId=recipientId, msgType="LAND_TRADE_REQ", payload=request, transactionId=tradeId)
+			self.sendPacket(tradePacket)
+			
+			#Wait for trade response
+			while not (tradeId in self.responseBuffer):
+				time.sleep(0.00001)
+				pass
+			responsePacket = self.responseBuffer[tradeId]
+
+			#Execute trade if request accepted
+			offerAccepted = bool(responsePacket.payload["accepted"])
+			if (offerAccepted):
+				#Execute trade
+				tradeCompleted = self.executeLandTrade(request)
+			else:
+				self.logger.info("{} was rejected".format(request))
+				tradeCompleted = offerAccepted
+
+			self.landTradeRequestLock.release()  #<== release landTradeRequestLock
+			self.logger.debug("{}.sendLandTradeRequest({}, {}) return {}".format(self.agentId, request, recipientId, tradeCompleted))
+			return tradeCompleted
+
+		except Exception as e:
+			self.logger.critical("sendLandTradeRequest() Exception")
+			self.logger.critical("selg.agentId={}, request={}, recipientId={}".format(self.agentId, request, recipientId))
+			raise ValueError("sendLandTradeRequest() Exception")
 
 	#########################
 	# Labor functions
@@ -1578,6 +1846,94 @@ class Agent:
 				self.responseBufferLock.release()  #<== release responseBufferLock
 			else:
 				self.logger.error("sampleLaborListings() Lock \"responseBufferLock\" acquisition timeout")
+
+		return sampledListings
+
+	#########################
+	# Land Market functions
+	#########################
+	def updateLandListing(self, landListing):
+		'''
+		Update the land marketplace.
+		Returns True if succesful, False otherwise
+		'''
+		self.logger.debug("{}.updateLandListing({}) start".format(self.agentId, landListing))
+
+		updateSuccess = False
+		
+		#If we're the seller, send out update to land market
+		if (landListing.sellerId == self.agentId):
+			transactionId = landListing.listingStr
+			updatePacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType="LAND_MARKET_UPDATE", payload=landListing)
+			self.sendPacket(updatePacket)
+			updateSuccess = True
+
+		else:
+			#We are not the land seller
+			self.logger.error("{}.updateLandListing({}) failed. {} is not the seller".format(self.agentId, landListing, self.agentId))
+			updateSuccess = False
+
+		#Return status
+		self.logger.debug("{}.updateLandListing({}) return {}".format(self.agentId, landListing, updateSuccess))
+		return updateSuccess
+
+	def removeLandListing(self, landListing):
+		'''
+		Remove a listing from the land marketplace
+		Returns True if succesful, False otherwise
+		'''
+		self.logger.debug("{}.removeLandListing({}) start".format(self.agentId, landListing))
+
+		updateSuccess = False
+
+		#If we're the seller, send out update to land market
+		if (landListing.sellerId == self.agentId):
+			transactionId = landListing.listingStr
+			updatePacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType="ITEM_MARKET_REMOVE", payload=landListing)
+			self.sendPacket(updatePacket)
+			updateSuccess = True
+
+		else:
+			#We are not the land market or the seller
+			self.logger.error("{}.removeLandListing({}) failed. {} is not the itemMarket or the seller".format(self.agentId, landListing, self.agentId))
+			updateSuccess = False
+
+		#Return status
+		self.logger.debug("{}.removeLandListing({}) return {}".format(self.agentId, landListing, updateSuccess))
+		return updateSuccess
+
+	def sampleLandListings(self, allocation, hectares, sampleSize=3, delResponse=True):
+		'''
+		Returns a list of randomly sampled item listings where
+			LandListing.allocation == allocation
+			LandListing.hectares >= hectares
+
+		List length can be 0 if none are found, or up to sampleSize.
+		Returns False if there was an error
+		'''
+		sampledListings = []
+		
+		#Send request to itemMarketAgent
+		transactionId = "LAND_MARKET_SAMPLE_{}_{}_{}".format(allocation, hectares, time.time())
+		requestPayload = {"allocation": allocation, "hectares": hectares, "sampleSize": sampleSize}
+		requestPacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType="LAND_MARKET_SAMPLE", payload=requestPayload)
+		self.sendPacket(requestPacket)
+
+		#Wait for response from itemMarket
+		while not (transactionId in self.responseBuffer):
+			time.sleep(0.0001)
+			pass
+		responsePacket = self.responseBuffer[transactionId]
+		sampledListings = responsePacket.payload
+
+		#Remove response from response buffer
+		if (delResponse):
+			acquired_responseBufferLock = self.responseBufferLock.acquire(timeout=self.lockTimeout)  #<== acquire responseBufferLock
+			if (acquired_responseBufferLock):
+				del self.responseBuffer[transactionId]
+				self.responseBufferLock.release()  #<== release responseBufferLock
+			else:
+				self.logger.error("sampleLandListings() Lock \"responseBufferLock\" acquisition timeout")
 
 		return sampledListings
 
