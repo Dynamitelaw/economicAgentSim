@@ -36,10 +36,24 @@ if __name__ == "__main__":
 	#Create test agent
 	farmerSeed = AgentSeed("potatoFarmer", agentType="TestProducer", itemDict=allItemsDict, disableNetworkLink=True)
 	farmer = farmerSeed.spawnAgent()
-	farmer.timeTicks = 16
+	farmer.timeTicks = 48
 
 	#Give agent needed production inputs
-	farmer.landHoldings["potato"] = 2
+	allocate = True
+	if (allocate):
+		#print(farmer.landHoldings)
+		farmer.receiveLand("UNALLOCATED", 2)
+		#print(farmer.landHoldings)
+		farmer.allocateLand("potato", 2)
+		#print(farmer.landHoldings)
+		farmer.useTimeTicks(12)
+		#print(farmer.landHoldings)
+		farmer.useTimeTicks(12)
+		print(farmer.landHoldings)
+	else:
+		farmer.receiveLand("potato", 2)
+		print(farmer.landHoldings)
+
 
 	farmer.receiveItem(ItemContainer("shovel", 1))
 

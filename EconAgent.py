@@ -457,6 +457,89 @@ class ProductionFunction:
 #######################
 # Economic Agent
 #######################
+class LandAllocationQueue:
+	'''
+	Keeps track of land that is currently being allocated
+	'''
+	def __init__(self, agent):
+		self.itemDict = agent.itemDict
+		self.queue = []
+		self.agent = agent
+		self.logger = agent.logger
+
+	def startAllocation(self, allocationType, hectares):
+		'''
+		Returns True if successful, False if not
+		'''
+		landAllocated = False
+
+		if not (allocationType in self.itemDict):
+			self.logger.error("Cannot allocate land. {} missing from item dictionary".format(allocationType))
+			return False
+
+		acquired_landHoldingsLock = self.agent.landHoldingsLock.acquire(timeout=self.agent.lockTimeout)
+		if (acquired_landHoldingsLock):
+			if (hectares <= self.agent.landHoldings["UNALLOCATED"]):
+				ticksNeeded = 0
+				try:
+					ticksNeeded = int(self.itemDict[allocationType]["ProductionInputs"]["FixedCosts"]["FixedLandCosts"]["AllocationTime"])
+				except:
+					self.logger.debug("\"AllocationTime\" missing from itemDict for \"{}\". Using an allocation time of 0".format(allocationType))
+
+				allocationEntry = {"allocationType": allocationType, "hectares": hectares, "ticksNeeded": ticksNeeded}
+				self.queue.append(allocationEntry)
+				self.logger.debug("{} added t0 LandAllocationQueue".format(allocationEntry))
+
+				self.agent.landHoldings["ALLOCATING"] += hectares
+				self.agent.landHoldings["UNALLOCATED"] -= hectares
+
+				landAllocated = True
+
+			else:
+				self.logger.error("LandAllocationQueue.startAllocation({}, {}) Not enough land in landHoldings {}".format(allocationType, hectares, self.agent.landHoldings))
+				landAllocated = False
+
+			self.agent.landHoldingsLock.release()
+		else:
+			self.logger.error("LandAllocationQueue.startAllocation({}, {}) Lock landHoldingsLock acquisition timout".format(allocationType, hectares))
+			landAllocated = False
+
+		return landAllocated
+
+	def useTimeTicks(self, ticks):
+		'''
+		Will decrement the waiting time for each allocation entry.
+		When an entry is done, it will be removed from the queue and allocated in the agent's land holdings
+		'''
+		newQueue = []
+
+		while (len(self.queue) > 0):
+			allocationEntry = self.queue.pop(0)
+			allocationEntry["ticksNeeded"] -= ticks
+
+			if (allocationEntry["ticksNeeded"] <= 0):
+				#This land is ready to be fully allocated
+				acquired_landHoldingsLock = self.agent.landHoldingsLock.acquire(timeout=self.agent.lockTimeout)
+				if (acquired_landHoldingsLock):
+					self.logger.debug("{} has finished allocating".format(allocationEntry))
+
+					hectares = allocationEntry["hectares"]
+					self.agent.landHoldings["ALLOCATING"] -= hectares
+
+					allocationType = allocationEntry["allocationType"]
+					if not (allocationType in self.agent.landHoldings):
+						self.agent.landHoldings[allocationType] = 0
+					self.agent.landHoldings[allocationType] += hectares
+
+					self.agent.landHoldingsLock.release()
+				else:
+					self.logger.error("LandAllocationQueue.useTimeTicks({}) Lock landHoldingsLock acquisition timout".format(ticks))
+			else:
+				#This land is not yet ready to be fully allocated
+				newQueue.append(allocationEntry)
+
+		self.queue = newQueue
+
 
 class AgentInfo:
 	def __init__(self, agentId, agentType):
@@ -475,28 +558,20 @@ def getAgentController(agent, logFile=True, fileLevel="INFO"):
 
 	#Test controllers
 	if (agentInfo.agentType == "PushoverController"):
-		#Return pushover controller
 		return PushoverController(agent, logFile=logFile, fileLevel=fileLevel)
 	if (agentInfo.agentType == "TestSnooper"):
-		#Return TestSnooper controller
 		return TestSnooper(agent, logFile=logFile, fileLevel=fileLevel)
 	if (agentInfo.agentType == "TestSeller"):
-		#Return TestSeller controller
 		return TestSeller(agent, logFile=logFile, fileLevel=fileLevel)
 	if (agentInfo.agentType == "TestBuyer"):
-		#Return TestBuyer controller
 		return TestBuyer(agent, logFile=logFile, fileLevel=fileLevel)
 	if (agentInfo.agentType == "TestEmployer"):
-		#Return TestEmployer controller
 		return TestEmployer(agent, logFile=logFile, fileLevel=fileLevel)
 	if (agentInfo.agentType == "TestWorker"):
-		#Return TestWorker controller
 		return TestWorker(agent, logFile=logFile, fileLevel=fileLevel)
 	if (agentInfo.agentType == "TestLandSeller"):
-		#Return TestLandSeller controller
 		return TestLandSeller(agent, logFile=logFile, fileLevel=fileLevel)
 	if (agentInfo.agentType == "TestLandBuyer"):
-		#Return TestLandBuyer controller
 		return TestLandBuyer(agent, logFile=logFile, fileLevel=fileLevel)
 
 	#Unhandled agent type. Return default controller
@@ -571,6 +646,8 @@ class Agent:
 
 		self.lockTimeout = 5
 
+		self.itemDict = itemDict
+
 		#Pipe connections to the connection network
 		self.networkLink = networkLink
 		self.networkSendLock = threading.Lock()
@@ -591,6 +668,7 @@ class Agent:
 		self.landHoldings = {"UNALLOCATED": 0, "ALLOCATING": 0}
 		self.landHoldingsLock = threading.Lock()
 		self.landTradeRequestLock = threading.Lock()
+		self.landAllocationQueue = LandAllocationQueue(self)
 
 		#Keep track of labor stuff
 		alpha = 2  #Default alpha
@@ -606,8 +684,10 @@ class Agent:
 
 		self.laborContracts = {}
 		self.laborContractsLock = threading.Lock()
-		self.laborInventory = {}  #Keep track of all the labor supplied to a firm for this step
+		self.laborInventory = {}  #Keep track of all the labor available to a firm for this step
 		self.laborInventoryLock = threading.Lock()
+		self.nextLaborInventory = {}  #Keep track of all the labor supplied to a firm for this step
+		self.nextLaborInventoryLock = threading.Lock()
 		self.commitedTicks = 0
 		self.commitedTicksLock = threading.Lock()
 		self.commitedTicks_nextStep = 0
@@ -622,7 +702,6 @@ class Agent:
 		self.ticksPerStep = ticksPerStep
 		
 		#Instantiate agent preferences (utility functions)
-		self.itemDict = itemDict
 		self.utilityFunctions = {}
 		if (itemDict):
 			for itemName in itemDict:
@@ -743,11 +822,11 @@ class Agent:
 			elif (incommingPacket.msgType == "LABOR_TIME_SEND"):
 				laborTicks = incommingPacket.payload["ticks"]
 				skillLevel = incommingPacket.payload["skillLevel"]
-				self.laborInventoryLock.acquire()
-				if not (skillLevel in self.laborInventory):
-					self.laborInventory[skillLevel] = 0
-				self.laborInventory[skillLevel] += laborTicks
-				self.laborInventoryLock.release()
+				self.nextLaborInventoryLock.acquire()
+				if not (skillLevel in self.nextLaborInventory):
+					self.nextLaborInventory[skillLevel] = 0
+				self.nextLaborInventory[skillLevel] += laborTicks
+				self.nextLaborInventoryLock.release()
 
 			#Handle incoming information requests
 			elif (incommingPacket.msgType == "INFO_REQ"):
@@ -799,13 +878,16 @@ class Agent:
 
 
 	def sendPacket(self, packet):
-		acquired_networkSendLock = self.networkSendLock.acquire(timeout=self.lockTimeout)
-		if (acquired_networkSendLock):
-			self.logger.info("OUTBOUND {}".format(packet))
-			self.networkLink.sendPipe.send(packet)
-			self.networkSendLock.release()
+		if (self.networkLink):
+			acquired_networkSendLock = self.networkSendLock.acquire(timeout=self.lockTimeout)
+			if (acquired_networkSendLock):
+				self.logger.info("OUTBOUND {}".format(packet))
+				self.networkLink.sendPipe.send(packet)
+				self.networkSendLock.release()
+			else:
+				self.logger.error("{}.sendPacket() Lock networkSendLock acquire timeout".format(self.agentId))
 		else:
-			self.logger.error("{}.sendPacket() Lock networkSendLock acquire timeout".format(self.agentId))
+			self.logger.error("This agent is missing a networkLink. Cannot send packet {}".format(packet))
 
 
 	#########################
@@ -1141,7 +1223,7 @@ class Agent:
 		return maxQuantity
 
 	#########################
-	# Trading functions
+	# Item Trading functions
 	#########################
 	def executeTrade(self, request):
 		'''
@@ -1261,12 +1343,54 @@ class Agent:
 	# Land functions
 	#########################
 	def deallocateLand(self, allocationType, hectares):
-		#TODO
-		return True
+		'''
+		Returns True if successful, False if not
+		'''
+		self.logger.info("deallocateLand({}, {}) start".format(allocationType, hectares))
+		landDeallocated = False
+
+		acquired_landHoldingsLock = self.landHoldingsLock.acquire(timeout=self.lockTimeout)
+		if (acquired_landHoldingsLock):
+			if (allocationType in self.landHoldings):
+				if (allocationType == "ALLOCATING"):
+					self.logger.error("deallocateLand({}, {}) Cannot deallocate land that is currently being allocated".format(allocationType, hectares))
+					landDeallocated = False
+					return landDeallocated
+
+				if (hectares >= self.landHoldings[allocationType]):
+					self.landHoldings[allocationType] -= hectares
+					if (self.landHoldings[allocationType] == 0):
+						del self.landHoldings[allocationType]
+
+					self.landHoldings["UNALLOCATED"] += hectares
+					landDeallocated = True
+				else:
+					self.logger.error("deallocateLand({}, {}) Not enough land in landHoldings {}".format(allocationType, hectares, self.landHoldings))
+					landDeallocated = False
+			else:
+				self.logger.error("deallocateLand({}, {}) \"{}\" not in landHoldings {}".format(allocationType, hectares, allocationType, self.landHoldings))
+				landDeallocated = False
+
+			self.landHoldingsLock.release()
+		else:
+			self.logger.error("deallocateLand({}, {}) Lock landHoldingsLock acquisition timout".format(allocationType, hectares))
+			landDeallocated = False
+
+		return landDeallocated
+
 
 	def allocateLand(self, allocationType, hectares):
-		#TODO
-		return True
+		'''
+		Changes "UNALLOCATED" land into allocated land.
+		Transition does not happen instantly; the allocation is delayed by "AllocationTime", which is a field in the ProductionInputs for a given item.
+		During this transition time, the land is counted as "ALLOCATING", and cannot be used for anything.
+
+		Returns True if successful, False if not
+		'''
+		self.logger.info("allocateLand({}, {}) start".format(allocationType, hectares))
+		landAllocated = self.landAllocationQueue.startAllocation(allocationType, hectares)
+		return landAllocated
+
 
 	def receiveLand(self, allocation, hectares, incommingPacket=None):
 		'''
@@ -1968,11 +2092,14 @@ class Agent:
 		acquired_timeTickLock = self.timeTickLock.acquire(timeout=self.lockTimeout)  #<== timeTickLock acquire
 		if (acquired_timeTickLock):
 			if (self.timeTicks >= amount):
-				#We have enought ticks. Decrement tick counter
+				#We have enough ticks. Decrement tick counter
 				self.logger.debug("Using {} time ticks".format(amount))
 				self.timeTicks -= amount
 				self.logger.debug("Time tick balance = {}".format(self.timeTicks))
 				useSuccess = True
+
+				#Advance land allocation queue
+				self.landAllocationQueue.useTimeTicks(amount)
 
 				if (self.timeTicks == 0):
 					#We are out of time ticks. Set blocked flag
@@ -1982,6 +2109,16 @@ class Agent:
 						self.tickBlockFlag_Lock.release()  #<== tickBlockFlag_Lock release
 					else:
 						self.logger.error("TICK_GRANT tickBlockFlag_Lock acquire timeout")
+
+					#Move labor received in this step into the available labor for next step
+					self.laborInventoryLock.acquire()
+					self.nextLaborInventoryLock.acquire()
+
+					self.laborInventory = self.nextLaborInventory.copy()
+					self.nextLaborInventory = {}
+
+					self.laborInventoryLock.release()
+					self.nextLaborInventoryLock.release()
 
 					#Send blocked signal to sim manager
 					self.logger.debug("We're tick blocked. Sending TICK_BLOCKED to simManager")
