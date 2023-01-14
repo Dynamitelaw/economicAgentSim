@@ -684,6 +684,7 @@ class Agent:
 
 		self.laborContracts = {}
 		self.laborContractsLock = threading.Lock()
+		self.fullfilledContracts = False
 		self.laborInventory = {}  #Keep track of all the labor available to a firm for this step
 		self.laborInventoryLock = threading.Lock()
 		self.nextLaborInventory = {}  #Keep track of all the labor supplied to a firm for this step
@@ -836,12 +837,15 @@ class Agent:
 
 			#Hanle incoming tick grants
 			elif ((incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST")):
+				self.fullfilledContracts = False
+
 				ticksGranted = incommingPacket.payload
 				acquired_timeTickLock = self.timeTickLock.acquire(timeout=self.lockTimeout)  #<== timeTickLock acquire
 				if (acquired_timeTickLock):
 					self.timeTicks += ticksGranted
 					self.timeTickLock.release()  #<== timeTickLock release
 					self.stepNum += 1
+					self.logger.info("### Step Number = {} ###".format(self.stepNum))
 
 					acquired_tickBlockFlag_Lock = self.tickBlockFlag_Lock.acquire(timeout=self.lockTimeout)  #<== tickBlockFlag_Lock acquire
 					if (acquired_tickBlockFlag_Lock):
@@ -1648,6 +1652,8 @@ class Agent:
 				for laborContractHash in self.laborContracts[endStep]:
 					self.fulfillLaborContract(self.laborContracts[endStep][laborContractHash])
 
+		self.fullfilledContracts = True
+
 
 	def fulfillLaborContract(self, laborContract):
 		'''
@@ -2147,7 +2153,10 @@ class Agent:
 		Relinquish all time ticks for this sim step
 		'''
 		self.logger.debug("{}.relinquishTimeTicks() start".format(self.agentId))
-		self.useTimeTicks(self.ticksPerStep-self.commitedTicks)
+		if (self.fullfilledContracts):
+			self.useTimeTicks(self.timeTicks)
+		else:
+			self.logger.debug("Cannot relinquish time ticks. Have not fulfilled all labor contracts yet")
 
 
 	#########################

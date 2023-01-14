@@ -5,7 +5,7 @@
 		"SimulationSteps": 10,
 		"TicksPerStep": 16,
 		"AgentSpawns":{
-			"TestLandSeller":{
+			"TestSeller":{
 				"quantity": 10,
 				"settings": {
 					"skillDistribution": {
@@ -14,13 +14,35 @@
 					}
 				}
 			},
-			"TestLandBuyer":{
+			"TestBuyer":{
 				"quantity": 10,
 				"settings": {
 					"skillDistribution": {
 						"alpha": 2,
 						"beta": 5
 					}
+				}
+			}
+		},
+		"Statistics": {
+			"PrivateConsumption": {
+				"Consumption": {
+					"ConsumerClasses": ["TestBuyer"],
+					"StartStep": 0,
+					"OuputPath": "PrivateConsumption.csv"
+				}
+			},
+			"BusinessConsumption": {
+				"Consumption": {
+					"ConsumerClasses": ["TestSeller"],
+					"StartStep": 0,
+					"OuputPath": "BusinessConsumption.csv"
+				}
+			},
+			"FoodPrices":{
+				"ItemPrice":{
+					"items": ["potato", "apple"],
+					"OuputPath": "AgriculturalPrices.csv"
 				}
 			}
 		}

@@ -2,3 +2,4 @@ LOGS/*
 __pycache__/*
 *.dat
 profiler.log
+Statistics/*
