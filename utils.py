@@ -4,6 +4,22 @@ import logging
 import os
 
 
+def createFolderPath(filePath):
+	'''
+	Makes sure that all the folders in the filePath exist
+	'''
+	outputdir = os.path.dirname(filePath)
+
+	#Make sure output dir exists
+	outputHier = os.path.normpath(outputdir)
+	outputHierList = outputHier.split(os.sep)
+	currentPath = ""
+	for folder in outputHierList:
+		currentPath = os.path.join(currentPath, folder)
+		if not (os.path.exists(currentPath)):
+			os.mkdir(currentPath)
+
+
 def getLogger(name, console="WARNING", outputdir="LOGS", logFile=True, fileLevel="INFO"):
 	'''
 	Returns logger object

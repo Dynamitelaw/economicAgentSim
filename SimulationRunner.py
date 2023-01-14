@@ -200,7 +200,7 @@ def RunSimulation(settingsDict, logLevel="INFO"):
 
 			numAgents = agentSettings["quantity"]
 			logger.debug("{} Agents = {}".format(agentType, numAgents))
-			print("{} Agents={}".format(agentType, numAgents))
+			print("{} Agents = {}".format(agentType, numAgents))
 
 			for i in range(numAgents):
 				agentId = "{}_{}".format(agentType, i)

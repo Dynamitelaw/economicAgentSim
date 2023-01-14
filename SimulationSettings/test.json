@@ -26,23 +26,22 @@
 		},
 		"Statistics": {
 			"PrivateConsumption": {
-				"Consumption": {
+				"ConsumptionTracker": {
 					"ConsumerClasses": ["TestBuyer"],
 					"StartStep": 0,
-					"OuputPath": "PrivateConsumption.csv"
+					"OuputPath": "ConsumptionStats/PrivateConsumption.csv"
 				}
 			},
 			"BusinessConsumption": {
-				"Consumption": {
+				"ConsumptionTracker": {
 					"ConsumerClasses": ["TestSeller"],
 					"StartStep": 0,
-					"OuputPath": "BusinessConsumption.csv"
+					"OuputPath": "ConsumptionStats/BusinessConsumption.csv"
 				}
 			},
-			"FoodPrices":{
-				"ItemPrice":{
-					"items": ["potato", "apple"],
-					"OuputPath": "AgriculturalPrices.csv"
+			"SpudPrices":{
+				"ItemPriceTracker":{
+					"id": "potato"
 				}
 			}
 		}
