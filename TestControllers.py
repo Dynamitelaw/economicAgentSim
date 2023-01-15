@@ -15,7 +15,7 @@ class PushoverController:
 	'''
 	This controller will accept all valid trade requests, and will not take any other action. Used for testing.
 	'''
-	def __init__(self, agent, logFile=True, fileLevel="INFO"):
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.name = "{}_PushoverController".format(agent.agentId)
@@ -61,7 +61,7 @@ class TestSnooper:
 	'''
 	All this controller does is snoop on packets in the network. Used for testing
 	'''
-	def __init__(self, agent, logFile=True, fileLevel="INFO"):
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.name = "{}_TestSnooper".format(agent.agentId)
@@ -96,7 +96,7 @@ class TestSeller:
 	Will create items out of thin air.
 	Used for testing.
 	'''
-	def __init__(self, agent, logFile=True, fileLevel="INFO"):
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.simManagerId = agent.simManagerId
@@ -120,6 +120,11 @@ class TestSeller:
 		#Determine what to sell
 		itemList = self.utilityFunctions.keys()
 		self.sellItemId = random.sample(itemList, 1)[0]
+		if ("itemId" in settings):
+			self.sellItemId = settings["itemId"]
+			self.logger.info("Sell item specified. Will sell \"{}\"".format(self.sellItemId))
+		else:
+			self.logger.info("No item specified. Randomly selected \"{}\"".format(self.sellItemId))
 
 		baseUtility = self.utilityFunctions[self.sellItemId].baseUtility
 		self.sellPrice = round(baseUtility*random.random())
@@ -241,7 +246,7 @@ class TestBuyer:
 	Will create currency out of thin air.
 	Used for testing.
 	'''
-	def __init__(self, agent, logFile=True, fileLevel="INFO"):
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.simManagerId = agent.simManagerId
@@ -356,7 +361,7 @@ class TestEmployer:
 	Will create currency out of thin air.
 	Used for testing.
 	'''
-	def __init__(self, agent, logFile=True, fileLevel="INFO"):
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.simManagerId = agent.simManagerId
@@ -421,7 +426,7 @@ class TestWorker:
 	This controller will accept random job listings. 
 	Used for testing.
 	'''
-	def __init__(self, agent, logFile=True, fileLevel="INFO"):
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.simManagerId = agent.simManagerId
@@ -480,7 +485,7 @@ class TestLandSeller:
 	Will create land out of thin air.
 	Used for testing.
 	'''
-	def __init__(self, agent, logFile=True, fileLevel="INFO"):
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.simManagerId = agent.simManagerId
@@ -575,7 +580,7 @@ class TestLandBuyer:
 	Will create currency out of thin air.
 	Used for testing.
 	'''
-	def __init__(self, agent, logFile=True, fileLevel="INFO"):
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.simManagerId = agent.simManagerId
@@ -681,7 +686,7 @@ class TestEater:
 	Will create currency out of thin air.
 	Used for testing.
 	'''
-	def __init__(self, agent, logFile=True, fileLevel="INFO"):
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.simManagerId = agent.simManagerId
@@ -716,7 +721,7 @@ class TestEater:
 
 		if (incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST"):
 			#Print a shit ton of money
-			self.agent.receiveCurrency(5000)
+			self.agent.receiveCurrency(50000)
 			self.agent.relinquishTimeTicks()
 
 		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
@@ -725,3 +730,158 @@ class TestEater:
 			
 			if (controllerMsg.msgType == "STOP_TRADING"):
 				self.killThreads = True
+
+
+class TestSpawner:
+	'''
+	This controller will spawn and sell a single item. 
+	Will spawn items out of thin air at a constant rate.
+	Will adjust sell price until quantityProduces ~= quantityPurchased
+	Used for testing.
+	'''
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
+		self.agent = agent
+		self.agentId = agent.agentId
+		self.simManagerId = agent.simManagerId
+
+		self.name = "{}_TestFarmer".format(agent.agentId)
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
+
+		self.inventory = agent.inventory
+
+		#Agent preferences
+		self.utilityFunctions = agent.utilityFunctions
+
+		#Determine what to sell
+		itemList = self.utilityFunctions.keys()
+		self.sellItemId = random.sample(itemList, 1)[0]
+		if ("itemId" in settings):
+			self.sellItemId = settings["itemId"]
+			self.logger.info("Sell item specified. Will sell \"{}\"".format(self.sellItemId))
+		else:
+			self.logger.info("No item specified. Randomly selected \"{}\"".format(self.sellItemId))
+
+		#Set production rate
+		self.productionRate = 10
+		if ("spawnRate" in settings):
+			self.productionRate = settings["spawnRate"]
+			self.logger.info("Spawn rate specified. Will spawn {} {} per step".format(self.productionRate, self.sellItemId))
+		else:
+			self.logger.info("No spawn rate specified. Will spawn {} {} per step".format(self.productionRate, self.sellItemId))
+
+		#Set ititial price
+		baseUtility = self.utilityFunctions[self.sellItemId].baseUtility
+		self.sellPrice = round(baseUtility*random.random())
+		self.previousSales = self.productionRate
+		self.previousPrice = self.sellPrice
+
+		#Spawn initial inventory
+		inventoryEntry = ItemContainer(self.sellItemId, self.productionRate*7)
+		self.agent.receiveItem(inventoryEntry)
+
+		#Initialize item listing
+		self.myItemListing = ItemListing(sellerId=self.agentId, itemId=self.sellItemId, unitPrice=self.sellPrice, maxQuantity=self.productionRate*2)
+		self.myItemListing_Lock = threading.Lock()
+
+		
+	def controllerStart(self, incommingPacket):
+		#Subscribe for tick blocking
+		self.agent.subcribeTickBlocking()
+
+
+	def receiveMsg(self, incommingPacket):
+		self.logger.info("INBOUND {}".format(incommingPacket))
+		if ((incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST")):
+			#Launch production function
+			self.produceItems()
+			self.previousSales = 0
+
+		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+			controllerMsg = incommingPacket.payload
+			self.logger.info("INBOUND {}".format(controllerMsg))
+			
+			if (controllerMsg.msgType == "STOP_TRADING"):
+				self.killThreads = True
+
+
+	def produceItems(self):
+		#Spawn items into inventory
+		spawnQuantity = self.productionRate
+		inventoryEntry = ItemContainer(self.sellItemId, spawnQuantity)
+		self.logger.info("Spawning new items to sell {}".format(inventoryEntry))
+		self.agent.receiveItem(inventoryEntry)
+
+		#Update listing
+		self.previousPrice = self.sellPrice
+		self.logger.info("Updating price...")
+
+		alpha = 0.4
+		saleRatio = self.previousSales/self.productionRate
+		newPrice = ((1-alpha)*self.sellPrice) + (alpha*saleRatio*self.sellPrice)
+		self.sellPrice = newPrice
+		self.logger.info("Previous sale ratio = {}".format(saleRatio))
+		self.logger.info("New price = {}".format(newPrice))
+
+		self.myItemListing_Lock.acquire()
+		self.myItemListing = ItemListing(sellerId=self.agentId, itemId=self.sellItemId, unitPrice=self.sellPrice, maxQuantity=self.myItemListing.maxQuantity)
+		self.myItemListing_Lock.release()
+
+		self.logger.debug("OUTBOUND {}".format(self.myItemListing))
+		self.agent.updateItemListing(self.myItemListing)
+
+		#Relinquish time ticks
+		self.agent.relinquishTimeTicks()
+		self.logger.debug("Waiting for tick grant")
+
+
+	def evalTradeRequest(self, request):
+		'''
+		Accept trade request if it is possible
+		'''
+		self.logger.info("Evaluating trade request {}".format(request))
+
+		offerAccepted = False
+
+		newInventory = 0
+
+		if (request.itemPackage.quantity <= 0):
+			self.logger.debug("Requested quantity <= 0. Rejecting")
+			offerAccepted = False
+			return offerAccepted
+
+		if (self.agentId == request.sellerId):
+			itemId = request.itemPackage.id
+
+			#Check price and quantity
+			unitPrice = round(request.currencyAmount / request.itemPackage.quantity)+1
+			if ((unitPrice >= self.sellPrice) or (unitPrice >= self.previousPrice)) and (request.itemPackage.quantity <= self.myItemListing.maxQuantity):
+				#Trade terms are good. Make sure we have inventory
+				if (itemId in self.inventory):
+					currentInventory = self.inventory[itemId]
+					newInventory = currentInventory.quantity - request.itemPackage.quantity
+					offerAccepted = newInventory >= 0
+					if (not offerAccepted):
+						self.logger.debug("Current Inventory({}) not enough inventory to fulfill {}".format(currentInventory, request))
+				else:
+					self.logger.debug("{} not in inventory. Can't fulfill {}".format(itemId, request))
+					offerAccepted = False
+			else:
+				self.logger.debug("Bad term offers for {}".format(request))
+				self.logger.debug("{} | unitPrice({}) >= self.myItemListing.unitPrice({}) = {} | request.itemPackage.quantity({}) <= self.myItemListing.maxQuantity({}) = {}".format(request.hash, unitPrice, self.sellPrice, unitPrice >= self.sellPrice, request.itemPackage.quantity, self.myItemListing.maxQuantity, request.itemPackage.quantity <= self.myItemListing.maxQuantity))
+				offerAccepted = False
+	
+		else:
+			self.logger.warning("Invalid trade offer {}".format(request))
+			self.logger.debug("{} | self.agentId({}) != request.sellerId({})".format(request.hash, self.agentId, request.sellerId))
+			offerAccepted = False
+
+		self.logger.info("{} accepted={}".format(request, offerAccepted))
+
+		#Remove item listing if we're out of stock
+		if (newInventory == 0) and (offerAccepted):
+			self.logger.info("Out of stock. Removing item listing {}".format(self.myItemListing))
+			self.agent.removeItemListing(self.myItemListing)
+		elif (offerAccepted):
+			self.previousSales += request.itemPackage.quantity
+
+		return offerAccepted

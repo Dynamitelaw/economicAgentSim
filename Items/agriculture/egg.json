@@ -27,9 +27,6 @@
 			}
 		},
 		"VariableCosts": {
-			"VariableItemCosts": {
-				"water": 287
-			},
 			"VariableLaborCosts":  {
 				"0": 0.01
 			}

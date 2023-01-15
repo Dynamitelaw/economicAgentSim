@@ -9,29 +9,16 @@
 	},
 	"ProductionInputs": {
 		"FixedCosts": {
-			"FixedLandCosts": {
-				"MaxYield": 4.92,
-				"MinQuantity": 0.5,
-				"Quantized": true,
-				"AllocationTime": 24
-			},
-			"FixedItemCosts": {
-				"shovel": {
-					"MaxYield": false,
-					"MinQuantity": 1,
-					"Quantized": true
-				}
-			},
-			"FixedLaborCosts": {
-				"0.5" : 8
-			}
+			"FixedLandCosts": {},
+			"FixedItemCosts": {},
+			"FixedLaborCosts": {}
 		},
 		"VariableCosts": {
 			"VariableItemCosts": {
-				"water": 287
+				"milk": 287
 			},
 			"VariableLaborCosts":  {
-				"0": 0.01
+				"0": 1
 			}
 		}
 	},

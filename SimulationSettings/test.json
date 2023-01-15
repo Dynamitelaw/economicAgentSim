@@ -1,33 +1,74 @@
 {
 	"description": "Test simulation with test agent controllers. Used for testing and debug.",
 	"settings": {
-		"NumProcesses": 2,
-		"SimulationSteps": 15,
+		"NumProcesses": 4,
+		"SimulationSteps": 30,
 		"TicksPerStep": 16,
 		"AgentSpawns":{
-			"TestSeller":{
-				"quantity": 100,
-				"settings": {
-					"skillDistribution": {
-						"alpha": 2,
-						"beta": 5
+			"AppleFarmer": {
+				"TestSpawner":{
+					"quantity": 10,
+					"settings": {
+						"itemId": "apple",
+						"spawnRate": 1.5
 					}
 				}
 			},
-			"TestEater":{
-				"quantity": 15,
-				"settings": {
-					"skillDistribution": {
-						"alpha": 2,
-						"beta": 5
+			"ButterMaker": {
+				"TestSpawner":{
+					"quantity": 10,
+					"settings": {
+						"itemId": "butter",
+						"spawnRate": 0.5
 					}
+				}
+			},
+			"PeaFarmer": {
+				"TestSpawner":{
+					"quantity": 10,
+					"settings": {
+						"itemId": "chickpea",
+						"spawnRate": 0.5
+					}
+				}
+			},
+			"EggFarmer": {
+				"TestSpawner":{
+					"quantity": 10,
+					"settings": {
+						"itemId": "egg",
+						"spawnRate": 1.13
+					}
+				}
+			},
+			"SpudFarmer": {
+				"TestSpawner":{
+					"quantity": 10,
+					"settings": {
+						"itemId": "potato",
+						"spawnRate": 1.75
+					}
+				}
+			},
+			"River": {
+				"TestSpawner":{
+					"quantity": 1,
+					"settings": {
+						"itemId": "water",
+						"spawnRate": 72
+					}
+				}
+			},
+			"FatAss": {
+				"TestEater":{
+					"quantity": 40
 				}
 			}
 		},
 		"Statistics": {
 			"PrivateConsumption": {
 				"ConsumptionTracker": {
-					"ConsumerClasses": ["TestEater"],
+					"ConsumerClasses": ["TestBuyer"],
 					"StartStep": 0,
 					"OuputPath": "ConsumptionStats/PrivateConsumption.csv"
 				}
@@ -39,9 +80,40 @@
 					"OuputPath": "ConsumptionStats/BusinessConsumption.csv"
 				}
 			},
+			"ApplePrices":{
+				"ItemPriceTracker":{
+					"id": "apple",
+					"OuputPath": "FoodPrices/apple.csv"
+				}
+			},
+			"ButterPrices":{
+				"ItemPriceTracker":{
+					"id": "butter",
+					"OuputPath": "FoodPrices/butter.csv"
+				}
+			},
+			"PeaPrices":{
+				"ItemPriceTracker":{
+					"id": "chickpea",
+					"OuputPath": "FoodPrices/chickpea.csv"
+				}
+			},
+			"EggPrices":{
+				"ItemPriceTracker":{
+					"id": "egg",
+					"OuputPath": "FoodPrices/egg.csv"
+				}
+			},
 			"SpudPrices":{
 				"ItemPriceTracker":{
-					"id": "potato"
+					"id": "potato",
+					"OuputPath": "FoodPrices/potato.csv"
+				}
+			},
+			"WaterPrices":{
+				"ItemPriceTracker":{
+					"id": "water",
+					"OuputPath": "FoodPrices/water.csv"
 				}
 			}
 		}

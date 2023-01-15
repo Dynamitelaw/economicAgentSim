@@ -94,6 +94,7 @@ class SimulationManager:
 			agentsInstantiated = False
 
 
+		sleepTime = 3
 		if (agentsInstantiated):
 			self.logger.info("All agents are instantiated")
 
@@ -101,7 +102,7 @@ class SimulationManager:
 			self.logger.info("Starting all agent controllers")
 			controllerStartBroadcast = NetworkPacket(senderId=self.agentId, msgType="CONTROLLER_START_BROADCAST")
 			self.agent.sendPacket(controllerStartBroadcast)
-			time.sleep(3)  #Sleep to give controllers time to start blocking protocols #TODO: calculate sleep time based on size of agentDict
+			time.sleep(sleepTime)  #Sleep to give controllers time to start blocking protocols #TODO: calculate sleep time based on size of agentDict
 
 			#Run simulation for specified time
 			startTime = time.time()
@@ -156,6 +157,7 @@ class SimulationManager:
 			elapsedSeconds = endTime - startTime
 			elapsedSring = str(timedelta(seconds=elapsedSeconds))
 			self.logger.info("Simulation (Steps={}, TicksPerStep={}) took {} to run".format(simulationSteps, ticksPerStep, elapsedSring))
+			sleepTime = int(elapsedSeconds/simulationSteps)+1
 
 
 		#Stop all trading
@@ -164,7 +166,7 @@ class SimulationManager:
 			controllerMsg = NetworkPacket(senderId=self.agentId, msgType="STOP_TRADING")
 			networkPacket = NetworkPacket(senderId=self.agentId, msgType="CONTROLLER_MSG_BROADCAST", payload=controllerMsg)
 			self.agent.sendPacket(networkPacket)
-			time.sleep(3)
+			time.sleep(sleepTime)
 		except Exception as e:
 			self.logger.error("Error while sending STOP_TRADING command to agents")
 			self.logger.error(traceback.format_exc())
@@ -174,7 +176,7 @@ class SimulationManager:
 			self.logger.info("Killing all network connections")
 			killPacket = NetworkPacket(senderId=self.agentId, msgType="KILL_ALL_BROADCAST")
 			self.agent.sendPacket(killPacket)
-			time.sleep(3)
+			time.sleep(sleepTime)
 		except Exception as e:
 			self.logger.error("Error while killing network link")
 			self.logger.error(traceback.format_exc())

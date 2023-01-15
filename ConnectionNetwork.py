@@ -24,8 +24,9 @@ from Marketplace import *
 
 
 class ConnectionNetwork:
-	def __init__(self, itemDict, logFile=True):
+	def __init__(self, itemDict, simManagerId=None, logFile=True):
 		self.id = "ConnectionNetwork"
+		self.simManagerId = simManagerId
 
 		self.logger = utils.getLogger("{}".format(__name__), logFile=logFile)
 		self.lockTimeout = 5
@@ -61,15 +62,15 @@ class ConnectionNetwork:
 		#Instantiate marketplace
 		marketplaceObj = None
 		if (marketType=="ItemMarketplace"):
-			marketplaceObj = ItemMarketplace(marketDict, market_agentLink)
+			marketplaceObj = ItemMarketplace(marketDict, market_agentLink, simManagerId=self.simManagerId)
 			self.addConnection(marketplaceObj.agentId, market_networkLink)
 
 		if (marketType=="LaborMarketplace"):
-			marketplaceObj = LaborMarketplace(market_agentLink)
+			marketplaceObj = LaborMarketplace(market_agentLink, simManagerId=self.simManagerId)
 			self.addConnection(marketplaceObj.agentId, market_networkLink)
 
 		if (marketType=="LandMarketplace"):
-			marketplaceObj = LandMarketplace(market_agentLink)
+			marketplaceObj = LandMarketplace(market_agentLink, simManagerId=self.simManagerId)
 			self.addConnection(marketplaceObj.agentId, market_networkLink)
 
 		return marketplaceObj

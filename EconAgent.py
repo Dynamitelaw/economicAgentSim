@@ -499,6 +499,7 @@ class NutritionTracker:
 	def advanceStep(self):
 		self.logger.info("Current nutrition levels = ({} calories, {} carbs(g), {} protein(g), {} fat(g), {} water(L))".format(self.currentCalories, self.currentCarbs, self.currentProtein, self.currentFat, self.currentWater))
 		self.logger.info("Average nutrition levels = ({} calories, {} carbs(g), {} protein(g), {} fat(g), {} water(L))".format(self.avgCalories, self.avgCarbs, self.avgProtein, self.avgFat, self.avgWater))
+
 		#Update moving exponential averages for nutrition
 		self.avgCalories = ((1-self.alpha)*self.avgCalories) + (self.alpha*self.currentCalories)
 		self.avgCarbs = ((1-self.alpha)*self.avgCarbs) + (self.alpha*self.currentCarbs)
@@ -686,9 +687,6 @@ class NutritionTracker:
 			if ("water" in foodUnitPrices):
 				mealPlan["water"] = waterDeficit
 
-		#Make sure we have enough money for this meal plan
-		currencyBalance = self.agent.currencyBalance
-
 
 		return mealPlan
 
@@ -793,7 +791,7 @@ class AgentInfo:
 		return "AgentInfo(ID={}, Type={})".format(self.agentId, self.agentType)
 
 
-def getAgentController(agent, logFile=True, fileLevel="INFO"):
+def getAgentController(agent, settings={}, logFile=True, fileLevel="INFO"):
 	'''
 	Instantiates an agent controller, dependant on the agentType
 	'''
@@ -801,23 +799,25 @@ def getAgentController(agent, logFile=True, fileLevel="INFO"):
 
 	#Test controllers
 	if (agentInfo.agentType == "PushoverController"):
-		return PushoverController(agent, logFile=logFile, fileLevel=fileLevel)
+		return PushoverController(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
 	if (agentInfo.agentType == "TestSnooper"):
-		return TestSnooper(agent, logFile=logFile, fileLevel=fileLevel)
+		return TestSnooper(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
 	if (agentInfo.agentType == "TestSeller"):
-		return TestSeller(agent, logFile=logFile, fileLevel=fileLevel)
+		return TestSeller(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
 	if (agentInfo.agentType == "TestBuyer"):
-		return TestBuyer(agent, logFile=logFile, fileLevel=fileLevel)
+		return TestBuyer(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
 	if (agentInfo.agentType == "TestEmployer"):
-		return TestEmployer(agent, logFile=logFile, fileLevel=fileLevel)
+		return TestEmployer(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
 	if (agentInfo.agentType == "TestWorker"):
-		return TestWorker(agent, logFile=logFile, fileLevel=fileLevel)
+		return TestWorker(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
 	if (agentInfo.agentType == "TestLandSeller"):
-		return TestLandSeller(agent, logFile=logFile, fileLevel=fileLevel)
+		return TestLandSeller(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
 	if (agentInfo.agentType == "TestLandBuyer"):
-		return TestLandBuyer(agent, logFile=logFile, fileLevel=fileLevel)
+		return TestLandBuyer(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
 	if (agentInfo.agentType == "TestEater"):
-		return TestEater(agent, logFile=logFile, fileLevel=fileLevel)
+		return TestEater(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
+	if (agentInfo.agentType == "TestSpawner"):
+		return TestSpawner(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
 
 	#Unhandled agent type. Return default controller
 	return None
@@ -971,7 +971,7 @@ class Agent:
 		if (controller):
 			self.controller = controller
 		else:	
-			self.controller = getAgentController(self, logFile=logFile, fileLevel=fileLevel)
+			self.controller = getAgentController(self, settings=settings, logFile=logFile, fileLevel=fileLevel)
 			if (not self.controller):
 				self.logger.warning("No controller was instantiated")
 		self.controllerStart = False
@@ -2171,29 +2171,53 @@ class Agent:
 		itemAcquired = False
 
 		#Sample market
-		minPrice = -1
-		bestSeller = None
-
+		listingDict = {}
 		sampledListings = self.sampleItemListings(itemContainer, sampleSize=sampleSize)
 		for itemListing in sampledListings:
-			if (minPrice > -1):
-				if (itemListing.unitPrice < minPrice):
-					minPrice = itemListing.unitPrice
-					bestSeller = itemListing.sellerId
-			else:
-				minPrice = itemListing.unitPrice
-				bestSeller = itemListing.sellerId
+			if not (itemListing.unitPrice in listingDict):
+				listingDict[itemListing.unitPrice] = []
+			listingDict[itemListing.unitPrice].append(itemListing)
 		
-		if (minPrice > -1):
-			totalCost = int(minPrice*itemContainer.quantity)+1
-			if (totalCost <= self.currencyBalance):
-				tradeRequest = TradeRequest(sellerId=bestSeller, buyerId=self.agentId, currencyAmount=totalCost, itemPackage=itemContainer)
-				self.logger.debug("Acquiring item | {}".format(tradeRequest))
-				itemAcquired = self.sendTradeRequest(request=tradeRequest, recipientId=bestSeller)
-			else:
-				self.logger.warning("Could not acquire {}. Current balance ${} not enough at current unit price ${}".format(itemContainer, self.currencyBalance/100, minPrice/100))
-				itemAcquired = False
-				return itemAcquired
+		if (len(listingDict) > 0):
+			priceKeys = list(listingDict.keys())
+			priceKeys.sort()
+			desiredAmount = itemContainer.quantity
+			itemId = itemContainer.id
+			while (desiredAmount > 0):
+				if (len(priceKeys) > 0):
+					price = priceKeys.pop(0)
+					for itemListing in listingDict[price]:
+						#Stop if we have enough of the item
+						if (desiredAmount <= 0):
+							break
+
+						#Determine how much we can buy from this seller
+						requestedQuantity = desiredAmount
+						if (desiredAmount > itemListing.maxQuantity):
+							requestedQuantity = itemListing.maxQuantity
+
+						#Send trade request
+						totalCost = int(price*requestedQuantity)+2
+						if (totalCost <= self.currencyBalance):
+							tradeRequest = TradeRequest(sellerId=itemListing.sellerId, buyerId=self.agentId, currencyAmount=totalCost, itemPackage=ItemContainer(itemId, requestedQuantity))
+							self.logger.debug("Acquiring item | {}".format(tradeRequest))
+							tradeCompleted = self.sendTradeRequest(request=tradeRequest, recipientId=itemListing.sellerId)
+							if (tradeCompleted):
+								desiredAmount -= requestedQuantity
+						else:
+							self.logger.warning("Could not acquire {} {}. Current balance ${} not enough at current unit price ${}".format(requestedQuantity, itemId, self.currencyBalance/100, price/100))
+							itemAcquired = False
+							return itemAcquired
+				else:
+					if (desiredAmount > 0):
+						self.logger.warning("Could not acquire enough {}. Could only get {}".format(itemId, itemContainer.quantity-desiredAmount))
+						self.logger.debug("listingDict = {}".format(listingDict))
+						itemAcquired = False
+						return itemAcquired
+
+			if (desiredAmount <= 0):
+				itemAcquired = True
+
 		else:
 			self.logger.warning("Could not acquire {}. No sellers found".format(itemContainer))
 			itemAcquired = False
@@ -2201,6 +2225,7 @@ class Agent:
 
 		if not (itemAcquired):
 			self.logger.warning("Could not acquire {}".format(itemContainer))
+			self.logger.debug("listingDict = {}".format(listingDict))
 
 		return itemAcquired
 
@@ -2476,6 +2501,16 @@ class Agent:
 			self.useTimeTicks(self.timeTicks)
 		else:
 			self.logger.debug("Cannot relinquish time ticks. Have not fulfilled all labor contracts yet")
+
+
+	def subcribeTickBlocking(self):
+		'''
+		Subscribes this agent as a tick blocker with the sim manager
+		'''
+		self.logger.info("Subscribing as a tick blocker")
+		tickBlockReq = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCK_SUBSCRIBE")
+		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlockReq)
+		self.sendPacket(tickBlockPacket)
 
 
 	#########################

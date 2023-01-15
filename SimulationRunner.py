@@ -191,24 +191,28 @@ def RunSimulation(settingsDict, logLevel="INFO"):
 			procDict[procName] = True
 
 		#Create agent seeds
-		for agentType in settingsDict["AgentSpawns"]:
-			agentSettings = settingsDict["AgentSpawns"][agentType]
+		for agentName in settingsDict["AgentSpawns"]:
+			for agentType in settingsDict["AgentSpawns"][agentName]:
+				agentSettings = settingsDict["AgentSpawns"][agentName][agentType]
 
-			if not ("quantity" in agentSettings):
-				logger.error("\"quantity\" missing from \"{}\" settings. Won't run simulation".format(agentType))
-				return None
+				if not ("quantity" in agentSettings):
+					logger.error("\"quantity\" missing from \"{}\" settings. Won't run simulation".format(agentType))
+					return None
 
-			numAgents = agentSettings["quantity"]
-			logger.debug("{} Agents = {}".format(agentType, numAgents))
-			print("{} Agents = {}".format(agentType, numAgents))
+				numAgents = agentSettings["quantity"]
+				logger.debug("{}.{} Agents = {}".format(agentName, agentType, numAgents))
+				print("{}.{} Agents = {}".format(agentName, agentType, numAgents))
 
-			for i in range(numAgents):
-				agentId = "{}_{}".format(agentType, i)
-				procNum = i%numProcess
+				for i in range(numAgents):
+					agentId = "{}.{}.{}".format(agentName, agentType, i)
+					procNum = i%numProcess
 
-				agentSeed = AgentSeed(agentId, agentType, ticksPerStep=settingsDict["TicksPerStep"], settings=agentSettings["settings"], simManagerId=managerId, itemDict=allItemsDict, fileLevel=logLevel)
-				spawnDict[procNum][agentId] = agentSeed
-				allAgentDict[agentId] = agentSeed.agentInfo
+					spawnSettings = {}
+					if ("settings" in agentSettings):
+						spawnSettings = agentSettings["settings"]
+					agentSeed = AgentSeed(agentId, agentType, ticksPerStep=settingsDict["TicksPerStep"], settings=spawnSettings, simManagerId=managerId, itemDict=allItemsDict, fileLevel=logLevel)
+					spawnDict[procNum][agentId] = agentSeed
+					allAgentDict[agentId] = agentSeed.agentInfo
 		print("\n")
 		
 		###########################
@@ -225,7 +229,7 @@ def RunSimulation(settingsDict, logLevel="INFO"):
 		##########################
 		# Setup ConnectionNetwork
 		##########################
-		xactNetwork = ConnectionNetwork(itemDict=allItemsDict)
+		xactNetwork = ConnectionNetwork(itemDict=allItemsDict, simManagerId=managerId)
 		xactNetwork.addConnection(agentId=managerId, networkLink=simManagerSeed.networkLink)
 		xactNetwork.addConnection(agentId=statsGathererId, networkLink=statisticsGathererSeed.networkLink)
 		for procNum in spawnDict:
