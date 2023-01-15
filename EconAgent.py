@@ -35,6 +35,8 @@ import os
 import random
 import multiprocessing
 import copy
+import queue
+import numpy as np
 
 from NetworkClasses import *
 from TestControllers import *
@@ -457,6 +459,247 @@ class ProductionFunction:
 #######################
 # Economic Agent
 #######################
+class NutritionTracker:
+	'''
+	Keeps track of an agent's nutritional levels, as well as food consumption
+	'''
+	def __init__(self, agent):
+		self.agent = agent
+		self.logger = agent.logger
+		self.nutritionalDict = agent.nutritionalDict
+
+		#Daily nutritional targets
+		self.targetCalories = 2000
+		self.targetCarbs = 250
+		self.targetProtein = 110
+		self.targetFat = 65
+		self.targetWater = 3
+
+		#Keep track of current nutrition
+		self.currentCalories = self.targetCalories
+		self.currentCarbs = self.targetCarbs
+		self.currentProtein = self.targetProtein
+		self.currentFat = self.targetFat
+		self.currentWater = self.targetWater
+
+		#Keep a moving exponential average of agent nutrition
+		self.alpha = 0.2
+		self.avgCalories = self.targetCalories
+		self.avgCarbs = self.targetCarbs
+		self.avgProtein = self.targetProtein
+		self.avgFat = self.targetFat
+		self.avgWater = self.targetWater
+
+		#Keep track of previous food intake
+		self.historyWindow = 7  #number of steps
+		self.consumptionHistory = queue.Queue(self.historyWindow)
+		self.consumptionTotal = {}
+		self.stepConsumption = {}
+
+	def advanceStep(self):
+		self.logger.info("Current nutrition levels = ({} calories, {} carbs(g), {} protein(g), {} fat(g), {} water(L))".format(self.currentCalories, self.currentCarbs, self.currentProtein, self.currentFat, self.currentWater))
+		self.logger.info("Average nutrition levels = ({} calories, {} carbs(g), {} protein(g), {} fat(g), {} water(L))".format(self.avgCalories, self.avgCarbs, self.avgProtein, self.avgFat, self.avgWater))
+		#Update moving exponential averages for nutrition
+		self.avgCalories = ((1-self.alpha)*self.avgCalories) + (self.alpha*self.currentCalories)
+		self.avgCarbs = ((1-self.alpha)*self.avgCarbs) + (self.alpha*self.currentCarbs)
+		self.avgProtein = ((1-self.alpha)*self.avgProtein) + (self.alpha*self.currentProtein)
+		self.avgFat = ((1-self.alpha)*self.avgFat) + (self.alpha*self.currentFat)
+		self.avgWater = ((1-self.alpha)*self.avgWater) + (self.alpha*self.currentWater)
+
+		#Reset current nutrition
+		self.currentCalories = 0
+		self.currentCarbs = 0
+		self.currentProtein = 0
+		self.currentFat = 0
+		self.currentWater = 0
+
+		#Move previous step consumption into consumption history
+		if (self.consumptionHistory.full()):
+			#History is full. Remove oldest entry
+			oldestStepConsumption = self.consumptionHistory.get()
+			for foodId in oldestStepConsumption:
+				self.consumptionTotal[foodId] -= oldestStepConsumption[foodId]
+
+		self.consumptionHistory.put(copy.deepcopy(self.stepConsumption))
+
+		#Reset step consumption
+		self.stepConsumption = {}
+
+	def consumeFood(self, foodId, quantity):
+		nutritionFacts = self.nutritionalDict[foodId]
+
+		#Increment current nutrition
+		self.currentCalories += quantity * nutritionFacts["kcalories"]
+		self.currentCarbs += quantity * nutritionFacts["carbohydrates(g)"]
+		self.currentProtein += quantity * nutritionFacts["protein(g)"]
+		self.currentFat += quantity * nutritionFacts["fat(g)"]
+		self.currentWater += quantity * nutritionFacts["water(L)"]
+
+		#Add this to our consumption for this step
+		if not (foodId in self.stepConsumption):
+			self.stepConsumption[foodId] = 0
+		self.stepConsumption[foodId] += quantity
+
+		#Add this to our consumption total
+		if not (foodId in self.consumptionTotal):
+			self.consumptionTotal[foodId] = 0
+		self.consumptionTotal[foodId] += quantity
+
+	def getAutoMeal(self):
+		'''
+		Automatically calculates a meal plan for this step based on agent preference and nutrition.
+		Will attempt to maximize agent net agent utility for the meal.
+
+		Returns a dictionary
+		'''
+		#Get dictionary of average food prices
+		foodUnitPrices = {}
+		for foodId in self.nutritionalDict:
+			#Get average market price of this food item
+			sampleSize = 5
+			itemContainer = ItemContainer(foodId, 1)
+			sampledListings = self.agent.sampleItemListings(itemContainer, sampleSize=sampleSize)
+			sumPrice = 0
+			if (len(sampledListings) > 0):
+				for listing in sampledListings:
+					sumPrice += listing.unitPrice
+				avgUnitPrice = sumPrice/sampleSize
+
+				foodUnitPrices[foodId] = avgUnitPrice
+
+		#Calculate current and historical nutritional defecits
+		currentDeficit = np.array([self.targetCalories-self.currentCalories, self.targetCarbs-self.currentCarbs, self.targetProtein-self.currentProtein, self.targetFat-self.currentFat])
+		historicalDeficitRatios = np.array([
+			((self.targetCalories-self.avgCalories)/self.targetCalories)+1, 
+			((self.targetCarbs-self.avgCarbs)/self.targetCarbs)+1, 
+			((self.targetProtein-self.avgProtein)/self.targetProtein)+1, 
+			((self.targetFat-self.avgFat)/self.targetFat)+1])
+
+		#Get dictionary of food marginal utility
+		foodMarginalUtil = {}
+		for foodId in self.nutritionalDict:
+			marginalUtility = self.agent.getMarginalUtility(foodId)
+			foodMarginalUtil[foodId] = marginalUtility*historicalDeficitRatios[0]
+
+		#Iteratively approach meal plan that closely meets deficits while maximizing net utility
+		mealPlan = {}
+		iterationSteps = 10
+		planNutritionVec = np.array([0, 0, 0, 0])
+		for i in range(iterationSteps):
+			foodReqAverages = {}
+			foodNetUtils = {}
+			for foodId in self.nutritionalDict:
+				#Skip unavailable food
+				if not (foodId in foodUnitPrices):
+					continue
+
+				#Skip water
+				if (foodId == "water"):
+					continue
+
+				#If current price is more than marginalUtility, exclude this food type
+				avgUnitPrice = foodUnitPrices[foodId]
+				marginalUtility = foodMarginalUtil[foodId]
+				if (avgUnitPrice > marginalUtility):
+					continue
+
+				#Calculate roughly how much of this food we need to meed our nutritional deficit
+				foodVec = self.nutritionalDict[foodId]["vector"]
+				reqVec = np.divide(currentDeficit, foodVec)
+				reqAdjusted = np.multiply(reqVec, historicalDeficitRatios)
+				reqAverage = np.amin(reqAdjusted)
+				
+				foodReqAverages[foodId] = reqAverage
+
+				#Get net utility of this food
+				netUtil = marginalUtility-avgUnitPrice
+				if (netUtil < 0):
+					netUtil = 0
+				foodNetUtils[foodId] = netUtil
+
+			#Scale required amounts by net utility distribution
+			totalNetUtil = sum(foodNetUtils.values())
+			scaledQuantities = {}
+			for foodId in foodReqAverages:
+				scaledQuantities[foodId] = (foodReqAverages[foodId] * (foodNetUtils[foodId] / totalNetUtil)) / ((i/4)+1)
+
+			#Add amounts to meal plan
+			for foodId in scaledQuantities:
+				if not (foodId in mealPlan):
+					mealPlan[foodId] = 0
+				mealPlan[foodId] += scaledQuantities[foodId]
+
+			#Get nutrition of current meal plan
+			planNutritionVec =  np.array([0, 0, 0, 0])
+			for foodId in mealPlan:
+				foodVec = self.nutritionalDict[foodId]["vector"]
+				quantity = mealPlan[foodId]
+				if (quantity > 0):
+					nutritionVec = np.multiply(foodVec, quantity)
+					planNutritionVec = np.add(planNutritionVec, nutritionVec)
+
+			#Update current deficit
+			currentDeficit = np.array([self.targetCalories-planNutritionVec[0], self.targetCarbs-planNutritionVec[1], self.targetProtein-planNutritionVec[2], self.targetFat-planNutritionVec[3]])
+
+
+		#Remove all negative quantities from meal plan
+		foodList = list(mealPlan.keys())
+		for foodId in foodList:
+			quantity = mealPlan[foodId]
+			if (quantity <= 0):
+				del mealPlan[foodId]
+
+		#Recalculate plan nutrition
+		planNutritionVec =  np.array([0, 0, 0, 0])
+		for foodId in mealPlan:
+			foodVec = self.nutritionalDict[foodId]["vector"]
+			quantity = mealPlan[foodId]
+			nutritionVec = np.multiply(foodVec, quantity)
+			planNutritionVec = np.add(planNutritionVec, nutritionVec)
+
+		#Scale meal plan by calories
+		totalCost = 0
+		if (planNutritionVec[0] > 0):
+			calorieScale = self.targetCalories/planNutritionVec[0]
+			for foodId in mealPlan:
+				quantity = mealPlan[foodId]*calorieScale
+				mealPlan[foodId] = quantity
+				totalCost += foodUnitPrices[foodId]*quantity
+
+		#Make sure we have enough money for this meal plan
+		currencyBalance = self.agent.currencyBalance
+		if (currencyBalance < totalCost):
+			#We don't have enough money for this meal. Scale down the meal
+			povertyScale = currencyBalance / totalCost
+			for foodId in mealPlan:
+				quantity = mealPlan[foodId]*povertyScale
+				mealPlan[foodId] = quantity
+
+		#Calculate water shortage
+		netWater = 0
+		for foodId in mealPlan:
+			quantity = mealPlan[foodId]
+			netWater += quantity*self.nutritionalDict[foodId]["water(L)"]
+
+		waterDeficit = self.targetWater - netWater
+		if (waterDeficit > 0):
+			if ("water" in foodUnitPrices):
+				mealPlan["water"] = waterDeficit
+
+		#Make sure we have enough money for this meal plan
+		currencyBalance = self.agent.currencyBalance
+
+
+		return mealPlan
+
+
+	def getQuantityConsumed(self, foodId):
+		if (foodId in self.consumptionTotal):
+			return self.consumptionTotal[foodId]
+
+		return 0
+
+
 class LandAllocationQueue:
 	'''
 	Keeps track of land that is currently being allocated
@@ -573,6 +816,8 @@ def getAgentController(agent, logFile=True, fileLevel="INFO"):
 		return TestLandSeller(agent, logFile=logFile, fileLevel=fileLevel)
 	if (agentInfo.agentType == "TestLandBuyer"):
 		return TestLandBuyer(agent, logFile=logFile, fileLevel=fileLevel)
+	if (agentInfo.agentType == "TestEater"):
+		return TestEater(agent, logFile=logFile, fileLevel=fileLevel)
 
 	#Unhandled agent type. Return default controller
 	return None
@@ -703,11 +948,20 @@ class Agent:
 		self.ticksPerStep = ticksPerStep
 		
 		#Instantiate agent preferences (utility functions)
+		self.nutritionalDict = {}
 		self.utilityFunctions = {}
 		if (itemDict):
 			for itemName in itemDict:
 				itemFunctionParams = itemDict[itemName]["UtilityFunctions"]
 				self.utilityFunctions[itemName] = UtilityFunction(itemFunctionParams["BaseUtility"]["mean"], itemFunctionParams["BaseUtility"]["stdDev"], itemFunctionParams["DiminishingFactor"]["mean"], itemFunctionParams["DiminishingFactor"]["stdDev"])
+				if ("NutritionalFacts" in itemDict[itemName]):
+					nutrition = itemDict[itemName]["NutritionalFacts"]
+					nutrition["vector"] = np.array([nutrition["kcalories"], nutrition["carbohydrates(g)"], nutrition["protein(g)"], nutrition["fat(g)"]])
+					self.nutritionalDict[itemName] = nutrition
+
+		#Keep track of agent nutrition
+		self.enableNutrition = False
+		self.nutritionTracker = None
 
 		#Production functions
 		self.productionFunctions = {}
@@ -856,6 +1110,13 @@ class Agent:
 
 				else:
 					self.logger.error("TICK_GRANT timeTickLock acquire timeout")
+
+				#Daily nutritional stuff
+				if (self.enableNutrition):
+					self.nutritionTracker.advanceStep()
+					if (self.autoEatFlag):
+						eatThread = threading.Thread(target=self.autoEat)
+						eatThread.start()
 
 				#Update time tick commitments
 				self.commitedTicks_nextStepLock.acquire()
@@ -1164,6 +1425,12 @@ class Agent:
 				else:
 					#Consume the item
 					self.inventory[itemContainer.id] -= itemContainer
+
+					#Check if this item was food
+					if (self.enableNutrition):
+						if (itemContainer.id in self.nutritionalDict):
+							self.nutritionTracker.consumeFood(itemContainer.id, itemContainer.quantity)
+
 				self.inventoryLock.release()
 
 				consumeSuccess = True
@@ -1895,6 +2162,49 @@ class Agent:
 
 		return sampledListings
 
+
+	def acquireItem(self, itemContainer, sampleSize=5):
+		'''
+		Will sample the market and acquire the item at the lowest price, if we have enough money.
+		Returns True if successful, False if not
+		'''
+		itemAcquired = False
+
+		#Sample market
+		minPrice = -1
+		bestSeller = None
+
+		sampledListings = self.sampleItemListings(itemContainer, sampleSize=sampleSize)
+		for itemListing in sampledListings:
+			if (minPrice > -1):
+				if (itemListing.unitPrice < minPrice):
+					minPrice = itemListing.unitPrice
+					bestSeller = itemListing.sellerId
+			else:
+				minPrice = itemListing.unitPrice
+				bestSeller = itemListing.sellerId
+		
+		if (minPrice > -1):
+			totalCost = int(minPrice*itemContainer.quantity)+1
+			if (totalCost <= self.currencyBalance):
+				tradeRequest = TradeRequest(sellerId=bestSeller, buyerId=self.agentId, currencyAmount=totalCost, itemPackage=itemContainer)
+				self.logger.debug("Acquiring item | {}".format(tradeRequest))
+				itemAcquired = self.sendTradeRequest(request=tradeRequest, recipientId=bestSeller)
+			else:
+				self.logger.warning("Could not acquire {}. Current balance ${} not enough at current unit price ${}".format(itemContainer, self.currencyBalance/100, minPrice/100))
+				itemAcquired = False
+				return itemAcquired
+		else:
+			self.logger.warning("Could not acquire {}. No sellers found".format(itemContainer))
+			itemAcquired = False
+			return itemAcquired
+
+		if not (itemAcquired):
+			self.logger.warning("Could not acquire {}".format(itemContainer))
+
+		return itemAcquired
+
+
 	#########################
 	# Labor Market functions
 	#########################
@@ -2078,7 +2388,16 @@ class Agent:
 		if (itemId in self.inventory):
 			quantity = self.inventory[itemId].quantity
 
+		#Override quantity if this item is food and nutrition tracking is enabled
+		if (self.enableNutrition):
+			if (itemId in self.nutritionalDict):
+				quantity += self.nutritionTracker.getQuantityConsumed(itemId)
+
 		utilityFunction = self.utilityFunctions[itemId]
+		try:
+			marginalUtility = utilityFunction.getMarginalUtility(quantity)
+		except:
+			self.logger.critical("getMarginalUtility({}) quantity={}".format(itemId, quantity))
 
 		return utilityFunction.getMarginalUtility(quantity)
 
@@ -2158,6 +2477,53 @@ class Agent:
 		else:
 			self.logger.debug("Cannot relinquish time ticks. Have not fulfilled all labor contracts yet")
 
+
+	#########################
+	# Food functions
+	#########################
+	def enableHunger(self, autoEat=True):
+		'''
+		Sets the enableNutrition flag to True, which means this agent now has to consume food.
+
+		If autoEat is set to True, agent will automatically feed itself at the beginning of each step
+		'''
+		self.enableNutrition = True
+		self.nutritionTracker = NutritionTracker(self)
+		self.autoEatFlag = autoEat
+
+
+	def autoEat(self):
+		'''
+		Will create a meal plan, acquire the needed food, then consume the food.
+		Returns True if successful, False if not
+		'''
+		self.logger.debug("autoEat() start")
+		eatSuccess = True
+
+		ticksUsed = self.useTimeTicks(1)
+		if not (ticksUsed):
+			eatSuccess = False
+
+		if (ticksUsed):
+			mealPlan = self.nutritionTracker.getAutoMeal()
+			self.logger.debug("autoEat() mealPlan = {}".format(mealPlan))
+
+			#Acquire needed food
+			acquisitionSuccess = True
+			for foodId in mealPlan:
+				foodContainer = ItemContainer(foodId, mealPlan[foodId])
+				foodAcquired = self.acquireItem(foodContainer, sampleSize=5)
+				if not (foodAcquired):
+					acquisitionSuccess = False
+				else:
+					self.consumeItem(foodContainer)
+
+			if not (acquisitionSuccess):
+				self.logger.warning("autoEat() Could not acquire all ingredients for meal plan {}".format(mealPlan))
+		else:
+			self.logger.warning("autoEat() Could not autoEat. Not enough time ticks")
+
+		return eatSuccess
 
 	#########################
 	# Misc functions

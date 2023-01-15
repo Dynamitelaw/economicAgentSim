@@ -2,11 +2,11 @@
 	"description": "Test simulation with test agent controllers. Used for testing and debug.",
 	"settings": {
 		"NumProcesses": 2,
-		"SimulationSteps": 10,
+		"SimulationSteps": 15,
 		"TicksPerStep": 16,
 		"AgentSpawns":{
 			"TestSeller":{
-				"quantity": 10,
+				"quantity": 100,
 				"settings": {
 					"skillDistribution": {
 						"alpha": 2,
@@ -14,8 +14,8 @@
 					}
 				}
 			},
-			"TestBuyer":{
-				"quantity": 10,
+			"TestEater":{
+				"quantity": 15,
 				"settings": {
 					"skillDistribution": {
 						"alpha": 2,
@@ -27,7 +27,7 @@
 		"Statistics": {
 			"PrivateConsumption": {
 				"ConsumptionTracker": {
-					"ConsumerClasses": ["TestBuyer"],
+					"ConsumerClasses": ["TestEater"],
 					"StartStep": 0,
 					"OuputPath": "ConsumptionStats/PrivateConsumption.csv"
 				}

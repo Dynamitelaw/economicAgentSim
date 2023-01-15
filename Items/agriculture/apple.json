@@ -1,6 +1,7 @@
 {
 	"id": "apple",
 	"unit": "kg",
+	"Quantized": false,
 	"category": "agriculture",
 	"ProductionLearningCurve": {
 		"StartingEfficiency": 0.8,
@@ -43,5 +44,12 @@
 			"mean": 1.5,
 			"stdDev": 0.2
 		}
+	},
+	"NutritionalFacts": {
+		"kcalories": 522,
+		"carbohydrates(g)": 137.5,
+		"protein(g)": 2.75,
+		"fat(g)": 1.65,
+		"water(L)": 0.86
 	}
 }

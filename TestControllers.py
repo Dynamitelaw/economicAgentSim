@@ -124,7 +124,7 @@ class TestSeller:
 		baseUtility = self.utilityFunctions[self.sellItemId].baseUtility
 		self.sellPrice = round(baseUtility*random.random())
 
-		initialQuantity = int(20*random.random())
+		initialQuantity = int(200*random.random())
 
 		#Spawn items into inventory
 		inventoryEntry = ItemContainer(self.sellItemId, initialQuantity)
@@ -159,7 +159,7 @@ class TestSeller:
 
 	def produceItems(self):
 		#Spawn items into inventory
-		spawnQuantity = int(20*random.random())
+		spawnQuantity = int(200*random.random())
 		inventoryEntry = ItemContainer(self.sellItemId, spawnQuantity)
 		self.logger.info("Spawning new items to sell {}".format(inventoryEntry))
 		self.agent.receiveItem(inventoryEntry)
@@ -673,3 +673,55 @@ class TestLandBuyer:
 
 
 		self.logger.info("Ending shopping spree")
+
+
+class TestEater:
+	'''
+	This controller will eating shit until it's satisfied. 
+	Will create currency out of thin air.
+	Used for testing.
+	'''
+	def __init__(self, agent, logFile=True, fileLevel="INFO"):
+		self.agent = agent
+		self.agentId = agent.agentId
+		self.simManagerId = agent.simManagerId
+
+		self.name = "{}_TestEater".format(agent.agentId)
+
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
+
+		#Keep track of agent assets
+		self.currencyBalance = agent.currencyBalance  #(int) cents  #This prevents accounting errors due to float arithmetic (plus it's faster)
+		self.inventory = agent.inventory
+
+		#Agent preferences
+		self.utilityFunctions = agent.utilityFunctions
+
+		#Initiate thread kill flag to false
+		self.killThreads = False
+
+
+	def controllerStart(self, incommingPacket):
+		#Subscribe for tick blocking
+		tickBlockReq = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCK_SUBSCRIBE")
+		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlockReq)
+		self.logger.debug("OUTBOUND {}->{}".format(tickBlockReq, tickBlockPacket))
+		self.agent.sendPacket(tickBlockPacket)
+
+		#Enable nutritional tracking
+		self.agent.enableHunger()
+
+	def receiveMsg(self, incommingPacket):
+		self.logger.info("INBOUND {}".format(incommingPacket))
+
+		if (incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST"):
+			#Print a shit ton of money
+			self.agent.receiveCurrency(5000)
+			self.agent.relinquishTimeTicks()
+
+		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+			controllerMsg = incommingPacket.payload
+			self.logger.info("INBOUND {}".format(controllerMsg))
+			
+			if (controllerMsg.msgType == "STOP_TRADING"):
+				self.killThreads = True

@@ -1,5 +1,5 @@
 {
-	"id": "potato",
+	"id": "chickpea",
 	"unit": "kg",
 	"Quantized": false,
 	"category": "agriculture",
@@ -37,7 +37,7 @@
 	},
 	"UtilityFunctions": {
 		"BaseUtility": {
-			"mean": 269,
+			"mean": 80,
 			"stdDev": 0.5
 		},
 		"DiminishingFactor": {
@@ -46,10 +46,10 @@
 		}
 	},
 	"NutritionalFacts": {
-		"kcalories": 770,
-		"carbohydrates(g)": 170,
-		"protein(g)": 20,
-		"fat(g)": 1,
-		"water(L)": 0.79
+		"kcalories": 3640,
+		"carbohydrates(g)": 610,
+		"protein(g)": 190,
+		"fat(g)": 60,
+		"water(L)": 0.14
 	}
 }

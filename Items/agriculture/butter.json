@@ -1,5 +1,5 @@
 {
-	"id": "potato",
+	"id": "butter",
 	"unit": "kg",
 	"Quantized": false,
 	"category": "agriculture",
@@ -37,7 +37,7 @@
 	},
 	"UtilityFunctions": {
 		"BaseUtility": {
-			"mean": 269,
+			"mean": 883,
 			"stdDev": 0.5
 		},
 		"DiminishingFactor": {
@@ -46,10 +46,10 @@
 		}
 	},
 	"NutritionalFacts": {
-		"kcalories": 770,
-		"carbohydrates(g)": 170,
-		"protein(g)": 20,
-		"fat(g)": 1,
-		"water(L)": 0.79
+		"kcalories": 7170,
+		"carbohydrates(g)": 1,
+		"protein(g)": 9,
+		"fat(g)": 810,
+		"water(L)": 0.17
 	}
 }

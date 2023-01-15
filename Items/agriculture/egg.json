@@ -1,7 +1,7 @@
 {
-	"id": "potato",
-	"unit": "kg",
-	"Quantized": false,
+	"id": "egg",
+	"unit": "egg",
+	"Quantized": true,
 	"category": "agriculture",
 	"ProductionLearningCurve": {
 		"StartingEfficiency": 0.8,
@@ -16,8 +16,8 @@
 				"AllocationTime": 24
 			},
 			"FixedItemCosts": {
-				"shovel": {
-					"MaxYield": false,
+				"chicken": {
+					"MaxYield": 0.0625,
 					"MinQuantity": 1,
 					"Quantized": true
 				}
@@ -37,7 +37,7 @@
 	},
 	"UtilityFunctions": {
 		"BaseUtility": {
-			"mean": 269,
+			"mean": 17,
 			"stdDev": 0.5
 		},
 		"DiminishingFactor": {
@@ -46,10 +46,10 @@
 		}
 	},
 	"NutritionalFacts": {
-		"kcalories": 770,
-		"carbohydrates(g)": 170,
-		"protein(g)": 20,
-		"fat(g)": 1,
-		"water(L)": 0.79
+		"kcalories": 78,
+		"carbohydrates(g)": 0.6,
+		"protein(g)": 6,
+		"fat(g)": 5,
+		"water(L)": 0.038
 	}
 }
