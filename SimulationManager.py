@@ -48,7 +48,7 @@ class SimulationManager:
 		self.agentId = agentInfo.agentId
 		self.agentType = agentInfo.agentType
 
-		self.logger = utils.getLogger("{}:{}".format("SimulationManager", self.agentId), console="INFO", logFile=logFile)
+		self.logger = utils.getLogger("{}:{}".format("SimulationManager", self.agentId), console="INFO", logFile=logFile, fileLevel="DEBUG")
 		self.logger.info("{} instantiated".format(self.info))
 
 		self.agentDict = allAgentDict

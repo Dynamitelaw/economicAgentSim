@@ -8,6 +8,7 @@ import time
 import traceback
 import threading
 import statistics
+from sortedcontainers import SortedList
 
 from EconAgent import *
 from NetworkClasses import *
@@ -258,6 +259,208 @@ class ItemPriceTracker:
 							self.logger.error("{}.handleSnoop() Lock priceTrackingLock acquisition timout B".format(self.name))
 
 
+class LaborContractTracker:
+	'''
+	Keeps track of signed labor contracts over time
+	'''
+	def __init__(self, gathererParent, settings, name):
+		self.gathererParent = gathererParent
+		self.agent = gathererParent.agent
+		self.settings = settings
+		self.logger = gathererParent.logger
+		self.name = "{}.LaborContractTracker".format(name)
+		self.lockTimout = 5
+
+		self.startStep = 0
+		if ("StartStep" in settings):
+			self.startStep = int(settings["StartStep"])
+
+		self.stepNum = self.agent.stepNum
+		self.stepNumLock = threading.Lock()
+		
+		#Keep track of contracts
+		self.hourWageListSorted = SortedList()
+		self.hourWageTotal = 0
+
+		self.hoursListSorted = SortedList()
+		self.hoursTotal = 0
+
+		self.dayWageListSorted = SortedList()
+		self.dayWageTotal = 0
+
+		self.listLen = 0
+		self.endTimes = {}
+		self.endMappingDict = {"hourWage": self.hourWageListSorted, "hours": self.hoursListSorted, "dayWage": self.dayWageListSorted}
+
+		self.wageMetricsLock = threading.Lock()
+
+		#Keep track of labor statistics
+		self.hourWageMin = -1
+		self.hourWageMax = -1
+		self.hourWageMean = -1
+		self.hourWageMedian = -1
+		
+		self.hourMin = -1
+		self.hourMax = -1
+		self.hourMean = -1
+		self.hourMedian = -1
+
+		self.dayWageMin = -1
+		self.dayWageMax = -1
+		self.dayWageMean = -1
+		self.dayWageMedian = -1
+
+		#Set skill boundaries
+		self.minSkill = 0
+		if ("SkillMin" in settings):
+			self.minSkill = float(settings["SkillMin"])
+		self.maxSkill = 0
+		if ("SkillMax" in settings):
+			self.maxSkill = float(settings["SkillMax"])
+
+		#Initialize output file
+		self.outputPath = os.path.join("Statistics", "LaborContractTracker_{}_{}.csv".format(self.minSkill, self.maxSkill))
+		if ("OuputPath" in settings):
+			self.outputPath = os.path.join("Statistics", settings["OuputPath"])
+		utils.createFolderPath(self.outputPath)
+
+		self.outputFile = open(self.outputPath, "w")
+		self.columns = ["DayStepNumber", 
+		"MinHourWage(cents)", "MaxHourWage(cents)", "MeanHourWage(cents)", "MedianHourWage(cents)", 
+		"MinHoursPerDay", "MaxHoursPerDay", "MeanHoursPerDay", "MedianHoursPerDay",
+		"MinDailyWage", "MaxDailyWage", "MeanDailyWage", "MedianDailyWage",
+		"Quantity"]
+		csvHeader = ",".join(self.columns)+"\n"
+		self.outputFile.write(csvHeader)
+
+	def __str__(self):
+		return str(self.name)
+
+	def start(self):
+		#Submit snoop requests
+		self.gathererParent.startSnoop(self, "LABOR_APPLICATION_ACK")
+
+	def end(self):
+		rowData = [self.stepNum,
+		self.hourWageMin, self.hourWageMax, self.hourWageMean, self.hourWageMedian,
+		self.hourMin, self.hourMax, self.hourMean, self.hourMedian,
+		self.dayWageMin, self.dayWageMax, self.dayWageMean, self.dayWageMedian,
+		self.listLen]
+		csvLine = "{}\n".format(",".join([str(i) for i in rowData]))
+		self.outputFile.write(csvLine)
+		self.outputFile.close()
+
+	def advanceStep(self):
+		acquired_stepNumLock = self.stepNumLock.acquire(timeout=self.lockTimout)
+		if (acquired_stepNumLock):
+			acquired_wageMetricsLock = self.wageMetricsLock.acquire(timeout=self.lockTimout)
+			if (acquired_wageMetricsLock):
+				#Update labor statistics
+				if (self.listLen > 0):
+					self.hourWageMin = self.hourWageListSorted[0]
+					self.hourWageMax = self.hourWageListSorted[-1]
+					self.hourWageMean = self.hourWageTotal/self.listLen
+					self.hourWageMedian = self.hourWageListSorted[int(self.listLen/2)]
+
+					self.hourMin = self.hoursListSorted[0]
+					self.hourMax = self.hoursListSorted[-1]
+					self.hourMean = self.hoursTotal/self.listLen
+					self.hourMedian = self.hoursListSorted[int(self.listLen/2)]
+
+					self.dayWageMin = self.dayWageListSorted[0]
+					self.dayWageMax = self.dayWageListSorted[-1]
+					self.dayWageMean = self.dayWageTotal/self.listLen
+					self.dayWageMedian = self.dayWageListSorted[int(self.listLen/2)]
+
+				#Output stats to csv
+				if (self.stepNum >= self.startStep):
+					rowData = [self.stepNum,
+					self.hourWageMin, self.hourWageMax, self.hourWageMean, self.hourWageMedian,
+					self.hourMin, self.hourMax, self.hourMean, self.hourMedian,
+					self.dayWageMin, self.dayWageMax, self.dayWageMean, self.dayWageMedian,
+					self.listLen]
+					csvLine = "{}\n".format(",".join([str(i) for i in rowData]))
+					self.outputFile.write(csvLine)
+
+				#Increment step
+				self.stepNum += 1
+				#Remove stale labor contracts
+				if (self.stepNum in self.endTimes):
+					staleMetrics = self.endTimes[self.stepNum]
+					for key in staleMetrics:
+						removalList = staleMetrics[key]
+						sortedList = self.endMappingDict[key]
+						for metric in removalList:
+							#Remove from sorted list
+							sortedList.remove(metric)
+
+							#Decrement counters
+							if (key == "hourWage"):
+								self.hourWageTotal -= metric
+							if (key == "hours"):
+								self.hoursTotal -= metric
+							if (key == "dayWage"):
+								self.dayWageTotal -= metric
+
+						if (key == "hourWage"):
+							self.listLen -= len(removalList)
+
+					del self.endTimes[self.stepNum]
+
+				self.wageMetricsLock.release()
+			else:
+				self.logger.error("{}.advanceStep() Lock wageMetricsLock acquisition timout".format(self.name))
+
+			self.stepNumLock.release()
+		else:
+			self.logger.error("{}.advanceStep() Lock stepNumLock acquisition timout".format(self.name))
+
+	def handleSnoop(self, incommingPacket):
+		if (self.stepNum >= self.startStep):
+			#Handle incomming snooped packet
+			if (incommingPacket.msgType == "LABOR_APPLICATION_ACK"):
+				if (incommingPacket.payload["accepted"]):
+					#This labor application was accepted
+					laborContract = incommingPacket.payload["laborContract"]
+					skillLevel = laborContract.workerSkillLevel
+					if ((skillLevel >= self.minSkill) and (skillLevel < self.maxSkill)):
+						#Skill level is within range. Track this contract
+						acquired_wageMetricsLock = self.wageMetricsLock.acquire(timeout=self.lockTimout)
+						if (acquired_wageMetricsLock):
+							#Get contract metrics
+							hourlyWage = laborContract.wagePerTick
+							hours = laborContract.ticksPerStep
+							dailyWage = laborContract.wagePerTick * laborContract.ticksPerStep
+
+							#Add metrics to endStep dict
+							endStep = laborContract.endStep  #TODO: Handle startStep
+							if not (endStep in self.endTimes):
+								self.endTimes[endStep] = {}
+								self.endTimes[endStep]["hourWage"] = []
+								self.endTimes[endStep]["hours"] = []
+								self.endTimes[endStep]["dayWage"] = []
+
+							self.endTimes[endStep]["hourWage"].append(hourlyWage)
+							self.endTimes[endStep]["hours"].append(hours)
+							self.endTimes[endStep]["dayWage"].append(dailyWage)
+
+							#Add metrics to sorted lists
+							self.hourWageListSorted.add(hourlyWage)
+							self.hoursListSorted.add(hours)
+							self.dayWageListSorted.add(dailyWage)
+
+							#Increment running totals
+							self.hourWageTotal += hourlyWage
+							self.hoursTotal += hours
+							self.dayWageTotal += dailyWage
+
+							self.listLen += 1
+
+							self.wageMetricsLock.release()
+						else:
+							self.logger.error("{}.handleSnoop() Lock wageMetricsLock acquisition timout".format(self.name))
+
+
 #######################
 # StatisticsGatherer
 #######################
@@ -319,6 +522,10 @@ class StatisticsGatherer:
 					elif (trackerType=="ItemPriceTracker"):
 						self.logger.info("Spawning ItemPriceTracker({}) for {}".format(settings["Statistics"][statName][trackerType], statName))
 						trackerObj = ItemPriceTracker(self, settings["Statistics"][statName][trackerType], statName)
+						self.trackers.append(trackerObj)
+					elif (trackerType=="LaborContractTracker"):
+						self.logger.info("Spawning LaborContractTracker({}) for {}".format(settings["Statistics"][statName][trackerType], statName))
+						trackerObj = LaborContractTracker(self, settings["Statistics"][statName][trackerType], statName)
 						self.trackers.append(trackerObj)
 					else:
 						self.logger.error("Unknown stat tracker \"{}\" specified in settings. Will not gather data for {}.{}".format(trackerType, statName, trackerType))

@@ -19,7 +19,7 @@ import utils
 class ItemMarketplace:
 	def __init__(self, itemDict, networkLink, simManagerId=None, logFile=True, fileLevel="INFO"):
 		self.agentId = "ItemMarketplace"
-		self.logger = utils.getLogger("ItemMarketplace", logFile=logFile, outputdir=os.path.join("LOGS", "Markets"), fileLevel=fileLevel)
+		self.logger = utils.getLogger("ItemMarketplace", logFile=logFile, console="ERROR", outputdir=os.path.join("LOGS", "Markets"), fileLevel=fileLevel)
 		self.logger.info("ItemMarketplace instantiated")
 
 		self.lockTimeout = 5
@@ -122,7 +122,9 @@ class ItemMarketplace:
 
 	def handlePacket(self, incommingPacket, agentLink, agentSendLock):
 		self.logger.info("INBOUND {}".format(incommingPacket))
-		self.latestHandleTime = time.time()
+		currentTime = time.time()
+		if (currentTime > self.latestHandleTime):
+			self.latestHandleTime = currentTime
 
 		handled = False
 		if (incommingPacket.msgType == "ITEM_MARKET_UPDATE"):
@@ -158,6 +160,8 @@ class ItemMarketplace:
 			timeDiff = time.time() - self.latestHandleTime
 			if (timeDiff > self.stallTime):
 				break
+
+		self.logger.info("Stall of {} seconds detected. Sending TICK_BLOCKED".format(self.stallTime))
 
 		#Send tick blocked
 		tickBlocked = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCKED")
@@ -280,7 +284,7 @@ class ItemMarketplace:
 class LaborMarketplace:
 	def __init__(self, networkLink, simManagerId=None, logFile=True, fileLevel="INFO"):
 		self.agentId = "LaborMarketplace"
-		self.logger = utils.getLogger("LaborMarketplace", logFile=logFile, outputdir=os.path.join("LOGS", "Markets"), fileLevel=fileLevel)
+		self.logger = utils.getLogger("LaborMarketplace", logFile=logFile, console="ERROR", outputdir=os.path.join("LOGS", "Markets"), fileLevel=fileLevel)
 		self.logger.info("LaborMarketplace instantiated")
 
 		self.lockTimeout = 5
@@ -297,6 +301,10 @@ class LaborMarketplace:
 		self.laborMarket = {}
 		self.laborMarketLock = threading.Lock()
 		self.laborMarketEmployerLocks = {}
+
+		#Keep track of time since last update
+		self.stallTime = 0.5
+		self.latestHandleTime = time.time()
 
 		#Start monitoring network link
 		if (self.networkLink):
@@ -321,6 +329,16 @@ class LaborMarketplace:
 				self.sendPacket(killPacket)
 				self.logger.info("Killing networkLink {}".format(self.networkLink))
 				break
+
+			#Simulation start
+			elif (incommingPacket.msgType == "CONTROLLER_START_BROADCAST"):
+				self.subcribeTickBlocking()
+
+			#Hanle incoming tick grants
+			elif ((incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST")):
+				#Wait until we're not busy to send TICK_BLOCK
+				stallMonitor = threading.Thread(target=self.waitForStall)
+				stallMonitor.start()
 
 			#Handle errors
 			elif ("ERROR" in incommingPacket.msgType):
@@ -370,6 +388,38 @@ class LaborMarketplace:
 			handled = self.sampleLaborListings(incommingPacket, agentLink, agentSendLock)
 
 		return handled
+
+	#########################
+	# Time functions
+	#########################
+	def subcribeTickBlocking(self):
+		'''
+		Subscribes this agent as a tick blocker with the sim manager
+		'''
+		self.logger.info("Subscribing as a tick blocker")
+		tickBlockReq = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCK_SUBSCRIBE")
+		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlockReq)
+		self.sendPacket(tickBlockPacket)
+
+
+	def waitForStall(self):
+		'''
+		Subscribes this agent as a tick blocker with the sim manager
+		'''
+		#Wait for stall
+		previousHandleTime = self.latestHandleTime
+		while True:
+			time.sleep(self.stallTime/4)
+			timeDiff = time.time() - self.latestHandleTime
+			if (timeDiff > self.stallTime):
+				break
+
+		self.logger.info("Stall of {} seconds detected. Sending TICK_BLOCKED".format(self.stallTime))
+
+		#Send tick blocked
+		tickBlocked = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCKED")
+		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlocked)
+		self.sendPacket(tickBlockPacket)
 
 	#########################
 	# Market functions
@@ -422,18 +472,18 @@ class LaborMarketplace:
 		#Remove listing from local labor market
 		skillLevel = laborListing.minSkillLevel
 		if (not skillLevel in self.laborMarket):
-			self.logger.error("{}.removeItemListing({}) failed. Listing not in labor market".format(self.agentId, laborListing))
+			self.logger.warning("{}.removeItemListing({}) failed. Listing not in labor market".format(self.agentId, laborListing))
 			updateSuccess = False
 			return updateSuccess
 
 		employerId = laborListing.employerId
 		if (not employerId in self.laborMarket[skillLevel]):
-			self.logger.error("{}.removeItemListing({}) failed. Listing not in labor market".format(self.agentId, laborListing))
+			self.logger.warning("{}.removeItemListing({}) failed. Listing not in labor market".format(self.agentId, laborListing))
 			updateSuccess = False
 			return updateSuccess
 
 		if (not laborListing.listingStr in self.laborMarket[skillLevel][employerId]):
-			self.logger.error("{}.removeItemListing({}) failed. Listing not in labor market".format(self.agentId, laborListing))
+			self.logger.warning("{}.removeItemListing({}) failed. Listing not in labor market".format(self.agentId, laborListing))
 			updateSuccess = False
 			return updateSuccess
 
@@ -483,7 +533,7 @@ class LaborMarketplace:
 				sampledListingStr = None
 				if (len(employerListings) > 1):
 					#Employer has multiple listings at this skill level. Sample one of them
-					sampledListingStr = random.sample(list(employerListings.keys()), 1)
+					sampledListingStr = random.sample(list(employerListings.keys()), 1)[0]
 				else:
 					sampledListingStr = list(employerListings.keys())[0]
 
@@ -528,7 +578,7 @@ class LaborMarketplace:
 class LandMarketplace:
 	def __init__(self, networkLink, simManagerId=None, logFile=True, fileLevel="INFO"):
 		self.agentId = "LandMarketplace"
-		self.logger = utils.getLogger("LandMarketplace", logFile=logFile, outputdir=os.path.join("LOGS", "Markets"), fileLevel=fileLevel)
+		self.logger = utils.getLogger("LandMarketplace", logFile=logFile, console="ERROR", outputdir=os.path.join("LOGS", "Markets"), fileLevel=fileLevel)
 		self.logger.info("LandMarketplace instantiated")
 
 		self.lockTimeout = 5
@@ -545,6 +595,10 @@ class LandMarketplace:
 		self.landMarket = {"UNALLOCATED": {}}
 		self.landMarketLock = threading.Lock()
 		self.landMarketLocks = {"UNALLOCATED": threading.Lock()}
+
+		#Keep track of time since last update
+		self.stallTime = 0.5
+		self.latestHandleTime = time.time()
 
 		#Start monitoring network link
 		if (self.networkLink):
@@ -569,6 +623,16 @@ class LandMarketplace:
 				self.sendPacket(killPacket)
 				self.logger.info("Killing networkLink {}".format(self.networkLink))
 				break
+
+			#Simulation start
+			elif (incommingPacket.msgType == "CONTROLLER_START_BROADCAST"):
+				self.subcribeTickBlocking()
+
+			#Hanle incoming tick grants
+			elif ((incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST")):
+				#Wait until we're not busy to send TICK_BLOCK
+				stallMonitor = threading.Thread(target=self.waitForStall)
+				stallMonitor.start()
 
 			#Handle errors
 			elif ("ERROR" in incommingPacket.msgType):
@@ -618,6 +682,38 @@ class LandMarketplace:
 			handled = self.sampleLandListings(incommingPacket, agentLink, agentSendLock)
 
 		return handled
+
+	#########################
+	# Time functions
+	#########################
+	def subcribeTickBlocking(self):
+		'''
+		Subscribes this agent as a tick blocker with the sim manager
+		'''
+		self.logger.info("Subscribing as a tick blocker")
+		tickBlockReq = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCK_SUBSCRIBE")
+		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlockReq)
+		self.sendPacket(tickBlockPacket)
+
+
+	def waitForStall(self):
+		'''
+		Subscribes this agent as a tick blocker with the sim manager
+		'''
+		#Wait for stall
+		previousHandleTime = self.latestHandleTime
+		while True:
+			time.sleep(self.stallTime/4)
+			timeDiff = time.time() - self.latestHandleTime
+			if (timeDiff > self.stallTime):
+				break
+
+		self.logger.info("Stall of {} seconds detected. Sending TICK_BLOCKED".format(self.stallTime))
+
+		#Send tick blocked
+		tickBlocked = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCKED")
+		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlocked)
+		self.sendPacket(tickBlockPacket)
 
 	#########################
 	# Market functions

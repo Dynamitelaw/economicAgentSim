@@ -1,119 +1,50 @@
 {
-	"description": "Test simulation with test agent controllers. Used for testing and debug.",
+	"description": "Test simulation with competetive employers. Used for testing and debug.",
 	"settings": {
 		"NumProcesses": 4,
 		"SimulationSteps": 30,
 		"TicksPerStep": 16,
 		"AgentSpawns":{
-			"AppleFarmer": {
-				"TestSpawner":{
-					"quantity": 10,
-					"settings": {
-						"itemId": "apple",
-						"spawnRate": 1.5
-					}
+			"Employers": {
+				"TestEmployerCompetetive":{
+					"quantity": 20
 				}
 			},
-			"ButterMaker": {
-				"TestSpawner":{
-					"quantity": 10,
+			"Employees": {
+				"TestWorker":{
+					"quantity": 40,
 					"settings": {
-						"itemId": "butter",
-						"spawnRate": 0.5
+						"skillDistribution": {
+							"alpha": 2,
+							"beta": 5
+						}
 					}
-				}
-			},
-			"PeaFarmer": {
-				"TestSpawner":{
-					"quantity": 10,
-					"settings": {
-						"itemId": "chickpea",
-						"spawnRate": 0.5
-					}
-				}
-			},
-			"EggFarmer": {
-				"TestSpawner":{
-					"quantity": 10,
-					"settings": {
-						"itemId": "egg",
-						"spawnRate": 1.13
-					}
-				}
-			},
-			"SpudFarmer": {
-				"TestSpawner":{
-					"quantity": 10,
-					"settings": {
-						"itemId": "potato",
-						"spawnRate": 1.75
-					}
-				}
-			},
-			"River": {
-				"TestSpawner":{
-					"quantity": 1,
-					"settings": {
-						"itemId": "water",
-						"spawnRate": 72
-					}
-				}
-			},
-			"FatAss": {
-				"TestEater":{
-					"quantity": 40
 				}
 			}
 		},
 		"Statistics": {
-			"PrivateConsumption": {
-				"ConsumptionTracker": {
-					"ConsumerClasses": ["TestBuyer"],
+			"LowSkillLabor": {
+				"LaborContractTracker": {
+					"SkillMin": 0,
+					"SkillMax": 0.3,
 					"StartStep": 0,
-					"OuputPath": "ConsumptionStats/PrivateConsumption.csv"
+					"OuputPath": "LaborStats/LowSkillLabor.csv"
 				}
 			},
-			"BusinessConsumption": {
-				"ConsumptionTracker": {
-					"ConsumerClasses": ["TestSeller"],
+			"MidSkillLabor": {
+				"LaborContractTracker": {
+					"SkillMin": 0.3,
+					"SkillMax": 0.7,
 					"StartStep": 0,
-					"OuputPath": "ConsumptionStats/BusinessConsumption.csv"
+					"OuputPath": "LaborStats/MidSkillLabor.csv"
 				}
 			},
-			"ApplePrices":{
-				"ItemPriceTracker":{
-					"id": "apple",
-					"OuputPath": "FoodPrices/apple.csv"
-				}
-			},
-			"ButterPrices":{
-				"ItemPriceTracker":{
-					"id": "butter",
-					"OuputPath": "FoodPrices/butter.csv"
-				}
-			},
-			"PeaPrices":{
-				"ItemPriceTracker":{
-					"id": "chickpea",
-					"OuputPath": "FoodPrices/chickpea.csv"
-				}
-			},
-			"EggPrices":{
-				"ItemPriceTracker":{
-					"id": "egg",
-					"OuputPath": "FoodPrices/egg.csv"
-				}
-			},
-			"SpudPrices":{
-				"ItemPriceTracker":{
-					"id": "potato",
-					"OuputPath": "FoodPrices/potato.csv"
-				}
-			},
-			"WaterPrices":{
-				"ItemPriceTracker":{
-					"id": "water",
-					"OuputPath": "FoodPrices/water.csv"
+			"HighSkillLabor": {
+				"LaborContractTracker": {
+					"SkillMin": 0.7,
+					"SkillMax": 1,
+					"StartStep": 0,
+					"OuputPath": "LaborStats/HighSkillLabor.csv"
 				}
 			}
 		}

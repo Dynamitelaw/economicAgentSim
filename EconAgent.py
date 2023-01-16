@@ -818,6 +818,8 @@ def getAgentController(agent, settings={}, logFile=True, fileLevel="INFO"):
 		return TestEater(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
 	if (agentInfo.agentType == "TestSpawner"):
 		return TestSpawner(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
+	if (agentInfo.agentType == "TestEmployerCompetetive"):
+		return TestEmployerCompetetive(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
 
 	#Unhandled agent type. Return default controller
 	return None
@@ -886,7 +888,7 @@ class Agent:
 		
 		self.simManagerId = simManagerId
 
-		self.logger = utils.getLogger("{}:{}".format(__name__, self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Agent_Logs"), fileLevel=fileLevel)
+		self.logger = utils.getLogger("{}:{}".format(__name__, self.agentId), console="ERROR", logFile=logFile, outputdir=os.path.join("LOGS", "Agent_Logs"), fileLevel=fileLevel)
 		self.logger.info("{} instantiated".format(self.info))
 
 		self.lockTimeout = 5
@@ -2494,13 +2496,17 @@ class Agent:
 
 	def relinquishTimeTicks(self):
 		'''
-		Relinquish all time ticks for this sim step
+		Relinquish all time ticks for this sim step.
+		Returns True if successful, False if not
 		'''
 		self.logger.debug("{}.relinquishTimeTicks() start".format(self.agentId))
-		if (self.fullfilledContracts):
-			self.useTimeTicks(self.timeTicks)
-		else:
-			self.logger.debug("Cannot relinquish time ticks. Have not fulfilled all labor contracts yet")
+
+		#Wait for labor contracts to be fullfilled
+		while not (self.fullfilledContracts):
+			time.sleep(0.05)
+
+		#Relinquish time ticks
+		return self.useTimeTicks(self.timeTicks)
 
 
 	def subcribeTickBlocking(self):

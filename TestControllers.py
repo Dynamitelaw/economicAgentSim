@@ -815,7 +815,7 @@ class TestSpawner:
 		self.previousPrice = self.sellPrice
 		self.logger.info("Updating price...")
 
-		alpha = 0.4
+		alpha = 0.2
 		saleRatio = self.previousSales/self.productionRate
 		newPrice = ((1-alpha)*self.sellPrice) + (alpha*saleRatio*self.sellPrice)
 		self.sellPrice = newPrice
@@ -885,3 +885,109 @@ class TestSpawner:
 			self.previousSales += request.itemPackage.quantity
 
 		return offerAccepted
+
+
+class TestEmployerCompetetive:
+	'''
+	This controller will try to fulfill it's labor requirements by adjusting wages until laborReceived ~= laborDemanded. 
+	Will create currency out of thin air.
+	Used for testing.
+	'''
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
+		self.agent = agent
+		self.agentId = agent.agentId
+		self.simManagerId = agent.simManagerId
+
+		self.name = "{}_TestEmployer".format(agent.agentId)
+
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
+
+		#Initiate thread kill flag to false
+		self.killThreads = False
+
+		#Determine how much labor we need and initial wage
+		self.laborSkillLevel = float(int(random.random()*10))/10
+		self.wagePerTick = 100*self.laborSkillLevel*random.random()+10
+		self.ticksPerStep = 8
+		self.contractLength = 3
+
+		self.listing = LaborListing(employerId=self.agentId, ticksPerStep=self.ticksPerStep, wagePerTick=self.wagePerTick, minSkillLevel=self.laborSkillLevel, contractLength=self.contractLength, listingName="Employeer_{}".format(self.agentId))
+
+		#How many applications have we recieved for this job
+		self.applications = 0
+		self.openSteps = 0
+		self.nextWage = self.wagePerTick
+
+
+	def controllerStart(self, incommingPacket):
+		#Subscribe for tick blocking
+		self.agent.subcribeTickBlocking()
+
+		#Post job listing
+		self.updateListing()
+
+	def adjustNextWage(self):
+		applications = self.applications
+		if (applications==0):
+			applications = 1
+
+		#Adjust the wage for next time
+		adjustmentRatio = (self.openSteps/self.contractLength)/applications
+		alpha = 0.4
+		self.nextWage = ((1-alpha)*self.wagePerTick)+(alpha*adjustmentRatio*self.wagePerTick)
+
+		#Print stats
+		self.logger.debug("applications={}, openSteps={}, adjustmentRatio={}, nextWage={}".format(self.applications, self.openSteps, adjustmentRatio, self.nextWage))
+
+	def evalJobApplication(self, laborContract):
+		#Remove labor listing
+		if (self.applications == 0):
+			self.agent.removeLaborListing(self.listing)
+
+		self.applications += 1
+		#Make sure we haven't already hired someone
+		if (len(self.agent.laborContracts) > 0):
+			#Adjust the wage for next time
+			self.adjustNextWage()
+
+			#Reject application
+			return False
+
+		#Spawn money needed for this contract
+		self.logger.info("Recieved job application {}".format(laborContract))
+		totalWages = laborContract.wagePerTick * laborContract.ticksPerStep * laborContract.contractLength + 100
+		self.agent.receiveCurrency(totalWages)
+
+		#Accept application
+		return True
+
+	def receiveMsg(self, incommingPacket):
+		self.logger.info("INBOUND {}".format(incommingPacket))
+
+		if (incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST"):
+			if (len(self.agent.laborContracts) == 0):
+				#We have not hired anyone yet
+				self.openSteps += 1
+				self.applications = 0
+
+				#Adjust wages
+				if (self.openSteps > 1):
+					self.adjustNextWage()
+					self.wagePerTick = self.nextWage
+					self.updateListing()
+
+			self.logger.info("Relinquishing time ticks")
+			ticksRelinquished = self.agent.relinquishTimeTicks()
+			self.logger.info("Ticks relinquished. Waiting for tick grant")
+
+		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+			controllerMsg = incommingPacket.payload
+			self.logger.info("INBOUND {}".format(controllerMsg))
+			
+			if (controllerMsg.msgType == "STOP_TRADING"):
+				self.killThreads = True
+
+	def updateListing(self):
+		self.listing = LaborListing(employerId=self.agentId, ticksPerStep=self.ticksPerStep, wagePerTick=self.wagePerTick, minSkillLevel=self.laborSkillLevel, contractLength=self.contractLength, listingName="Employeer_{}".format(self.agentId))
+		self.logger.info("Updating job listing | {}".format(self.listing))
+		listingUpdated = self.agent.updateLaborListing(self.listing)
