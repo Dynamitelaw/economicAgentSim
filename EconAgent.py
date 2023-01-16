@@ -978,6 +978,13 @@ class Agent:
 				self.logger.warning("No controller was instantiated")
 		self.controllerStart = False
 
+		#Launch packet sender
+		# self.agentKillFlag = False
+		# self.sendQueue = queue.Queue()
+		# if (self.networkLink):
+		# 	packetSendThread = threading.Thread(target=self.sendPacketDequeue)
+		# 	packetSendThread.start()
+
 		#Launch network link monitor
 		if (self.networkLink):
 			linkMonitor = threading.Thread(target=self.monitorNetworkLink)
@@ -1000,6 +1007,7 @@ class Agent:
 				killPacket = NetworkPacket(senderId=self.agentId, destinationId=self.agentId, msgType="KILL_PIPE_NETWORK")
 				self.sendPacket(killPacket)
 				self.logger.info("Killing networkLink {}".format(self.networkLink))
+				self.agentKillFlag = True
 				break
 
 			#Handle incoming acks
@@ -1041,39 +1049,45 @@ class Agent:
 			#Handle incoming payments
 			elif (incommingPacket.msgType == "CURRENCY_TRANSFER"):
 				amount = incommingPacket.payload["cents"]
-				transferThread =  threading.Thread(target=self.receiveCurrency, args=(amount, incommingPacket))
-				transferThread.start()
+				#transferThread =  threading.Thread(target=self.receiveCurrency, args=(amount, incommingPacket))
+				#transferThread.start()
+				self.receiveCurrency(amount, incommingPacket)
 
 			#Handle incoming items
 			elif (incommingPacket.msgType == "ITEM_TRANSFER"):
 				itemPackage = incommingPacket.payload["item"]
-				transferThread =  threading.Thread(target=self.receiveItem, args=(itemPackage, incommingPacket))
-				transferThread.start()
+				#transferThread =  threading.Thread(target=self.receiveItem, args=(itemPackage, incommingPacket))
+				#transferThread.start()
+				self.receiveItem(itemPackage, incommingPacket)
 
 			#Handle incoming land
 			elif (incommingPacket.msgType == "LAND_TRANSFER"):
 				allocation = incommingPacket.payload["allocation"]
 				hectares = incommingPacket.payload["hectares"]
-				transferThread =  threading.Thread(target=self.receiveLand, args=(allocation, hectares, incommingPacket))
-				transferThread.start()
+				#transferThread =  threading.Thread(target=self.receiveLand, args=(allocation, hectares, incommingPacket))
+				#transferThread.start()
+				self.receiveLand(allocation, hectares, incommingPacket)
 
 			#Handle incoming trade requests
 			elif (incommingPacket.msgType == "TRADE_REQ"):
 				tradeRequest = incommingPacket.payload
-				transferThread =  threading.Thread(target=self.receiveTradeRequest, args=(tradeRequest, incommingPacket.senderId))
-				transferThread.start()
+				tradeReqThread =  threading.Thread(target=self.receiveTradeRequest, args=(tradeRequest, incommingPacket.senderId))
+				tradeReqThread.start()
+				#self.receiveTradeRequest(tradeRequest, incommingPacket.senderId)
 
 			#Handle incoming land trade requests
 			elif (incommingPacket.msgType == "LAND_TRADE_REQ"):
 				tradeRequest = incommingPacket.payload
-				transferThread =  threading.Thread(target=self.receiveLandTradeRequest, args=(tradeRequest, incommingPacket.senderId))
-				transferThread.start()
+				landTradeThread =  threading.Thread(target=self.receiveLandTradeRequest, args=(tradeRequest, incommingPacket.senderId))
+				landTradeThread.start()
+				#self.receiveLandTradeRequest(tradeRequest, incommingPacket.senderId)
 
 			#Handle incoming job applications
 			elif (incommingPacket.msgType == "LABOR_APPLICATION"):
 				applicationPayload = incommingPacket.payload
-				contractThread =  threading.Thread(target=self.receiveJobApplication, args=(applicationPayload, incommingPacket.senderId))
-				contractThread.start()
+				laborAppThread =  threading.Thread(target=self.receiveJobApplication, args=(applicationPayload, incommingPacket.senderId))
+				laborAppThread.start()
+				#self.receiveJobApplication(applicationPayload, incommingPacket.senderId)
 
 			#Handle incoming labor
 			elif (incommingPacket.msgType == "LABOR_TIME_SEND"):
@@ -1088,8 +1102,9 @@ class Agent:
 			#Handle incoming information requests
 			elif (incommingPacket.msgType == "INFO_REQ"):
 				infoRequest = incommingPacket.payload
-				infoThread =  threading.Thread(target=self.handleInfoRequest, args=(infoRequest, ))
-				infoThread.start()
+				#infoThread =  threading.Thread(target=self.handleInfoRequest, args=(infoRequest, ))
+				#infoThread.start()
+				self.handleInfoRequest(infoRequest)
 
 			#Hanle incoming tick grants
 			elif ((incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST")):
@@ -1146,16 +1161,34 @@ class Agent:
 
 	def sendPacket(self, packet):
 		if (self.networkLink):
-			acquired_networkSendLock = self.networkSendLock.acquire(timeout=self.lockTimeout)
+			self.logger.debug("Waiting for networkSendLock to send {}".format(packet))
+			#acquired_networkSendLock = self.networkSendLock.acquire(timeout=self.lockTimeout)
+			acquired_networkSendLock = self.networkSendLock.acquire()
 			if (acquired_networkSendLock):
 				self.logger.info("OUTBOUND {}".format(packet))
 				self.networkLink.sendPipe.send(packet)
 				self.networkSendLock.release()
 			else:
-				self.logger.error("{}.sendPacket() Lock networkSendLock acquire timeout".format(self.agentId))
+				self.logger.error("{}.sendPacket() Lock networkSendLock acquire timeout | {}".format(self.agentId, packet))
 		else:
 			self.logger.error("This agent is missing a networkLink. Cannot send packet {}".format(packet))
 
+
+	# def sendPacket(self, packet):
+	# 	if (self.networkLink):
+	# 		self.sendQueue.put(packet)
+	# 	else:
+	# 		self.logger.error("This agent is missing a networkLink. Cannot send packet {}".format(packet))
+
+
+	# def sendPacketDequeue(self):
+	# 	while not (self.agentKillFlag):
+	# 		if not (self.sendQueue.empty()):
+	# 			packet = self.sendQueue.get()
+	# 			self.logger.info("OUTBOUND {}".format(packet))
+	# 			self.networkLink.sendPipe.send(packet)
+
+	# 	self.logger.info("Agent kill flag set. Ending packet send thread")
 
 	#########################
 	# Currency transfer functions

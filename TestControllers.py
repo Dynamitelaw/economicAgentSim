@@ -437,6 +437,7 @@ class TestWorker:
 
 		#Initiate thread kill flag to false
 		self.killThreads = False
+		self.searchStart = False
 
 
 	def controllerStart(self, incommingPacket):
@@ -461,20 +462,36 @@ class TestWorker:
 				self.killThreads = True
 
 	def searchJobs(self):
+		if not (self.searchStart):
+			randomNum = random.random()
+			if (randomNum < 0.67):
+				self.agent.relinquishTimeTicks()
+				return
+			self.searchStart = True
+
 		if (len(self.agent.laborContracts) == 0):
 			#Select a job listing
-			sampledListings = self.agent.sampleLaborListings()
+			sampledListings = self.agent.sampleLaborListings(sampleSize=7)
 
-			highestWage = 0
-			bestListing = None
+			#Sort listings by wage
+			wageDict = {}
 			for listing in sampledListings:
-				if (listing.wagePerTick > highestWage):
-					highestWage = listing.wagePerTick
-					bestListing = listing
+				if not (listing.wagePerTick in wageDict):
+					wageDict[listing.wagePerTick] = []
+				wageDict[listing.wagePerTick].append(listing)
 
-			#Send application
-			if (bestListing):
-				applicationAccepted = self.agent.sendJobApplication(bestListing)
+			sortedWages = list(wageDict.keys())
+			sortedWages.sort()
+
+			#Send applications
+			applicationAccepted = False
+			for wageKey in sortedWages:
+				for listing in wageDict[wageKey]:
+					applicationAccepted = self.agent.sendJobApplication(listing)
+					if (applicationAccepted):
+						break
+				if (applicationAccepted):
+					break
 
 		self.agent.relinquishTimeTicks()
 
@@ -906,7 +923,7 @@ class TestEmployerCompetetive:
 		self.killThreads = False
 
 		#Determine how much labor we need and initial wage
-		self.laborSkillLevel = float(int(random.random()*10))/10
+		self.laborSkillLevel = float(int(self.agent.skillLevel*10))/10
 		self.wagePerTick = 100*self.laborSkillLevel*random.random()+10
 		self.ticksPerStep = 8
 		self.contractLength = 3
@@ -927,19 +944,27 @@ class TestEmployerCompetetive:
 		self.updateListing()
 
 	def adjustNextWage(self):
-		applications = self.applications
-		if (applications==0):
-			applications = 1
+		divisor = 1.0
+		if (self.applications>0):
+			divisor = pow(self.applications, 1.9)
+
+		dividend = 1.0
+		if (self.openSteps > 0):
+			dividend = (pow(self.openSteps, 0.4))
 
 		#Adjust the wage for next time
-		adjustmentRatio = (self.openSteps/self.contractLength)/applications
-		alpha = 0.4
+		adjustmentRatio = dividend/divisor
+		alpha = 0.6
 		self.nextWage = ((1-alpha)*self.wagePerTick)+(alpha*adjustmentRatio*self.wagePerTick)
 
 		#Print stats
 		self.logger.debug("applications={}, openSteps={}, adjustmentRatio={}, nextWage={}".format(self.applications, self.openSteps, adjustmentRatio, self.nextWage))
 
 	def evalJobApplication(self, laborContract):
+		if (self.openSteps > 0):
+			self.applications = 0
+		self.openSteps = 0
+
 		#Remove labor listing
 		if (self.applications == 0):
 			self.agent.removeLaborListing(self.listing)
@@ -955,7 +980,7 @@ class TestEmployerCompetetive:
 
 		#Spawn money needed for this contract
 		self.logger.info("Recieved job application {}".format(laborContract))
-		totalWages = laborContract.wagePerTick * laborContract.ticksPerStep * laborContract.contractLength + 100
+		totalWages = int((laborContract.wagePerTick * laborContract.ticksPerStep * laborContract.contractLength + 100)*10)
 		self.agent.receiveCurrency(totalWages)
 
 		#Accept application
@@ -968,7 +993,6 @@ class TestEmployerCompetetive:
 			if (len(self.agent.laborContracts) == 0):
 				#We have not hired anyone yet
 				self.openSteps += 1
-				self.applications = 0
 
 				#Adjust wages
 				if (self.openSteps > 1):

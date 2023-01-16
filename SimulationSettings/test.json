@@ -2,17 +2,17 @@
 	"description": "Test simulation with competetive employers. Used for testing and debug.",
 	"settings": {
 		"NumProcesses": 4,
-		"SimulationSteps": 30,
+		"SimulationSteps": 60,
 		"TicksPerStep": 16,
 		"AgentSpawns":{
 			"Employers": {
 				"TestEmployerCompetetive":{
-					"quantity": 20
+					"quantity": 40
 				}
 			},
 			"Employees": {
 				"TestWorker":{
-					"quantity": 40,
+					"quantity": 50,
 					"settings": {
 						"skillDistribution": {
 							"alpha": 2,
