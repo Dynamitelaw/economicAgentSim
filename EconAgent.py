@@ -978,13 +978,6 @@ class Agent:
 				self.logger.warning("No controller was instantiated")
 		self.controllerStart = False
 
-		#Launch packet sender
-		# self.agentKillFlag = False
-		# self.sendQueue = queue.Queue()
-		# if (self.networkLink):
-		# 	packetSendThread = threading.Thread(target=self.sendPacketDequeue)
-		# 	packetSendThread.start()
-
 		#Launch network link monitor
 		if (self.networkLink):
 			linkMonitor = threading.Thread(target=self.monitorNetworkLink)
@@ -1173,22 +1166,6 @@ class Agent:
 		else:
 			self.logger.error("This agent is missing a networkLink. Cannot send packet {}".format(packet))
 
-
-	# def sendPacket(self, packet):
-	# 	if (self.networkLink):
-	# 		self.sendQueue.put(packet)
-	# 	else:
-	# 		self.logger.error("This agent is missing a networkLink. Cannot send packet {}".format(packet))
-
-
-	# def sendPacketDequeue(self):
-	# 	while not (self.agentKillFlag):
-	# 		if not (self.sendQueue.empty()):
-	# 			packet = self.sendQueue.get()
-	# 			self.logger.info("OUTBOUND {}".format(packet))
-	# 			self.networkLink.sendPipe.send(packet)
-
-	# 	self.logger.info("Agent kill flag set. Ending packet send thread")
 
 	#########################
 	# Currency transfer functions
