@@ -1234,7 +1234,8 @@ class Agent:
 					self.logger.warning(warning)
 					responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType="ERROR_CONTROLLER_START", payload=warning)
 
-			elif ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST") or (incommingPacket.msgType == "SNOOP") or (incommingPacket.msgType == "INFO_RESP")):
+			
+			elif ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST") or (incommingPacket.msgType == "INFO_RESP")):
 				#Foward packet to controller
 				if (self.controller):
 					self.logger.debug("Fowarding msg to controller {}".format(incommingPacket))
@@ -1242,6 +1243,7 @@ class Agent:
 					controllerThread.start()
 				else:
 					self.logger.error("Agent {} does not have a controller. Ignoring {}".format(self.agentId, incommingPacket))
+
 
 			#Handle incoming payments
 			elif (incommingPacket.msgType == "CURRENCY_TRANSFER"):

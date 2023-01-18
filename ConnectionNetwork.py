@@ -1,5 +1,6 @@
 '''
 The ConnectionNetwork is how all agents in the simulation communicate with each other. 
+It is also the place where the StatisticsGather is instantiated.
 It is also the place where all marketplaces are instantiated.
 
 It's set up as a hub and spoke topology, where all agents have a single connection to the ConnectionNetwork object.
@@ -21,10 +22,11 @@ import traceback
 import utils
 from NetworkClasses import *
 from Marketplace import *
+from StatisticsGatherer import *
 
 
 class ConnectionNetwork:
-	def __init__(self, itemDict, simManagerId=None, logFile=True):
+	def __init__(self, itemDict, simManagerId=None, logFile=True, simulationSettings={}):
 		self.id = "ConnectionNetwork"
 		self.simManagerId = simManagerId
 
@@ -45,6 +47,9 @@ class ConnectionNetwork:
 		self.itemMarketplace = self.addMarketplace("ItemMarketplace", itemDict)
 		self.laborMarketplace = self.addMarketplace("LaborMarketplace")
 		self.landMarketplace = self.addMarketplace("LandMarketplace")
+
+		#Instantiate statistics gatherer
+		self.statsGatherer = self.addStatisticsGatherer(simulationSettings, itemDict, logFile)
 
 	def addConnection(self, agentId, networkLink):
 		self.logger.info("Adding connection to {}".format(agentId))
@@ -74,6 +79,20 @@ class ConnectionNetwork:
 			self.addConnection(marketplaceObj.agentId, market_networkLink)
 
 		return marketplaceObj
+
+	def addStatisticsGatherer(self, settings, itemDict, logFile=True):
+		#Instantiate communication pipes
+		networkPipeRecv, marketPipeSend = multiprocessing.Pipe()
+		marketPipeRecv, networkPipeSend = multiprocessing.Pipe()
+
+		market_networkLink = Link(sendPipe=networkPipeSend, recvPipe=networkPipeRecv)
+		market_agentLink = Link(sendPipe=marketPipeSend, recvPipe=marketPipeRecv)
+
+		#Instantiate gatherer
+		statsGatherer = StatisticsGatherer(settings=settings, itemDict=itemDict, networkLink=market_agentLink, logFile=logFile)
+		self.addConnection(statsGatherer.agentId, market_networkLink)
+
+		return statsGatherer
 
 	def startMonitors(self):
 		for agentId in self.agentConnections:
@@ -116,13 +135,6 @@ class ConnectionNetwork:
 			self.logger.error("Could not setup snoop {} | {}".format(incommingPacket, e))
 
 		self.snoopDictLock.release()  #<== snoopDictLock release
-
-	def handleSnoop(self,snooperId, incommingPacket):
-		'''
-		Fowards incomming packet to snooper if snoop criteria are met (currently, there are no criteria set up)
-		'''
-		snoopPacket = NetworkPacket(senderId=self.id, destinationId=snooperId, msgType="SNOOP", payload=incommingPacket)
-		self.sendPacket(snooperId, snoopPacket)
 
 
 	def monitorLink(self, agentId):
@@ -194,9 +206,9 @@ class ConnectionNetwork:
 			elif ("_NOTIFICATION" in incommingPacket.msgType):
 				#Check for active snoops
 				if (incommingPacket.msgType in self.snoopDict):
-					for snooperId in self.snoopDict[incommingPacket.msgType]:
-						self.handleSnoop(snooperId, incommingPacket)
-						
+					snoopThread = threading.Thread(target=self.statsGatherer.handleSnoop, args=(incommingPacket,))
+					snoopThread.start()
+
 			#Route all over packets
 			elif (destinationId in self.agentConnections):
 				#Foward packet to destination
@@ -204,8 +216,8 @@ class ConnectionNetwork:
 
 				#Check for active snoops
 				if (incommingPacket.msgType in self.snoopDict):
-					for snooperId in self.snoopDict[incommingPacket.msgType]:
-						self.handleSnoop(snooperId, incommingPacket)
+					snoopThread = threading.Thread(target=self.statsGatherer.handleSnoop, args=(incommingPacket,))
+					snoopThread.start()
 
 			else:
 				#Invalid packet destination
@@ -235,13 +247,7 @@ KILL_PIPE_NETWORK
 
 SNOOP_START
 	payload = <dict> {msgType: <bool>, ...}
-	If sent from an agent, the network will set up a snoop protocol. Afterwards, all packets with the specified msgTypes (incommingPacket) will be fowarded to the snooper
-	in the following format.
-		NetworkPacket(destinationId=snooperId, msgType="SNOOP", payload=incommingPacket)
-
-SNOOP
-	payload = <NetworkPacket>
-	Sent to a snooping controller
+	If sent from the statistics gatherer, the network will set up a snoop protocol. Afterwards, all packets with the specified msgTypes (incommingPacket) will be fowarded to the statistics gatherer
 
 ERROR
 	If send to an agent, the agent will print out the packet in an error logger. Currently only used for network errors.

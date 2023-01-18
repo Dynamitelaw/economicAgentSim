@@ -16,13 +16,11 @@ from NetworkClasses import *
 from ConnectionNetwork import *
 from TradeClasses import *
 from SimulationManager import *
-from StatisticsGatherer import *
 import utils
 
 
-def launchSimulation(simManagerSeed, statisticsGathererSeed, settingsDict):
+def launchSimulation(simManagerSeed, settingsDict):
 	try:
-		statsGatherer = statisticsGathererSeed.spawnGatherer()
 		simManager = simManagerSeed.spawnManager()
 		simManager.runSim(settingsDict)
 	except KeyboardInterrupt:
@@ -220,18 +218,11 @@ def RunSimulation(settingsDict, logLevel="INFO"):
 		###########################
 		simManagerSeed = SimulationManagerSeed(managerId, allAgentDict, procDict)
 
-		###########################
-		# Setup Statistics Gatherer
-		###########################
-		statsGathererId = "StatSlurper"
-		statisticsGathererSeed = StatisticsGathererSeed(statsGathererId, settings=settingsDict, simManagerId=managerId, itemDict=allItemsDict, allAgentDict=allAgentDict)
-
 		##########################
 		# Setup ConnectionNetwork
 		##########################
-		xactNetwork = ConnectionNetwork(itemDict=allItemsDict, simManagerId=managerId)
+		xactNetwork = ConnectionNetwork(itemDict=allItemsDict, simManagerId=managerId, simulationSettings=settingsDict)
 		xactNetwork.addConnection(agentId=managerId, networkLink=simManagerSeed.networkLink)
-		xactNetwork.addConnection(agentId=statsGathererId, networkLink=statisticsGathererSeed.networkLink)
 		for procNum in spawnDict:
 			for agentId in spawnDict[procNum]:
 				xactNetwork.addConnection(agentId=agentId, networkLink=spawnDict[procNum][agentId].networkLink)
@@ -261,7 +252,7 @@ def RunSimulation(settingsDict, logLevel="INFO"):
 		##########################
 		# Start simulation
 		##########################
-		managerProc = multiprocessing.Process(target=launchSimulation, args=(simManagerSeed, statisticsGathererSeed, settingsDict))
+		managerProc = multiprocessing.Process(target=launchSimulation, args=(simManagerSeed, settingsDict))
 		childProcesses.append(managerProc)
 		managerProc.start()
 		#managerProc.join()  #DO NOT use a join statment here, or anywhere else in this function. It breaks interrupt handling

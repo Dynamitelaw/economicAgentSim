@@ -58,39 +58,6 @@ class PushoverController:
 		return offerAccepted
 
 
-class TestSnooper:
-	'''
-	All this controller does is snoop on packets in the network. Used for testing
-	'''
-	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
-		self.agent = agent
-		self.agentId = agent.agentId
-		self.name = "{}_TestSnooper".format(agent.agentId)
-
-		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
-
-	def controllerStart(self, incommingPacket):
-		'''
-		Start snoop protocols 
-		'''
-		snoopRequest = {"TRADE_REQ": True, "TRADE_REQ_ACK": True}
-		#snoopRequest = {"INFO_RESP": True}
-		snoopStartPacket = NetworkPacket(senderId=self.agentId, msgType="SNOOP_START", payload=snoopRequest)
-
-		self.logger.info("Sending snoop request {}".format(snoopRequest))
-		self.logger.info("OUTBOUND {}".format(snoopStartPacket))
-		self.agent.sendPacket(snoopStartPacket)
-
-	def receiveMsg(self, incommingPacket):
-		self.logger.debug("INBOUND {}".format(incommingPacket.payload))
-		if (incommingPacket.payload.msgType == "INFO_RESP"):
-			infoRequest = incommingPacket.payload.payload
-			self.logger.debug("{} balance = ${}".format(infoRequest.agentId, infoRequest.info/100))
-
-	def evalTradeRequest(self, request):
-		return False
-
-
 class TestSeller:
 	'''
 	This controller will sell a random item type for a fixed price. 
@@ -1037,12 +1004,12 @@ class TestFarmWorker:
 		self.searchStart = False
 
 		#Spawn starting balance
-		self.agent.receiveCurrency(99999999)
+		self.agent.receiveCurrency(9999999999)
 
 		#Handle start skews
 		self.startStep = 0
 		if ("StartSkew" in settings):
-			skewRate = settings["StartSkew"]
+			skewRate = settings["StartSkew"]+1
 			self.startStep = int(random.random()/(1.0/skewRate))
 
 
@@ -1127,7 +1094,7 @@ class TestFarmCompetetive:
 		#Handle start skews
 		self.startStep = 0
 		if ("StartSkew" in settings):
-			skewRate = settings["StartSkew"]
+			skewRate = settings["StartSkew"]+1
 			self.startStep = int(random.random()/(1.0/skewRate))
 
 		#Determine what to produce

@@ -25,7 +25,6 @@ class ConsumptionTracker:
 	'''
 	def __init__(self, gathererParent, settings, name):
 		self.gathererParent = gathererParent
-		self.agent = gathererParent.agent
 		self.settings = settings
 		self.logger = gathererParent.logger
 		self.name = "{}.ConsumptionTracker".format(name)
@@ -45,7 +44,7 @@ class ConsumptionTracker:
 		if ("StartStep" in settings):
 			self.startStep = int(settings["StartStep"])
 
-		self.stepNum = self.agent.stepNum
+		self.stepNum = -1
 		self.stepNumLock = threading.Lock()
 		self.netConsumption = 0
 		self.netConsumptionLock = threading.Lock()
@@ -124,7 +123,6 @@ class ItemPriceTracker:
 	'''
 	def __init__(self, gathererParent, settings, name):
 		self.gathererParent = gathererParent
-		self.agent = gathererParent.agent
 		self.settings = settings
 		self.logger = gathererParent.logger
 		self.name = "{}.ItemPriceTracker".format(name)
@@ -153,7 +151,7 @@ class ItemPriceTracker:
 		if ("StartStep" in settings):
 			self.startStep = int(settings["StartStep"])
 
-		self.stepNum = self.agent.stepNum
+		self.stepNum = -1
 		self.stepNumLock = threading.Lock()
 		self.unitPrices = []
 		self.prevMin = -1
@@ -265,7 +263,6 @@ class LaborContractTracker:
 	'''
 	def __init__(self, gathererParent, settings, name):
 		self.gathererParent = gathererParent
-		self.agent = gathererParent.agent
 		self.settings = settings
 		self.logger = gathererParent.logger
 		self.name = "{}.LaborContractTracker".format(name)
@@ -275,7 +272,7 @@ class LaborContractTracker:
 		if ("StartStep" in settings):
 			self.startStep = int(settings["StartStep"])
 
-		self.stepNum = self.agent.stepNum
+		self.stepNum = -1
 		self.stepNumLock = threading.Lock()
 		
 		#Keep track of contracts
@@ -506,7 +503,6 @@ class ProductionTracker:
 	'''
 	def __init__(self, gathererParent, settings, name):
 		self.gathererParent = gathererParent
-		self.agent = gathererParent.agent
 		self.settings = settings
 		self.logger = gathererParent.logger
 		self.name = "{}.ProductionTracker".format(name)
@@ -535,7 +531,7 @@ class ProductionTracker:
 		if ("StartStep" in settings):
 			self.startStep = int(settings["StartStep"])
 
-		self.stepNum = self.agent.stepNum
+		self.stepNum = -1
 		self.stepNumLock = threading.Lock()
 		self.quantityProduced = 0
 		self.quantityProducedLock = threading.Lock()
@@ -600,50 +596,24 @@ class ProductionTracker:
 #######################
 # StatisticsGatherer
 #######################
-class StatisticsGathererSeed:
-	'''
-	Seed used to spawn a StatisticsGatherer
-	'''
-	def __init__(self, agentId, ticksPerStep=24, settings={}, simManagerId=None, itemDict=None, allAgentDict=None, logFile=True, fileLevel="INFO"):
-		self.agentInfo = AgentInfo(agentId, "StatisticsGatherer")
-		self.ticksPerStep = ticksPerStep
-		self.settings = settings
-		self.simManagerId = simManagerId
-		self.itemDict = itemDict
-		self.allAgentDict = allAgentDict
-		self.logFile = logFile
-		self.fileLevel = fileLevel
-
-		networkPipeRecv, agentPipeSend = multiprocessing.Pipe()
-		agentPipeRecv, networkPipeSend = multiprocessing.Pipe()
-
-		self.networkLink = Link(sendPipe=networkPipeSend, recvPipe=networkPipeRecv)
-		self.agentLink = Link(sendPipe=agentPipeSend, recvPipe=agentPipeRecv)
-
-	def spawnGatherer(self):
-		return StatisticsGatherer(self.agentInfo, simManagerId=self.simManagerId, ticksPerStep=self.ticksPerStep, settings=self.settings, itemDict=self.itemDict, allAgentDict=self.allAgentDict, networkLink=self.agentLink, logFile=self.logFile, fileLevel=self.fileLevel)
-
-	def __str__(self):
-		return "StatisticsGathererSeed({})".format(self.agentInfo)
-
-
 class StatisticsGatherer:
 	'''
 	The StatisticsGatherer gathers and calculates statistics during a simulation
 	'''
-	def __init__(self, agentInfo, simManagerId=None, ticksPerStep=24, settings={}, itemDict=None, allAgentDict=None, networkLink=None, logFile=True, fileLevel="INFO"):
-		self.info = agentInfo
-		self.agentId = agentInfo.agentId
-		self.agentType = agentInfo.agentType
+	def __init__(self, settings={}, itemDict=None, networkLink=None, logFile=True, fileLevel="INFO"):
+		self.agentId = "StatisticsGatherer"
 
-		self.logger = utils.getLogger("{}:{}".format("StatisticsGatherer", self.agentId), console="WARNING", logFile=logFile, fileLevel=fileLevel)
-		self.logger.info("{} instantiated".format(self.info))
+		self.logger = utils.getLogger(self.agentId, console="WARNING", logFile=logFile, fileLevel=fileLevel)
+		self.logger.info("{} instantiated".format(self.agentId))
 
-		self.agentDict = allAgentDict
 		self.itemDict = itemDict
+		self.lockTimeout = 5
 
-		#Spawn agent
-		self.agent = Agent(self.info, networkLink=networkLink, logFile=logFile, controller=self)
+		#Pipe connections to the connection network
+		self.networkLink = networkLink
+		self.networkSendLock = threading.Lock()
+		self.responseBuffer = {}
+		self.responseBufferLock = threading.Lock()
 
 		#Statistics trackers
 		self.settings = settings
@@ -672,40 +642,80 @@ class StatisticsGatherer:
 
 		#Snoopers
 		self.snoopers = {}
+		self.snoopersLock = threading.Lock()
 
-	def controllerStart(self, incommingPacket):
-		for trackerObj in self.trackers:
-			self.logger.info("Starting {}".format(trackerObj))
-			trackerObj.start()
+		#Start monitoring network link
+		if (self.networkLink):
+			linkMonitor = threading.Thread(target=self.monitorNetworkLink)
+			linkMonitor.start()	
 
-	def receiveMsg(self, incommingPacket):
-		self.logger.debug("INBOUND {}".format(incommingPacket))
 
-		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
-			controllerMsg = incommingPacket.payload
-			#self.logger.debug("INBOUND {}".format(controllerMsg))
+	def monitorNetworkLink(self):
+		'''
+		Monitor/handle incoming packets on the pipe link to the ConnectionNetork
+		'''
+		self.logger.info("Monitoring networkLink {}".format(self.networkLink))
+		while True:
+			incommingPacket = self.networkLink.recvPipe.recv()
+			self.logger.info("INBOUND {}".format(incommingPacket))
+			if ((incommingPacket.msgType == "KILL_PIPE_AGENT") or (incommingPacket.msgType == "KILL_ALL_BROADCAST")):
+				#Kill the network pipe before exiting monitor
+				killPacket = NetworkPacket(senderId=self.agentId, destinationId=self.agentId, msgType="KILL_PIPE_NETWORK")
+				self.sendPacket(killPacket)
+				self.logger.info("Killing networkLink {}".format(self.networkLink))
+				break
 
-			if (controllerMsg.msgType == "STOP_TRADING"):
-				for trackerObj in self.trackers:
-					self.logger.info("Ending {}".format(trackerObj))
-					trackerObj.end()
+			#Simulation start
+			elif (incommingPacket.msgType == "CONTROLLER_START_BROADCAST"):
+				self.startTrackers()
 
-		if ((incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST")):
+			#Hanle incoming tick grants
+			elif ((incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST")):
 				for trackerObj in self.trackers:
 					self.logger.info("Advancing step for {}".format(trackerObj))
 					trackerObj.advanceStep()
 
-		if (incommingPacket.msgType == "SNOOP"):
-			snoopedPacket = incommingPacket.payload
-			snoopType = snoopedPacket.msgType
-			if (snoopType in self.snoopers):
-				for trackerObj in self.snoopers[snoopType]:
-					trackerObj.handleSnoop(snoopedPacket)
+			#Handle errors
+			elif ("ERROR" in incommingPacket.msgType):
+				self.logger.error("{} {}".format(incommingPacket, incommingPacket.payload))
+
+			#Handle controller messages
+			if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+				controllerMsg = incommingPacket.payload
+				self.logger.debug("INBOUND {}".format(controllerMsg))
+
+				if (controllerMsg.msgType == "STOP_TRADING"):
+					for trackerObj in self.trackers:
+						self.logger.info("Ending {}".format(trackerObj))
+						trackerObj.end()
+
+
+		self.logger.info("Ending networkLink monitor".format(self.networkLink))
+
+
+	def sendPacket(self, packet):
+		#Send this packet over the network
+		acquired_networkSendLock = self.networkSendLock.acquire(timeout=self.lockTimeout)
+		if (acquired_networkSendLock):
+			self.logger.info("OUTBOUND {}".format(packet))
+			self.networkLink.sendPipe.send(packet)
+			self.networkSendLock.release()
+		else:
+			self.logger.error("{}.sendPacket() Lock networkSendLock acquire timeout".format(self.agentId))
+
+
+	def startTrackers(self):
+		for trackerObj in self.trackers:
+			self.logger.info("Starting {}".format(trackerObj))
+			trackerObj.start()
+	
 
 	def startSnoop(self, trackerObj, msgType):
-		#Add this tracker to the snoopers dict
+		#Setup snoop if not already done
+		self.snoopersLock.acquire()
 		if not (msgType in self.snoopers):
 			self.snoopers[msgType] = []
+			self.snoopersLock.release()
 
 			#Send snoop request to ConnectionNetwork
 			snoopRequest = {str(msgType): True}
@@ -713,6 +723,19 @@ class StatisticsGatherer:
 
 			self.logger.debug("Sending snoop request {}".format(snoopRequest))
 			self.logger.debug("OUTBOUND {}".format(snoopStartPacket))
-			self.agent.sendPacket(snoopStartPacket)
+			self.sendPacket(snoopStartPacket)
+		else:
+			self.snoopersLock.release()
 
+		#Add this tracker to the snoopers dict
+		self.snoopersLock.acquire()
 		self.snoopers[msgType].append(trackerObj)
+		self.snoopersLock.release()
+
+
+	def handleSnoop(self, snoopedPacket):
+		snoopType = snoopedPacket.msgType
+		if (snoopType in self.snoopers):
+			for trackerObj in self.snoopers[snoopType]:
+				trackerObj.handleSnoop(snoopedPacket)
+
