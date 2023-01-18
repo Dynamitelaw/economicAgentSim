@@ -190,6 +190,13 @@ class ConnectionNetwork:
 					#We've received an item market packet
 					self.landMarketplace.handlePacket(incommingPacket, self.agentConnections[incommingPacket.senderId], self.sendLocks[incommingPacket.senderId])
 					
+			#Handle notification packets
+			elif ("_NOTIFICATION" in incommingPacket.msgType):
+				#Check for active snoops
+				if (incommingPacket.msgType in self.snoopDict):
+					for snooperId in self.snoopDict[incommingPacket.msgType]:
+						self.handleSnoop(snooperId, incommingPacket)
+						
 			#Route all over packets
 			elif (destinationId in self.agentConnections):
 				#Foward packet to destination
@@ -308,7 +315,7 @@ LABOR_MARKET_REMOVE
 	Will remove the agent's labor listing in the LaborMarketplace
 
 LABOR_MARKET_SAMPLE
-	payload = <dict> {"agentSkillLevel": <float>, "sampleSize": <int>}
+	payload = <dict> {"maxSkillLevel": <float>, "minSkillLevel": <float>, "sampleSize": <int>}
 	Request a sample of sellers for a given labor from the LaborMarketplace
 
 LABOR_MARKET_SAMPLE_ACK
@@ -346,6 +353,10 @@ LAND_MARKET_SAMPLE_ACK
 #########################
 # Other Agent Packets
 #########################
+
+PRODUCTION_NOTIFICATION
+	payload = <ItemContainer>
+	Send when an item is produced by an agent. Is only fowarded if snooped on, otherwise ignored
 
 INFO_REQ
 	payload = <InfoRequest>

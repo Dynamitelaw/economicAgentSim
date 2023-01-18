@@ -177,13 +177,13 @@ def RunSimulation(settingsDict, logLevel="INFO"):
 		procDict = {}
 		allAgentDict = {}
 
-		if not ("NumProcesses" in settingsDict):
-			logger.error("\"NumProcesses\" missing from settings. Won't run simulation")
+		if not ("AgentNumProcesses" in settingsDict):
+			logger.error("\"AgentNumProcesses\" missing from settings. Won't run simulation")
 			return None
 
-		numProcess = settingsDict["NumProcesses"]
-		logger.debug("numProcess={}".format(numProcess))
-		print("Processes = {}\n".format(numProcess))
+		numProcess = settingsDict["AgentNumProcesses"]
+		logger.debug("AgentNumProcesses={}".format(numProcess))
+		print("Agent Processes = {}\n".format(numProcess))
 		for procNum in range(numProcess):
 			spawnDict[procNum] = {}
 

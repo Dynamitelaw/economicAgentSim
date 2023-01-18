@@ -2,6 +2,8 @@ import hashlib
 import time
 
 
+g_ItemQuantityPercision = 6
+
 class InfoRequest:
 	def __init__(self, requesterId, agentId, infoKey):
 		self.requesterId = requesterId
@@ -35,7 +37,8 @@ class ItemListing:
 class ItemContainer:
 	def __init__(self, itemId, itemQuantity):
 		self.id = itemId
-		self.quantity = itemQuantity
+		self.quantPercision = g_ItemQuantityPercision
+		self.quantity = round(itemQuantity, self.quantPercision)
 
 	def __repr__(self):
 		return str(self)
@@ -81,9 +84,11 @@ class ItemContainer:
 				raise ValueError("Cannot add inventory entries of different items {} and {}".format(self.id, otherId))
 
 			self.quantity += other.quantity
+			self.quantity = round(self.quantity, self.quantPercision)
 			return self
 		elif ((typeOther == int) or (typeOther == float)):
 			self.quantity += other
+			self.quantity = round(self.quantity, self.quantPercision)
 			return self
 		else:
 			raise ValueError("Cannot add {} and {}".format(typeOther, type(self)))
@@ -96,9 +101,11 @@ class ItemContainer:
 				raise ValueError("Cannot subtract inventory entries of different items {} and {}".format(self.id, otherId))
 
 			self.quantity -= other.quantity
+			self.quantity = round(self.quantity, self.quantPercision)
 			return self
 		elif ((typeOther == int) or (typeOther == float)):
 			self.quantity -= other
+			self.quantity = round(self.quantity, self.quantPercision)
 			return self
 		else:
 			raise ValueError("Cannot subtract {} and {}".format(typeOther, type(self)))
@@ -125,7 +132,7 @@ class LaborListing:
 
 
 class LaborContract:
-	def __init__(self, employerId, workerId, ticksPerStep, wagePerTick, workerSkillLevel, contractLength, startStep, endStep, listingHash, contractName="EmploymentContract"):
+	def __init__(self, employerId, workerId, ticksPerStep, wagePerTick, workerSkillLevel, contractLength, startStep, endStep, listingHash=None, contractName="EmploymentContract"):
 		self.employerId = employerId
 		self.workerId = workerId
 		self.ticksPerStep = ticksPerStep
@@ -135,6 +142,7 @@ class LaborContract:
 		self.startStep = startStep
 		self.endStep = endStep
 		self.contractName = contractName
+		self.listingHash = listingHash
 
 		tempContractStr = "LaborContract(employerId={}, workerId={}, ticksPerStep={}, wagePerTick={}, workerSkillLevel={}, contractLength={}, startStep={}, endStep={}, contractName={})".format(employerId, workerId, ticksPerStep, self.wagePerTick, workerSkillLevel, contractLength, startStep, endStep, contractName)
 		self.hash = hashlib.sha256(tempContractStr.encode('utf-8')).hexdigest()[:8 ]

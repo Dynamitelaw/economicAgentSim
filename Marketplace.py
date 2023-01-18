@@ -512,11 +512,12 @@ class LaborMarketplace:
 		Returns True if successful
 		'''
 
-		agentSkillLevel = incommingPacket.payload["agentSkillLevel"]
+		maxSkillLevel = incommingPacket.payload["maxSkillLevel"]
+		minSkillLevel = incommingPacket.payload["minSkillLevel"]
 		sampleSize = incommingPacket.payload["sampleSize"]
 		
 		#Get all valid skill levels
-		possibleSkillKeys = [i for i in self.laborMarket.keys() if i <= agentSkillLevel]
+		possibleSkillKeys = [i for i in self.laborMarket.keys() if ((i <= maxSkillLevel) and (i >= minSkillLevel))]
 		possibleSkillKeys.sort(reverse=True)
 
 		#Sample listings, starting from highest skill level

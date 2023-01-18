@@ -127,11 +127,11 @@ class ItemPriceTracker:
 		self.agent = gathererParent.agent
 		self.settings = settings
 		self.logger = gathererParent.logger
-		self.name = "{}.ConsumptionTracker".format(name)
+		self.name = "{}.ItemPriceTracker".format(name)
 		self.lockTimout = 5
 
 		if not ("id" in settings):
-			errorMsg = "{}.PriceTracker: \"id\" field is not specified in settings {}".format(name, settings)
+			errorMsg = "{}.ItemPriceTracker: \"id\" field is not specified in settings {}".format(name, settings)
 			self.logger.critical(errorMsg)
 			raise ValueError(errorMsg)
 		self.itemId = settings["id"]
@@ -314,9 +314,22 @@ class LaborContractTracker:
 		self.minSkill = 0
 		if ("SkillMin" in settings):
 			self.minSkill = float(settings["SkillMin"])
-		self.maxSkill = 0
+		self.maxSkill = 1
 		if ("SkillMax" in settings):
 			self.maxSkill = float(settings["SkillMax"])
+
+		#Set agent filters
+		self.workerClassSet = False
+		self.workerClasses = []
+		if ("WorkerClasses" in settings):
+			self.workerClassSet = True
+			self.workerClasses = settings["WorkerClasses"]
+
+		self.employerClassSet = False
+		self.employerClasses = []
+		if ("EmployerClasses" in settings):
+			self.employerClassSet = True
+			self.employerClasses = settings["EmployerClasses"]
 
 		#Initialize output file
 		self.outputPath = os.path.join("Statistics", "LaborContractTracker_{}_{}.csv".format(self.minSkill, self.maxSkill))
@@ -328,7 +341,7 @@ class LaborContractTracker:
 		self.columns = ["DayStepNumber", 
 		"MinHourWage(cents)", "MaxHourWage(cents)", "MeanHourWage(cents)", "MedianHourWage(cents)", 
 		"MinHoursPerDay", "MaxHoursPerDay", "MeanHoursPerDay", "MedianHoursPerDay",
-		"MinDailyWage", "MaxDailyWage", "MeanDailyWage", "MedianDailyWage",
+		"MinDailyWage(cents)", "MaxDailyWage(cents)", "MeanDailyWage(cents)", "MedianDailyWage(cents)",
 		"Quantity"]
 		csvHeader = ",".join(self.columns)+"\n"
 		self.outputFile.write(csvHeader)
@@ -423,8 +436,34 @@ class LaborContractTracker:
 					#This labor application was accepted
 					laborContract = incommingPacket.payload["laborContract"]
 					skillLevel = laborContract.workerSkillLevel
-					if ((skillLevel >= self.minSkill) and (skillLevel < self.maxSkill)):
-						#Skill level is within range. Track this contract
+					if ((skillLevel >= self.minSkill) and (skillLevel < self.maxSkill)):  #Skill level is within range
+						#Make sure this employee is valid
+						if (self.workerClassSet):  #Employee class has been specified
+							contractWorkerId = laborContract.workerId
+							workerValid = False
+							for workerType in self.workerClasses:
+								if (workerType in contractWorkerId):
+									workerValid = True
+									break
+
+							if not (workerValid):
+								#This worker type is not valid. Skip this contract
+								return
+
+						#Make sure this employer is valid
+						if (self.employerClassSet):  #Employer class has been specified
+							contractEmployerId = laborContract.employerId
+							employerValid = False
+							for employerType in self.employerClasses:
+								if (employerType in contractEmployerId):
+									employerValid = True
+									break
+
+							if not (employerValid):
+								#This employer type is not valid. Skip this contract
+								return
+
+						#This contract passes all our filters. Add it to our metrics
 						acquired_wageMetricsLock = self.wageMetricsLock.acquire(timeout=self.lockTimout)
 						if (acquired_wageMetricsLock):
 							#Get contract metrics
@@ -459,6 +498,103 @@ class LaborContractTracker:
 							self.wageMetricsLock.release()
 						else:
 							self.logger.error("{}.handleSnoop() Lock wageMetricsLock acquisition timout".format(self.name))
+
+
+class ProductionTracker:
+	'''
+	Keeps track of the production of an item
+	'''
+	def __init__(self, gathererParent, settings, name):
+		self.gathererParent = gathererParent
+		self.agent = gathererParent.agent
+		self.settings = settings
+		self.logger = gathererParent.logger
+		self.name = "{}.ProductionTracker".format(name)
+		self.lockTimout = 5
+
+		if not ("id" in settings):
+			errorMsg = "{}.ProductionTracker: \"id\" field is not specified in settings {}".format(name, settings)
+			self.logger.critical(errorMsg)
+			raise ValueError(errorMsg)
+		self.itemId = settings["id"]
+
+		self.outputPath = os.path.join("Statistics", "Production_{}.csv".format(self.itemId))
+		if ("OuputPath" in settings):
+			self.outputPath = os.path.join("Statistics", settings["OuputPath"])
+		utils.createFolderPath(self.outputPath)
+
+		self.outputFile = open(self.outputPath, "w")
+		itemUnit = "unit"
+		if (self.itemId in self.gathererParent.itemDict):
+			itemUnit = "{}".format(self.gathererParent.itemDict[self.itemId]["unit"])
+		self.columns = ["DayStepNumber", "QuantityProduced({})".format(itemUnit)]
+		csvHeader = ",".join(self.columns)+"\n"
+		self.outputFile.write(csvHeader)
+
+		self.startStep = 0
+		if ("StartStep" in settings):
+			self.startStep = int(settings["StartStep"])
+
+		self.stepNum = self.agent.stepNum
+		self.stepNumLock = threading.Lock()
+		self.quantityProduced = 0
+		self.quantityProducedLock = threading.Lock()
+
+	def __str__(self):
+		return str(self.name)
+
+	def start(self):
+		#Submit snoop requests
+		self.gathererParent.startSnoop(self, "PRODUCTION_NOTIFICATION")
+
+	def end(self):
+		#Output data to csv
+		if (self.stepNum != -1):
+			csvLine = "{},{}\n".format(self.stepNum, self.quantityProduced)
+			self.outputFile.write(csvLine)
+
+		#Close output file
+		self.outputFile.close()
+
+	def advanceStep(self):
+		acquired_stepNumLock = self.stepNumLock.acquire(timeout=self.lockTimout)
+		if (acquired_stepNumLock):
+			acquired_quantityProducedLock = self.quantityProducedLock.acquire(timeout=self.lockTimout)
+			if (acquired_quantityProducedLock):
+				#Output data to csv
+				if (self.stepNum >= self.startStep):
+					csvLine = "{},{}\n".format(self.stepNum, self.quantityProduced)
+					self.outputFile.write(csvLine)
+
+				#Advance to next step
+				self.quantityProduced = 0
+				self.stepNum += 1
+
+				self.quantityProducedLock.release()
+			else:
+				self.logger.error("{}.advanceStep() Lock quantityProducedLock acquisition timout".format(self.name))
+
+			self.stepNumLock.release()
+		else:
+			self.logger.error("{}.advanceStep() Lock stepNumLock acquisition timout".format(self.name))
+
+	def handleSnoop(self, incommingPacket):
+		itemPackage = incommingPacket.payload
+		itemId = itemPackage.id
+		if (itemId == self.itemId):
+			#This trade is for the item we're looking for
+
+			if (self.stepNum >= self.startStep):
+				#Step number is fine. Add to production total
+				quantity = itemPackage.quantity
+
+				acquired_quantityProducedLock = self.quantityProducedLock.acquire(timeout=self.lockTimout)
+				if (acquired_quantityProducedLock):
+					self.quantityProduced += quantity
+					self.quantityProducedLock.release()
+				else:
+					self.logger.error("{}.handleSnoop() Lock quantityProducedLock acquisition timout B".format(self.name))
+
 
 
 #######################
@@ -526,6 +662,10 @@ class StatisticsGatherer:
 					elif (trackerType=="LaborContractTracker"):
 						self.logger.info("Spawning LaborContractTracker({}) for {}".format(settings["Statistics"][statName][trackerType], statName))
 						trackerObj = LaborContractTracker(self, settings["Statistics"][statName][trackerType], statName)
+						self.trackers.append(trackerObj)
+					elif (trackerType=="ProductionTracker"):
+						self.logger.info("Spawning ProductionTracker({}) for {}".format(settings["Statistics"][statName][trackerType], statName))
+						trackerObj = ProductionTracker(self, settings["Statistics"][statName][trackerType], statName)
 						self.trackers.append(trackerObj)
 					else:
 						self.logger.error("Unknown stat tracker \"{}\" specified in settings. Will not gather data for {}.{}".format(trackerType, statName, trackerType))

@@ -138,12 +138,16 @@ class ProductionFunction:
 		#Update fixed costs
 		if ("FixedCosts" in self.prductionDict):
 			if ("FixedLandCosts" in self.prductionDict["FixedCosts"]):
-				self.fixedLandCosts["MaxYield"] = bool(self.prductionDict["FixedCosts"]["FixedLandCosts"]["MaxYield"])
-				if (self.prductionDict["FixedCosts"]["FixedLandCosts"]["MaxYield"]):
-					self.fixedLandCosts["MaxYield"] = float(self.efficiency*self.prductionDict["FixedCosts"]["FixedLandCosts"]["MaxYield"])
+				if ("MaxYield" in self.prductionDict["FixedCosts"]["FixedLandCosts"]):
+					self.fixedLandCosts["MaxYield"] = bool(self.prductionDict["FixedCosts"]["FixedLandCosts"]["MaxYield"])
+					if (self.prductionDict["FixedCosts"]["FixedLandCosts"]["MaxYield"]):
+						self.fixedLandCosts["MaxYield"] = float(self.efficiency*self.prductionDict["FixedCosts"]["FixedLandCosts"]["MaxYield"])
 
-				self.fixedLandCosts["MinQuantity"] = float(self.prductionDict["FixedCosts"]["FixedLandCosts"]["MinQuantity"])
-				self.fixedLandCosts["Quantized"] = bool(self.prductionDict["FixedCosts"]["FixedLandCosts"]["Quantized"])
+				if ("MinQuantity" in self.prductionDict["FixedCosts"]["FixedLandCosts"]):
+					self.fixedLandCosts["MinQuantity"] = float(self.prductionDict["FixedCosts"]["FixedLandCosts"]["MinQuantity"])
+
+				if ("Quantized" in self.prductionDict["FixedCosts"]["FixedLandCosts"]):
+					self.fixedLandCosts["Quantized"] = bool(self.prductionDict["FixedCosts"]["FixedLandCosts"]["Quantized"])
 			if ("FixedItemCosts" in self.prductionDict["FixedCosts"]):
 				for itemId in self.prductionDict["FixedCosts"]["FixedItemCosts"]:
 					self.fixedItemCosts[itemId] = {}
@@ -168,10 +172,196 @@ class ProductionFunction:
 				for skillLevel in self.prductionDict["VariableCosts"]["VariableLaborCosts"]:
 					self.variableLaborCosts[float(skillLevel)] = float(self.prductionDict["VariableCosts"]["VariableLaborCosts"][skillLevel]/self.efficiency)
 
+	def getProductionInputDeltas(self, agent, maxStepProduction):
+		'''
+		Returns a dictionary containing the difference between what is needed to support maxStepProduction and what the agent currently possesses
+		'''
+		maxTickProduction = (maxStepProduction/agent.ticksPerStep)
+
+		#Calculate land delta
+		neededLand = 0
+		if ("MaxYield" in self.fixedLandCosts):
+			if (self.fixedLandCosts["MaxYield"]):
+				maxYield = self.fixedLandCosts["MaxYield"]
+				neededLand = maxTickProduction/maxYield
+		if ("MinQuantity" in self.fixedLandCosts):
+			minQuanta = self.fixedLandCosts["MinQuantity"]
+			if (neededLand < minQuanta):
+				neededLand = minQuanta
+		if ("Quantized" in self.fixedLandCosts):
+			if (self.fixedLandCosts["Quantized"]):
+				minQuanta = self.fixedLandCosts["MinQuantity"]
+				neededQuantas = math.ceil(float(neededLand)/minQuanta)
+				neededLand = minQuanta*neededQuantas
+
+		allocatedLand = 0
+		if (self.itemId in agent.landHoldings):
+			#This agent has allocated land to this item
+			allocatedLand = agent.landHoldings[self.itemId]
+
+		landDelta = neededLand - allocatedLand
+
+		#Calculate fixed item deltas
+		neededFixedItems = {}
+		for itemId in self.fixedItemCosts:
+			neededAmount = 0
+			itemCosts = self.fixedItemCosts[itemId]
+			if ("MaxYield" in itemCosts):
+				if (itemCosts["MaxYield"]):
+					neededAmount = maxStepProduction/itemCosts["MaxYield"]
+			if ("MinQuantity" in itemCosts):
+				minQuanta = itemCosts["MinQuantity"]
+				if (neededAmount < minQuanta):
+					neededAmount = minQuanta
+			if ("Quantized" in itemCosts):
+				if (itemCosts["Quantized"]):
+					minQuanta = itemCosts["MinQuantity"]
+					neededQuantas = math.ceil(float(neededAmount)/minQuanta)
+					neededAmount = minQuanta*neededQuantas
+
+			if (neededAmount > 0):
+				neededFixedItems[itemId] = ItemContainer(itemId, neededAmount)
+
+		fixedItemDeltas = {}
+		for itemId in neededFixedItems:
+			if (itemId in agent.inventory):
+				neededFixedItems[itemId] -= agent.inventory[itemId]
+
+			if (neededFixedItems[itemId].quantity != 0):
+				fixedItemDeltas[itemId] = neededFixedItems[itemId]
+
+		#Calculate variable item deltas
+		neededVarItems = {}
+		for itemId in self.variableItemCosts:
+			neededAmount = maxStepProduction * self.variableItemCosts[itemId]
+			if (neededAmount > 0):
+				neededVarItems[itemId] = ItemContainer(itemId, neededAmount)
+
+		varItemDeltas = {}
+		for itemId in neededVarItems:
+			if (itemId in agent.inventory):
+				neededVarItems[itemId] -= agent.inventory[itemId]
+
+			if (neededVarItems[itemId].quantity != 0):
+				varItemDeltas[itemId] = neededVarItems[itemId]
+
+		####
+		# Calc labor delta
+		####
+
+		#Determine our theoretical labor availability per step
+		tempLaborContracts = copy.deepcopy(agent.laborContracts)
+		laborContractsList =  []
+		for endStep in tempLaborContracts:
+			for contractHash in tempLaborContracts[endStep]:
+				laborContractsList.append(tempLaborContracts[endStep][contractHash])
+
+		theorLaborInventory = {}
+		for contract in laborContractsList:
+			if not (contract.workerSkillLevel in theorLaborInventory):
+				theorLaborInventory[contract.workerSkillLevel] = 0
+			theorLaborInventory[contract.workerSkillLevel] += contract.ticksPerStep
+
+		#Calculate fixed labor deficits
+		availableSkillLevels = [i for i in theorLaborInventory.keys()]
+		availableSkillLevels.sort(reverse=True)
+
+		requiredSkillLevels = [i for i in self.fixedLaborCosts.keys()]
+		requiredSkillLevels.sort(reverse=True)
+
+		fixedLaborDeficits = {}
+		for reqSkillLevel in requiredSkillLevels:
+			requiredLaborTicks = self.fixedLaborCosts[reqSkillLevel]
+			while (requiredLaborTicks > 0):
+				if (len(availableSkillLevels) > 0):
+					highestAvailSkill = availableSkillLevels[0]
+					if (highestAvailSkill >= reqSkillLevel):
+						availTicks = theorLaborInventory[highestAvailSkill]
+						if (availTicks <= requiredLaborTicks):
+							requiredLaborTicks -= availTicks
+							theorLaborInventory[highestAvailSkill] -= availTicks
+							availableSkillLevels.pop(0)
+						else:
+							theorLaborInventory[highestAvailSkill] -= requiredLaborTicks
+							requiredLaborTicks = 0
+
+					else:
+						#We don't have skilled enough labor
+						break
+				else:
+					#Do not have enough labor
+					break
+
+			fixedLaborDeficits[reqSkillLevel] = requiredLaborTicks
+
+		#Calculate variable labor deficits
+		requiredSkillLevels = [i for i in self.variableLaborCosts.keys()]
+		requiredSkillLevels.sort(reverse=True)
+
+		variableLaborDeficits = {}
+		for reqSkillLevel in requiredSkillLevels:
+			requiredLaborTicks = maxStepProduction * self.variableLaborCosts[reqSkillLevel]
+			while (requiredLaborTicks > 0):
+				if (len(availableSkillLevels) > 0):
+					highestAvailSkill = availableSkillLevels[0]
+					if (highestAvailSkill >= reqSkillLevel):
+						availTicks = theorLaborInventory[highestAvailSkill]
+						if (availTicks <= requiredLaborTicks):
+							requiredLaborTicks -= availTicks
+							theorLaborInventory[highestAvailSkill] -= availTicks
+							availableSkillLevels.pop(0)
+						else:
+							theorLaborInventory[highestAvailSkill] -= requiredLaborTicks
+							requiredLaborTicks = 0
+
+					else:
+						break
+				else:
+					break
+
+			variableLaborDeficits[reqSkillLevel] = requiredLaborTicks
+
+		#Caclute labor surplus
+		surplusLaborInventory = theorLaborInventory
+
+		#Combine surples and defecits into a single labor delta dict
+		tempLaborDeltas = {}
+		for skillLevel in fixedLaborDeficits:
+			if not (skillLevel in tempLaborDeltas):
+				tempLaborDeltas[skillLevel] = 0
+			tempLaborDeltas[skillLevel] += fixedLaborDeficits[skillLevel]
+		for skillLevel in variableLaborDeficits:
+			if not (skillLevel in tempLaborDeltas):
+				tempLaborDeltas[skillLevel] = 0
+			tempLaborDeltas[skillLevel] += variableLaborDeficits[skillLevel]
+		for skillLevel in surplusLaborInventory:
+			if not (skillLevel in tempLaborDeltas):
+				tempLaborDeltas[skillLevel] = 0
+			tempLaborDeltas[skillLevel] -= surplusLaborInventory[skillLevel]
+
+		laborDeltas = {}
+		for skillLevel in tempLaborDeltas:
+			delta = tempLaborDeltas[skillLevel]
+			if (delta != 0):
+				laborDeltas[skillLevel] = delta
+
+		####
+		# Return deltas
+		####
+		deltaDict = {
+		"LandDelta": landDelta, 
+		"FixedItemDeltas": fixedItemDeltas,
+		"VariableItemDeltas": varItemDeltas,
+		"LaborDeltas": laborDeltas}
+
+		return deltaDict
+
+
 	def getMaxProduction(self, agent):
 		'''
 		Returns the maximum amount of this item that can be produced at this time
 		'''
+		quantityPercision = g_ItemQuantityPercision
 		maxQuantity = -1
 		maxTickYield = -1  #Maximum amount that can be produced in a single time tick
 
@@ -261,7 +451,8 @@ class ProductionFunction:
 						return maxQuantity
 
 		#Initialize max quantity using maxTickYield
-		maxQuantity = maxTickYield * agent.timeTicks
+		if (maxTickYield > 0):
+			maxQuantity = maxTickYield * agent.timeTicks
 
 		#Check variable item costs
 		for varCostId in self.variableItemCosts:
@@ -282,7 +473,7 @@ class ProductionFunction:
 
 			#Check labor requirements in descending skill level
 			for reqSkillLevel in requiredSkillLevels:
-				requiredLaborTicks = maxQuantity / self.variableLaborCosts[reqSkillLevel]
+				requiredLaborTicks = maxQuantity * self.variableLaborCosts[reqSkillLevel]
 				allocatedLaborTicks = 0
 				while (requiredLaborTicks > 0):
 					if (len(availableSkillLevels) > 0):
@@ -310,6 +501,9 @@ class ProductionFunction:
 							maxQuantity = maxQuantityTemp
 						break
 		
+		
+		maxQuantity = int(maxQuantity*pow(10, quantityPercision))/pow(10, quantityPercision)
+
 		return maxQuantity
 
 	def produceItem(self, agent, productionAmount):
@@ -391,20 +585,24 @@ class ProductionFunction:
 							#We don't have skilled enough labor
 							agent.laborInventoryLock.release()  #release labor lock
 							agent.logger.error("Cannot produce {} {} \"{}\". Not enough variable-cost labor (skillLevel>={})".format(productionAmount, self.itemDict["unit"], self.itemId, reqSkillLevel))
+							agent.logger.debug("labor inventory = {}".format(agent.laborInventory))
+							agent.logger.debug("consumedLabor = {}".format(consumedLabor))
+							agent.logger.debug("requiredLaborTicks = {}".format(requiredLaborTicks))
 							return False
 					else:
 						#We don't have skilled enough labor
 						agent.laborInventoryLock.release()  #release labor lock
 						agent.logger.error("Cannot produce {} {} \"{}\". Not enough variable-cost labor (skillLevel>={})".format(productionAmount, self.itemDict["unit"], self.itemId, reqSkillLevel))
-						print("consumedLabor = {}".format(consumedLabor))
-						print("requiredLaborTicks = {}".format(requiredLaborTicks))
+						agent.logger.debug("labor inventory = {}".format(agent.laborInventory))
+						agent.logger.debug("consumedLabor = {}".format(consumedLabor))
+						agent.logger.debug("requiredLaborTicks = {}".format(requiredLaborTicks))
 						return False
 
 		#Calculate variable item inputs required
 		consumedItems = {}
 		for varCostId in self.variableItemCosts:
 			consumedAmount = self.variableItemCosts[varCostId] * productionAmount
-			consumedItems[varCostId] = consumedAmount
+			consumedItems[varCostId] = ItemContainer(varCostId, consumedAmount)
 
 		#Ensure we have enough items
 		agent.inventoryLock.acquire()
@@ -412,7 +610,7 @@ class ProductionFunction:
 		enoughItems = True
 		for itemId in consumedItems:
 			if (itemId in agent.inventory):
-				if (consumedItems[itemId] > agent.inventory[itemId].quantity):
+				if (consumedItems[itemId].quantity > agent.inventory[itemId].quantity):
 					enoughItems = False
 					agent.logger.error("Cannot produce {} {} \"{}\". Not enough {}".format(productionAmount, self.itemDict["unit"], self.itemId, itemId))
 					break
@@ -430,8 +628,8 @@ class ProductionFunction:
 		#Consume required items
 		if (enoughItems):
 			for itemId in consumedItems:
-				consumedQuantity = consumedItems[itemId]
-				agent.inventory[itemId].quantity -= consumedQuantity
+				consumedItemContainer = consumedItems[itemId]
+				agent.inventory[itemId] -= consumedItemContainer
 		else:
 			#We do not have enough items
 			agent.inventoryLock.release()
@@ -564,7 +762,7 @@ class NutritionTracker:
 			if (len(sampledListings) > 0):
 				for listing in sampledListings:
 					sumPrice += listing.unitPrice
-				avgUnitPrice = sumPrice/sampleSize
+				avgUnitPrice = sumPrice/len(sampledListings)
 
 				foodUnitPrices[foodId] = avgUnitPrice
 
@@ -580,7 +778,7 @@ class NutritionTracker:
 		foodMarginalUtil = {}
 		for foodId in self.nutritionalDict:
 			marginalUtility = self.agent.getMarginalUtility(foodId)
-			foodMarginalUtil[foodId] = marginalUtility*historicalDeficitRatios[0]
+			foodMarginalUtil[foodId] = marginalUtility * pow((self.targetCalories/self.avgCalories), 1.5)  #Sale the utility of food with hunger level
 
 		#Iteratively approach meal plan that closely meets deficits while maximizing net utility
 		mealPlan = {}
@@ -820,6 +1018,10 @@ def getAgentController(agent, settings={}, logFile=True, fileLevel="INFO"):
 		return TestSpawner(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
 	if (agentInfo.agentType == "TestEmployerCompetetive"):
 		return TestEmployerCompetetive(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
+	if (agentInfo.agentType == "TestFarmWorker"):
+		return TestFarmWorker(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
+	if (agentInfo.agentType == "TestFarmCompetetive"):
+		return TestFarmCompetetive(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
 
 	#Unhandled agent type. Return default controller
 	return None
@@ -952,6 +1154,8 @@ class Agent:
 		#Instantiate agent preferences (utility functions)
 		self.nutritionalDict = {}
 		self.utilityFunctions = {}
+		self.eating = False
+		self.autoEatFlag = False
 		if (itemDict):
 			for itemName in itemDict:
 				itemFunctionParams = itemDict[itemName]["UtilityFunctions"]
@@ -1090,6 +1294,7 @@ class Agent:
 				if not (skillLevel in self.nextLaborInventory):
 					self.nextLaborInventory[skillLevel] = 0
 				self.nextLaborInventory[skillLevel] += laborTicks
+				self.logger.debug("nextLaborInventory[{}] += {}".format(skillLevel, laborTicks))
 				self.nextLaborInventoryLock.release()
 
 			#Handle incoming information requests
@@ -1101,6 +1306,7 @@ class Agent:
 
 			#Hanle incoming tick grants
 			elif ((incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST")):
+				self.logger.debug("laborInventory = {}".format(self.laborInventory))
 				self.fullfilledContracts = False
 
 				ticksGranted = incommingPacket.payload
@@ -1125,6 +1331,7 @@ class Agent:
 				if (self.enableNutrition):
 					self.nutritionTracker.advanceStep()
 					if (self.autoEatFlag):
+						self.eating = True
 						eatThread = threading.Thread(target=self.autoEat)
 						eatThread.start()
 
@@ -1144,6 +1351,9 @@ class Agent:
 				if (self.controller):
 					controllerGrantThread = threading.Thread(target=self.controller.receiveMsg, args=(incommingPacket, ))
 					controllerGrantThread.start()
+				else:
+					#We don't have a controller. Relinquish all time ticks
+					self.relinquishTimeTicks()
 
 			#Unhandled packet type
 			else:
@@ -1431,12 +1641,15 @@ class Agent:
 			acquired_inventoryLock = self.inventoryLock.acquire(timeout=self.lockTimeout)  #<== acquire inventoryLock
 			if (acquired_inventoryLock):
 				#Make sure we have enough of the item
-				if (itemContainer.quantity > self.inventory[itemContainer.id].quantity):
+				if ((itemContainer.quantity-(2/pow(10,g_ItemQuantityPercision))) > self.inventory[itemContainer.id].quantity):
 					self.logger.error("Cannot consume {}. Current inventory of {}".format(itemContainer, self.inventory[itemContainer.id]))
 					consumeSuccess = False
 				else:
 					#Consume the item
-					self.inventory[itemContainer.id] -= itemContainer
+					if (itemContainer.quantity > self.inventory[itemContainer.id].quantity):
+						self.inventory[itemContainer.id].quantity = 0
+					else:
+						self.inventory[itemContainer.id] -= itemContainer
 
 					#Check if this item was food
 					if (self.enableNutrition):
@@ -1461,6 +1674,7 @@ class Agent:
 		'''
 		Returns an item container of produced items if successful, False if not.
 		'''
+		#Make sure we can produce this item
 		itemId = itemContainer.id
 		if not (self.itemDict):
 			self.logger.error("Cannot produce {}. No global item dictionary set for this agent".format(itemContainer, itemId))
@@ -1470,15 +1684,14 @@ class Agent:
 			self.logger.error("Cannot produce {}. \"{}\" missing from global item dictionary".format(itemContainer, itemId))
 			return False
 
-		if not (itemId in self.productionFunctions):
-			#Have not produced this item before. Create new production function
-			newProductionFunction = ProductionFunction(self.itemDict[itemId])
-			self.productionFunctionsLock.acquire()
-			self.productionFunctions[itemId] = newProductionFunction
-			self.productionFunctionsLock.release()
-
-		productionFunction = self.productionFunctions[itemId]
+		#Produce item
+		productionFunction = self.getProductionFunction(itemId)
 		producedItems = productionFunction.produceItem(self, itemContainer.quantity)
+
+		#Send out production notification
+		productionNotification = NetworkPacket(senderId=self.agentId, msgType="PRODUCTION_NOTIFICATION", payload=producedItems)
+		self.sendPacket(productionNotification)
+
 		return producedItems
 
 
@@ -1494,6 +1707,12 @@ class Agent:
 			self.logger.error("Cannot produce {}. \"{}\" missing from global item dictionary".format(itemId, itemId))
 			return False
 
+		productionFunction = self.getProductionFunction(itemId)
+		maxQuantity = productionFunction.getMaxProduction(self)
+		return maxQuantity
+
+
+	def getProductionFunction(self, itemId):
 		if not (itemId in self.productionFunctions):
 			#Have not produced this item before. Create new production function
 			newProductionFunction = ProductionFunction(self.itemDict[itemId])
@@ -1502,8 +1721,82 @@ class Agent:
 			self.productionFunctionsLock.release()
 
 		productionFunction = self.productionFunctions[itemId]
-		maxQuantity = productionFunction.getMaxProduction(self)
-		return maxQuantity
+		return productionFunction
+
+
+	def getProductionInputDeltas(self, itemId, stepProductionQuantity):
+		productionFunction = self.getProductionFunction(itemId)
+		deltas = productionFunction.getProductionInputDeltas(self, stepProductionQuantity)
+		return deltas
+
+
+	def getProductionInputDeficit(self, itemId, stepProductionQuantity):
+		'''
+		Returns a dictionary of what this agent is missing to produce this item at the specified quantity
+		'''
+		productionFunction = self.getProductionFunction(itemId)
+		deltas = productionFunction.getProductionInputDeltas(self, stepProductionQuantity)
+
+		deficitDict = {
+		"LandDeficit": 0, 
+		"FixedItemDeficit": {},
+		"VariableItemDeficit": {},
+		"LaborDeficit": {}}
+
+		landDelta = deltas["LandDelta"]
+		if (landDelta > 0):
+			deficitDict["LandDeficit"] = landDelta
+
+		for itemId in deltas["FixedItemDeltas"]:
+			if (deltas["FixedItemDeltas"][itemId].quantity > 0):
+				deficitDict["FixedItemDeficit"][itemId] = deltas["FixedItemDeltas"][itemId]
+
+		for itemId in deltas["VariableItemDeltas"]:
+			if (deltas["VariableItemDeltas"][itemId].quantity > 0):
+				deficitDict["VariableItemDeficit"][itemId] = deltas["VariableItemDeltas"][itemId]
+
+		for skillLevel in deltas["LaborDeltas"]:
+			if (deltas["LaborDeltas"][skillLevel] > 0):
+				deficitDict["LaborDeficit"][skillLevel] = deltas["LaborDeltas"][skillLevel]
+
+
+		return deficitDict
+
+
+	def getProductionInputSurplus(self, itemId, stepProductionQuantity):
+		'''
+		Returns a dictionary of what this agent has but does not need to produce this item at the specified quantity
+		'''
+		productionFunction = self.getProductionFunction(itemId)
+		deltas = productionFunction.getProductionInputDeltas(self, stepProductionQuantity)
+
+		surplusDict = {
+		"LandSurplus": 0, 
+		"FixedItemSurplus": {},
+		"VariableItemSurplus": {},
+		"LaborSurplus": {}}
+
+		landDelta = deltas["LandDelta"]
+		if (landDelta < 0):
+			surplusDict["LandSurplus"] = abs(landDelta)
+
+		for itemId in deltas["FixedItemDeltas"]:
+			if (deltas["FixedItemDeltas"][itemId].quantity < 0):
+				surplusContainer = deltas["FixedItemDeltas"][itemId]
+				surplusContainer.quantity = abs(surplusContainer.quantity)
+				surplusDict["FixedItemSurplus"][itemId] = surplusContainer
+
+		for itemId in deltas["VariableItemDeltas"]:
+			if (deltas["VariableItemDeltas"][itemId].quantity < 0):
+				surplusContainer = deltas["VariableItemDeltas"][itemId]
+				surplusContainer.quantity = abs(surplusContainer.quantity)
+				surplusDict["VariableItemSurplus"][itemId] = surplusContainer
+
+		for skillLevel in deltas["LaborDeltas"]:
+			if (deltas["LaborDeltas"][skillLevel] < 0):
+				surplusDict["LaborSurplus"][skillLevel] = abs(deltas["LaborDeltas"][skillLevel])
+
+		return surplusDict
 
 	#########################
 	# Item Trading functions
@@ -1640,7 +1933,7 @@ class Agent:
 					landDeallocated = False
 					return landDeallocated
 
-				if (hectares >= self.landHoldings[allocationType]):
+				if (hectares <= self.landHoldings[allocationType]):
 					self.landHoldings[allocationType] -= hectares
 					if (self.landHoldings[allocationType] == 0):
 						del self.landHoldings[allocationType]
@@ -1915,21 +2208,22 @@ class Agent:
 		'''
 		Fulfills all non-expired labor contracts
 		'''
-		for endStep in list(self.laborContracts.keys()):
+		laborContractsTemp = copy.deepcopy(self.laborContracts)
+		for endStep in list(laborContractsTemp.keys()):
 			if (self.stepNum > endStep):
 				self.logger.debug("Removing all contracts that expire on step {}".format(endStep))
 
 				self.commitedTicksLock.acquire()
-				for laborContractHash in self.laborContracts[endStep]:
-					self.commitedTicks -= self.laborContracts[endStep][laborContractHash].ticksPerStep
+				for laborContractHash in laborContractsTemp[endStep]:
+					self.commitedTicks -= laborContractsTemp[endStep][laborContractHash].ticksPerStep
 				self.commitedTicksLock.release()
 
 				self.laborContractsLock.acquire()
 				del self.laborContracts[endStep]
 				self.laborContractsLock.release()
 			else:
-				for laborContractHash in self.laborContracts[endStep]:
-					self.fulfillLaborContract(self.laborContracts[endStep][laborContractHash])
+				for laborContractHash in laborContractsTemp[endStep]:
+					self.fulfillLaborContract(laborContractsTemp[endStep][laborContractHash])
 
 		self.fullfilledContracts = True
 
@@ -2086,6 +2380,25 @@ class Agent:
 			self.logger.critical("sendJobApplication() Exception")
 			self.logger.critical("selg.agentId={}, listing={}".format(self.agentId, laborListing))
 			raise ValueError("sendJobApplication() Exception")
+
+
+	def getNetContractedEmployeeLabor(self):
+		'''
+		Returns a dictionary of all current labor contracts in which this agent is the employer
+		'''
+		laborContractsList =  []
+		for endStep in self.laborContracts:
+			for contractHash in self.laborContracts[endStep]:
+				laborContractsList.append(self.laborContracts[endStep][contractHash])
+
+		employeeLaborInventory = {}
+		for contract in laborContractsList:
+			if (contract.employerId == self.agentId):
+				if not (contract.workerSkillLevel in employeeLaborInventory):
+					employeeLaborInventory[contract.workerSkillLevel] = 0
+				employeeLaborInventory[contract.workerSkillLevel] += contract.ticksPerStep
+
+		return employeeLaborInventory
 
 	#########################
 	# Item Market functions
@@ -2295,16 +2608,21 @@ class Agent:
 		self.logger.debug("{}.removeLaborListing({}) return {}".format(self.agentId, laborListing, updateSuccess))
 		return updateSuccess
 
-	def sampleLaborListings(self, sampleSize=3, delResponse=True):
+	def sampleLaborListings(self, sampleSize=3, maxSkillLevel=-1, minSkillLevel=0, delResponse=True):
 		'''
 		Returns a list of sampled labor listings that agent qualifies for (listing.minSkillLevel <= agent.skillLevel).
 		Will sample listings in order of decreasing skill level, returning the highest possible skill-level listings. Samples are randomized within skill levels.
 		'''
 		sampledListings = []
 		
+		tempMaxSkillLevel = self.skillLevel
+		if (maxSkillLevel != -1):
+			#Has been set explicitly. Override agent skill level
+			tempMaxSkillLevel = maxSkillLevel
+
 		#Send request to itemMarketAgent
 		transactionId = "LABOR_MARKET_SAMPLE_{}_{}".format(self.agentId, time.time())
-		requestPayload = {"agentSkillLevel": self.skillLevel, "sampleSize": sampleSize}
+		requestPayload = {"maxSkillLevel": tempMaxSkillLevel, "minSkillLevel": minSkillLevel, "sampleSize": sampleSize}
 		requestPacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType="LABOR_MARKET_SAMPLE", payload=requestPayload)
 		self.sendPacket(requestPacket)
 
@@ -2451,53 +2769,57 @@ class Agent:
 		self.logger.debug("{}.useTimeTicks({}) start".format(self.agentId, amount))
 		useSuccess = False
 
-		acquired_timeTickLock = self.timeTickLock.acquire(timeout=self.lockTimeout)  #<== timeTickLock acquire
-		if (acquired_timeTickLock):
-			if (self.timeTicks >= amount):
-				#We have enough ticks. Decrement tick counter
-				self.logger.debug("Using {} time ticks".format(amount))
-				self.timeTicks -= amount
-				self.logger.debug("Time tick balance = {}".format(self.timeTicks))
-				useSuccess = True
+		if (amount > 0):
+			acquired_timeTickLock = self.timeTickLock.acquire(timeout=self.lockTimeout)  #<== timeTickLock acquire
+			if (acquired_timeTickLock):
+				if (self.timeTicks >= amount):
+					#We have enough ticks. Decrement tick counter
+					self.logger.debug("Using {} time ticks".format(amount))
+					self.timeTicks -= amount
+					self.logger.debug("Time tick balance = {}".format(self.timeTicks))
+					useSuccess = True
 
-				#Advance land allocation queue
-				self.landAllocationQueue.useTimeTicks(amount)
+					#Advance land allocation queue
+					self.landAllocationQueue.useTimeTicks(amount)
 
-				if (self.timeTicks == 0):
-					#We are out of time ticks. Set blocked flag
-					acquired_tickBlockFlag_Lock = self.tickBlockFlag_Lock.acquire(timeout=self.lockTimeout)  #<== tickBlockFlag_Lock acquire
-					if (acquired_tickBlockFlag_Lock):
-						self.tickBlockFlag = True
-						self.tickBlockFlag_Lock.release()  #<== tickBlockFlag_Lock release
-					else:
-						self.logger.error("TICK_GRANT tickBlockFlag_Lock acquire timeout")
+					if (self.timeTicks <= 0):
+						#We are out of time ticks. Set blocked flag
+						acquired_tickBlockFlag_Lock = self.tickBlockFlag_Lock.acquire(timeout=self.lockTimeout)  #<== tickBlockFlag_Lock acquire
+						if (acquired_tickBlockFlag_Lock):
+							self.tickBlockFlag = True
+							self.tickBlockFlag_Lock.release()  #<== tickBlockFlag_Lock release
+						else:
+							self.logger.error("TICK_GRANT tickBlockFlag_Lock acquire timeout")
 
-					#Move labor received in this step into the available labor for next step
-					self.laborInventoryLock.acquire()
-					self.nextLaborInventoryLock.acquire()
+						#Move labor received in this step into the available labor for next step
+						self.laborInventoryLock.acquire()
+						self.nextLaborInventoryLock.acquire()
 
-					self.laborInventory = self.nextLaborInventory.copy()
-					self.nextLaborInventory = {}
+						self.laborInventory = self.nextLaborInventory.copy()
+						self.nextLaborInventory = {}
+						self.logger.debug("laborInventory = {}".format(self.laborInventory))
 
-					self.laborInventoryLock.release()
-					self.nextLaborInventoryLock.release()
+						self.laborInventoryLock.release()
+						self.nextLaborInventoryLock.release()
 
-					#Send blocked signal to sim manager
-					self.logger.debug("We're tick blocked. Sending TICK_BLOCKED to simManager")
+						#Send blocked signal to sim manager
+						self.logger.debug("We're tick blocked. Sending TICK_BLOCKED to simManager")
 
-					tickBlocked = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCKED")
-					tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlocked)
-					self.logger.info("OUTBOUND {}->{}".format(tickBlocked, tickBlockPacket))
-					self.sendPacket(tickBlockPacket)
+						tickBlocked = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCKED")
+						tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlocked)
+						self.logger.info("OUTBOUND {}->{}".format(tickBlocked, tickBlockPacket))
+						self.sendPacket(tickBlockPacket)
+				else:
+					#We do not have enought time ticks
+					self.logger.error("Cannot use {} time ticks. Only have {} available".format(amount, self.timeTicks))
+					useSuccess = False
+
+				self.timeTickLock.release()  #<== timeTickLock release
 			else:
-				#We do not have enought time ticks
-				self.logger.error("Cannot use {} time ticks. Only have {} available".format(amount, self.timeTicks))
+				#Lock timout
+				self.logger.error("{}.useTimeTicks({}) timeTickLock acquire timeout".format(self.agentId, amount))
 				useSuccess = False
-
-			self.timeTickLock.release()  #<== timeTickLock release
 		else:
-			#Lock timout
-			self.logger.error("{}.useTimeTicks({}) timeTickLock acquire timeout".format(self.agentId, amount))
 			useSuccess = False
 
 		self.logger.debug("{}.useTimeTicks({}) return {}".format(self.agentId, amount, useSuccess))
@@ -2515,7 +2837,60 @@ class Agent:
 		while not (self.fullfilledContracts):
 			time.sleep(0.05)
 
-		#Relinquish time ticks
+		#Wait for agent to eat
+		if (self.autoEatFlag):
+			while (self.eating):
+				time.sleep(0.05)
+
+		#Use all remaining time ticks
+		acquired_timeTickLock = self.timeTickLock.acquire(timeout=self.lockTimeout)  #<== timeTickLock acquire
+		amount = self.timeTicks
+		if (amount > 0):
+			if (acquired_timeTickLock):
+				self.logger.debug("Using {} time ticks".format(amount))
+				self.timeTicks -= amount
+				self.logger.debug("Time tick balance = {}".format(self.timeTicks))
+				useSuccess = True
+
+				#Advance land allocation queue
+				self.landAllocationQueue.useTimeTicks(amount)
+
+				if (self.timeTicks <= 0):
+					#We are out of time ticks. Set blocked flag
+					acquired_tickBlockFlag_Lock = self.tickBlockFlag_Lock.acquire(timeout=self.lockTimeout)  #<== tickBlockFlag_Lock acquire
+					if (acquired_tickBlockFlag_Lock):
+						self.tickBlockFlag = True
+						self.tickBlockFlag_Lock.release()  #<== tickBlockFlag_Lock release
+					else:
+						self.logger.error("relinquishTimeTicks() tickBlockFlag_Lock acquire timeout")
+
+					#Move labor received in this step into the available labor for next step
+					self.laborInventoryLock.acquire()
+					self.nextLaborInventoryLock.acquire()
+
+					self.laborInventory = self.nextLaborInventory.copy()
+					self.nextLaborInventory = {}
+					self.logger.debug("laborInventory = {}".format(self.laborInventory))
+
+					self.laborInventoryLock.release()
+					self.nextLaborInventoryLock.release()
+
+					#Send blocked signal to sim manager
+					self.logger.debug("We're tick blocked. Sending TICK_BLOCKED to simManager")
+
+					tickBlocked = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCKED")
+					tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlocked)
+					self.logger.info("OUTBOUND {}->{}".format(tickBlocked, tickBlockPacket))
+					self.sendPacket(tickBlockPacket)
+
+				self.timeTickLock.release()  #<== timeTickLock release
+			else:
+				#Lock timout
+				self.logger.error("{}.relinquishTimeTicks({}) timeTickLock acquire timeout".format(self.agentId, amount))
+				useSuccess = False
+		else:
+			self.timeTickLock.release()  #<== timeTickLock release
+
 		return self.useTimeTicks(self.timeTicks)
 
 
@@ -2573,6 +2948,8 @@ class Agent:
 				self.logger.warning("autoEat() Could not acquire all ingredients for meal plan {}".format(mealPlan))
 		else:
 			self.logger.warning("autoEat() Could not autoEat. Not enough time ticks")
+
+		self.eating = False
 
 		return eatSuccess
 

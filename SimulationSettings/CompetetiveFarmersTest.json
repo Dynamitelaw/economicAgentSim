@@ -1,7 +1,7 @@
 {
 	"description": "Test simulation competetive farmers. Used for testing and debug.",
 	"settings": {
-		"NumProcesses": 4,
+		"AgentNumProcesses": 4,
 		"SimulationSteps": 30,
 		"TicksPerStep": 16,
 		"AgentSpawns":{
@@ -59,8 +59,8 @@
 					}
 				}
 			},
-			"FatAss": {
-				"TestEater":{
+			"Worker": {
+				"TestFarmWorker":{
 					"quantity": 40
 				}
 			}
@@ -68,14 +68,14 @@
 		"Statistics": {
 			"PrivateConsumption": {
 				"ConsumptionTracker": {
-					"ConsumerClasses": ["TestBuyer"],
+					"ConsumerClasses": ["Worker"],
 					"StartStep": 0,
 					"OuputPath": "ConsumptionStats/PrivateConsumption.csv"
 				}
 			},
 			"BusinessConsumption": {
 				"ConsumptionTracker": {
-					"ConsumerClasses": ["TestSeller"],
+					"ConsumerClasses": ["TestSpawner"],
 					"StartStep": 0,
 					"OuputPath": "ConsumptionStats/BusinessConsumption.csv"
 				}

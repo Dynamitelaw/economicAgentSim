@@ -1,50 +1,144 @@
 {
-	"description": "Test simulation with competetive employers. Used for testing and debug.",
+	"description": "Test simulation with competetive farms. Used for testing and debug.",
 	"settings": {
-		"NumProcesses": 4,
-		"SimulationSteps": 60,
+		"AgentNumProcesses": 8,
+		"SimulationSteps": 30,
 		"TicksPerStep": 16,
 		"AgentSpawns":{
-			"Employers": {
-				"TestEmployerCompetetive":{
-					"quantity": 40
+			"AppleFarm": {
+				"TestFarmCompetetive":{
+					"quantity": 9,
+					"settings": {
+						"itemId": "apple",
+						"startingProductionRate": 5,
+						"StartSkew": 5
+					}
 				}
 			},
-			"Employees": {
-				"TestWorker":{
-					"quantity": 50,
+			"ButterFarm": {
+				"TestFarmCompetetive":{
+					"quantity": 9,
 					"settings": {
-						"skillDistribution": {
-							"alpha": 2,
-							"beta": 5
-						}
+						"itemId": "butter",
+						"startingProductionRate":1.67,
+						"StartSkew": 5
+					}
+				}
+			},
+			"PeaFarm": {
+				"TestFarmCompetetive":{
+					"quantity": 9,
+					"settings": {
+						"itemId": "chickpea",
+						"startingProductionRate": 1.67,
+						"StartSkew": 5
+					}
+				}
+			},
+			"EggFarm": {
+				"TestFarmCompetetive":{
+					"quantity": 9,
+					"settings": {
+						"itemId": "egg",
+						"startingProductionRate": 3.76,
+						"StartSkew": 5
+					}
+				}
+			},
+			"SpudFarm": {
+				"TestFarmCompetetive":{
+					"quantity": 9,
+					"settings": {
+						"itemId": "potato",
+						"startingProductionRate": 5.83,
+						"StartSkew": 5
+					}
+				}
+			},
+			"River": {
+				"TestSpawner":{
+					"quantity": 1,
+					"settings": {
+						"itemId": "water",
+						"spawnRate": 216
+					}
+				}
+			},
+			"FarmWorker": {
+				"TestFarmWorker":{
+					"quantity": 120,
+					"settings": {
+						"StartSkew": 5
 					}
 				}
 			}
 		},
 		"Statistics": {
-			"LowSkillLabor": {
+			"AllLabor": {
 				"LaborContractTracker": {
-					"SkillMin": 0,
-					"SkillMax": 0.3,
-					"StartStep": 0,
-					"OuputPath": "LaborStats/LowSkillLabor.csv"
+					"OuputPath": "LaborStats/AllLabor.csv"
 				}
 			},
-			"MidSkillLabor": {
-				"LaborContractTracker": {
-					"SkillMin": 0.3,
-					"SkillMax": 0.7,
-					"StartStep": 0,
-					"OuputPath": "LaborStats/MidSkillLabor.csv"
+			"PrivateConsumption": {
+				"ConsumptionTracker": {
+					"ConsumerClasses": ["TestFarmWorker"],
+					"OuputPath": "ConsumptionStats/PrivateConsumption.csv"
 				}
 			},
-			"HighSkillLabor": {
-				"LaborContractTracker": {
-					"SkillMin": 0.7,
-					"SkillMax": 1,
-					"StartStep": 0,
-					"OuputPath": "LaborStats/HighSkillLabor.csv"
+			"AppleMarket":{
+				"ItemPriceTracker":{
+					"id": "apple",
+					"OuputPath": "FoodMarket/apple/ApplePrice.csv"
+				},
+				"ProductionTracker":{
+					"id": "apple",
+					"OuputPath": "FoodMarket/apple/AppleProduction.csv"
+				}
+			},
+			"ButterMarket":{
+				"ItemPriceTracker":{
+					"id": "butter",
+					"OuputPath": "FoodMarket/butter/ButterPrice.csv"
+				},
+				"ProductionTracker":{
+					"id": "butter",
+					"OuputPath": "FoodMarket/butter/ButterProduction.csv"
+				}
+			},
+			"PeaMarket":{
+				"ItemPriceTracker":{
+					"id": "chickpea",
+					"OuputPath": "FoodMarket/chickpea/ChickpeaPrice.csv"
+				},
+				"ProductionTracker":{
+					"id": "chickpea",
+					"OuputPath": "FoodMarket/chickpea/ChickpeaProduction.csv"
+				}
+			},
+			"EggMarket":{
+				"ItemPriceTracker":{
+					"id": "egg",
+					"OuputPath": "FoodMarket/egg/EggPrice.csv"
+				},
+				"ProductionTracker":{
+					"id": "egg",
+					"OuputPath": "FoodMarket/egg/EggProduction.csv"
+				}
+			},
+			"SpudMarket":{
+				"ItemPriceTracker":{
+					"id": "potato",
+					"OuputPath": "FoodMarket/potato/PotatoPrice.csv"
+				},
+				"ProductionTracker":{
+					"id": "potato",
+					"OuputPath": "FoodMarket/potato/PotatoProduction.csv"
+				}
+			},
+			"WaterPrices":{
+				"ItemPriceTracker":{
+					"id": "water",
+					"OuputPath": "FoodMarket/water.csv"
 				}
 			}
 		}
