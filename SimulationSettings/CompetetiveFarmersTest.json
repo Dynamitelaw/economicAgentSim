@@ -2,7 +2,7 @@
 	"description": "Test simulation competetive farmers. Used for testing and debug.",
 	"settings": {
 		"AgentNumProcesses": 4,
-		"SimulationSteps": 30,
+		"SimulationSteps": 90,
 		"TicksPerStep": 16,
 		"AgentSpawns":{
 			"AppleFarmer": {
@@ -61,59 +61,79 @@
 			},
 			"Worker": {
 				"TestFarmWorker":{
-					"quantity": 40
+					"quantity": 40,
+					"settings": {
+						"StartSkew": 7
+					}
 				}
 			}
 		},
 		"Statistics": {
+			"AllLabor": {
+				"LaborContractTracker": {
+					"OuputPath": "LaborStats/AllLabor.csv"
+				}
+			},
 			"PrivateConsumption": {
 				"ConsumptionTracker": {
-					"ConsumerClasses": ["Worker"],
-					"StartStep": 0,
+					"ConsumerClasses": ["TestFarmWorker"],
 					"OuputPath": "ConsumptionStats/PrivateConsumption.csv"
 				}
 			},
-			"BusinessConsumption": {
-				"ConsumptionTracker": {
-					"ConsumerClasses": ["TestSpawner"],
-					"StartStep": 0,
-					"OuputPath": "ConsumptionStats/BusinessConsumption.csv"
-				}
-			},
-			"ApplePrices":{
+			"AppleMarket":{
 				"ItemPriceTracker":{
 					"id": "apple",
-					"OuputPath": "FoodPrices/apple.csv"
+					"OuputPath": "FoodMarket/apple/ApplePrice.csv"
+				},
+				"ProductionTracker":{
+					"id": "apple",
+					"OuputPath": "FoodMarket/apple/AppleProduction.csv"
 				}
 			},
-			"ButterPrices":{
+			"ButterMarket":{
 				"ItemPriceTracker":{
 					"id": "butter",
-					"OuputPath": "FoodPrices/butter.csv"
+					"OuputPath": "FoodMarket/butter/ButterPrice.csv"
+				},
+				"ProductionTracker":{
+					"id": "butter",
+					"OuputPath": "FoodMarket/butter/ButterProduction.csv"
 				}
 			},
-			"PeaPrices":{
+			"PeaMarket":{
 				"ItemPriceTracker":{
 					"id": "chickpea",
-					"OuputPath": "FoodPrices/chickpea.csv"
+					"OuputPath": "FoodMarket/chickpea/ChickpeaPrice.csv"
+				},
+				"ProductionTracker":{
+					"id": "chickpea",
+					"OuputPath": "FoodMarket/chickpea/ChickpeaProduction.csv"
 				}
 			},
-			"EggPrices":{
+			"EggMarket":{
 				"ItemPriceTracker":{
 					"id": "egg",
-					"OuputPath": "FoodPrices/egg.csv"
+					"OuputPath": "FoodMarket/egg/EggPrice.csv"
+				},
+				"ProductionTracker":{
+					"id": "egg",
+					"OuputPath": "FoodMarket/egg/EggProduction.csv"
 				}
 			},
-			"SpudPrices":{
+			"SpudMarket":{
 				"ItemPriceTracker":{
 					"id": "potato",
-					"OuputPath": "FoodPrices/potato.csv"
+					"OuputPath": "FoodMarket/potato/PotatoPrice.csv"
+				},
+				"ProductionTracker":{
+					"id": "potato",
+					"OuputPath": "FoodMarket/potato/PotatoProduction.csv"
 				}
 			},
 			"WaterPrices":{
 				"ItemPriceTracker":{
 					"id": "water",
-					"OuputPath": "FoodPrices/water.csv"
+					"OuputPath": "FoodMarket/water.csv"
 				}
 			}
 		}

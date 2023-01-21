@@ -2,7 +2,7 @@
 	"description": "Test simulation with competetive farms. Used for testing and debug.",
 	"settings": {
 		"AgentNumProcesses": 4,
-		"SimulationSteps": 10,
+		"SimulationSteps": 180,
 		"TicksPerStep": 16,
 		"AgentSpawns":{
 			"AppleFarm": {
@@ -11,7 +11,7 @@
 					"settings": {
 						"itemId": "apple",
 						"startingProductionRate": 5,
-						"StartSkew": 0
+						"StartSkew": 9
 					}
 				}
 			},
@@ -21,7 +21,7 @@
 					"settings": {
 						"itemId": "butter",
 						"startingProductionRate":1.67,
-						"StartSkew": 0
+						"StartSkew": 9
 					}
 				}
 			},
@@ -31,7 +31,7 @@
 					"settings": {
 						"itemId": "chickpea",
 						"startingProductionRate": 1.67,
-						"StartSkew": 0
+						"StartSkew": 9
 					}
 				}
 			},
@@ -41,7 +41,7 @@
 					"settings": {
 						"itemId": "egg",
 						"startingProductionRate": 3.76,
-						"StartSkew": 0
+						"StartSkew": 9
 					}
 				}
 			},
@@ -51,7 +51,7 @@
 					"settings": {
 						"itemId": "potato",
 						"startingProductionRate": 5.83,
-						"StartSkew": 0
+						"StartSkew": 9
 					}
 				}
 			},
@@ -68,7 +68,7 @@
 				"TestFarmWorker":{
 					"quantity": 120,
 					"settings": {
-						"StartSkew": 0
+						"StartSkew": 9
 					}
 				}
 			}

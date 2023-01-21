@@ -889,9 +889,14 @@ class NutritionTracker:
 		return mealPlan
 
 
-	def getQuantityConsumed(self, foodId):
+	def getQuantityConsumed(self, agent, foodId):
 		if (foodId in self.consumptionTotal):
-			return self.consumptionTotal[foodId]
+			if (agent.stepNum < (self.historyWindow-1)):
+				quantity = self.consumptionTotal[foodId]
+				extrapolatedQuantity = quantity * (self.historyWindow/(agent.stepNum+1))
+				return extrapolatedQuantity
+			else:
+				return self.consumptionTotal[foodId]
 
 		return 0
 
@@ -1102,6 +1107,13 @@ class Agent:
 		self.networkSendLock = threading.Lock()
 		self.responseBuffer = {}
 		self.responseBufferLock = threading.Lock()
+		self.outstandingTrades = {}
+		self.outstandingTradesLock = threading.Lock()
+
+		#ACK requirement settings
+		self.needCurrencyTransferAck = False
+		self.needItemTransferAck = False
+		self.needLandTransferAck = False
 
 		#Keep track of other agents
 		self.allAgentDict = allAgentDict
@@ -1209,14 +1221,24 @@ class Agent:
 
 			#Handle incoming acks
 			elif ("_ACK" in incommingPacket.msgType):
-				#Place incoming acks into the response buffer
-				acquired_responseBufferLock = self.responseBufferLock.acquire(timeout=self.lockTimeout)  #<== acquire responseBufferLock
-				if (acquired_responseBufferLock):
-					self.responseBuffer[incommingPacket.transactionId] = incommingPacket
-					self.responseBufferLock.release()  #<== release responseBufferLock
-				else:
-					self.logger.error("monitorNetworkLink() Lock \"responseBufferLock\" acquisition timeout")
-					break
+				#Determine whether to handle this ack
+				handleAck = True
+				if (incommingPacket.msgType == "CURRENCY_TRANSFER_ACK"):
+					handleAck = self.needCurrencyTransferAck
+				elif (incommingPacket.msgType == "ITEM_TRANSFER_ACK"):
+					handleAck = self.needItemTransferAck
+				elif (incommingPacket.msgType == "LAND_TRANSFER_ACK"):
+					handleAck = self.needLandTransferAck
+		
+				if (handleAck):
+					#Place incoming acks into the response buffer
+					acquired_responseBufferLock = self.responseBufferLock.acquire(timeout=self.lockTimeout)  #<== acquire responseBufferLock
+					if (acquired_responseBufferLock):
+						self.responseBuffer[incommingPacket.transactionId] = incommingPacket
+						self.responseBufferLock.release()  #<== release responseBufferLock
+					else:
+						self.logger.error("monitorNetworkLink() Lock \"responseBufferLock\" acquisition timeout")
+						break
 
 			#Handle errors
 			elif ("ERROR" in incommingPacket.msgType):
@@ -1248,24 +1270,30 @@ class Agent:
 			#Handle incoming payments
 			elif (incommingPacket.msgType == "CURRENCY_TRANSFER"):
 				amount = incommingPacket.payload["cents"]
-				#transferThread =  threading.Thread(target=self.receiveCurrency, args=(amount, incommingPacket))
-				#transferThread.start()
 				self.receiveCurrency(amount, incommingPacket)
+				if (incommingPacket.transactionId in self.outstandingTrades):
+					self.outstandingTradesLock.acquire()
+					del self.outstandingTrades[incommingPacket.transactionId]
+					self.outstandingTradesLock.release()
 
 			#Handle incoming items
 			elif (incommingPacket.msgType == "ITEM_TRANSFER"):
 				itemPackage = incommingPacket.payload["item"]
-				#transferThread =  threading.Thread(target=self.receiveItem, args=(itemPackage, incommingPacket))
-				#transferThread.start()
 				self.receiveItem(itemPackage, incommingPacket)
+				if (incommingPacket.transactionId in self.outstandingTrades):
+					self.outstandingTradesLock.acquire()
+					del self.outstandingTrades[incommingPacket.transactionId]
+					self.outstandingTradesLock.release()
 
 			#Handle incoming land
 			elif (incommingPacket.msgType == "LAND_TRANSFER"):
 				allocation = incommingPacket.payload["allocation"]
 				hectares = incommingPacket.payload["hectares"]
-				#transferThread =  threading.Thread(target=self.receiveLand, args=(allocation, hectares, incommingPacket))
-				#transferThread.start()
 				self.receiveLand(allocation, hectares, incommingPacket)
+				if (incommingPacket.transactionId in self.outstandingTrades):
+					self.outstandingTradesLock.acquire()
+					del self.outstandingTrades[incommingPacket.transactionId]
+					self.outstandingTradesLock.release()
 
 			#Handle incoming trade requests
 			elif (incommingPacket.msgType == "TRADE_REQ"):
@@ -1414,11 +1442,12 @@ class Agent:
 					self.logger.error("receiveCurrency() Lock \"currencyBalanceLock\" acquisition timeout")
 					transferSuccess = False
 
-			#Send CURRENCY_TRANSFER_ACK
-			if (incommingPacket):
-				respPayload = {"paymentId": incommingPacket.payload["paymentId"], "transferSuccess": transferSuccess}
-				responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType="CURRENCY_TRANSFER_ACK", payload=respPayload, transactionId=incommingPacket.transactionId)
-				self.sendPacket(responsePacket)
+			if (self.needCurrencyTransferAck):
+				#Send CURRENCY_TRANSFER_ACK
+				if (incommingPacket):
+					respPayload = {"paymentId": incommingPacket.payload["paymentId"], "transferSuccess": transferSuccess}
+					responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType="CURRENCY_TRANSFER_ACK", payload=respPayload, transactionId=incommingPacket.transactionId)
+					self.sendPacket(responsePacket)
 
 			#Return transfer status
 			self.logger.debug("{}.receiveCurrency({}) return {}".format(self.agentId, cents, transferSuccess))
@@ -1468,30 +1497,33 @@ class Agent:
 				transferPacket = NetworkPacket(senderId=self.agentId, destinationId=recipientId, msgType="CURRENCY_TRANSFER", payload=transferPayload, transactionId=paymentId)
 				self.sendPacket(transferPacket)
 
-				#Wait for transaction response
-				while not (paymentId in self.responseBuffer):
-					time.sleep(0.0001)
-					pass
-				responsePacket = self.responseBuffer[paymentId]
+				if (self.needCurrencyTransferAck):
+					#Wait for transaction response
+					while not (paymentId in self.responseBuffer):
+						time.sleep(0.0001)
+						pass
+					responsePacket = self.responseBuffer[paymentId]
 
-				#Undo balance change if not successful
-				transferSuccess = bool(responsePacket.payload["transferSuccess"])
-				if (not transferSuccess):
-					self.logger.error("{} {}".format(responsePacket, responsePacket.payload))
-					self.logger.error("Undoing balance change of -{}".format(cents))
-					self.currencyBalanceLock.acquire()  #<== acquire currencyBalanceLock
-					self.currencyBalance += cents
-					self.currencyBalanceLock.release()  #<== acquire currencyBalanceLock
+					#Undo balance change if not successful
+					transferSuccess = bool(responsePacket.payload["transferSuccess"])
+					if (not transferSuccess):
+						self.logger.error("{} {}".format(responsePacket, responsePacket.payload))
+						self.logger.error("Undoing balance change of -{}".format(cents))
+						self.currencyBalanceLock.acquire()  #<== acquire currencyBalanceLock
+						self.currencyBalance += cents
+						self.currencyBalanceLock.release()  #<== acquire currencyBalanceLock
 
-				#Remove transaction from response buffer
-				if (delResponse):
-					acquired_responseBufferLock = self.responseBufferLock.acquire(timeout=self.lockTimeout)  #<== acquire responseBufferLock
-					if (acquired_responseBufferLock):
-						del self.responseBuffer[paymentId]
-						self.responseBufferLock.release()  #<== release responseBufferLock
-					else:
-						self.logger.error("sendCurrency() Lock \"responseBufferLock\" acquisition timeout")
-						transferSuccess = False
+					#Remove transaction from response buffer
+					if (delResponse):
+						acquired_responseBufferLock = self.responseBufferLock.acquire(timeout=self.lockTimeout)  #<== acquire responseBufferLock
+						if (acquired_responseBufferLock):
+							del self.responseBuffer[paymentId]
+							self.responseBufferLock.release()  #<== release responseBufferLock
+						else:
+							self.logger.error("sendCurrency() Lock \"responseBufferLock\" acquisition timeout")
+							transferSuccess = False
+				else:
+					transferSuccess = True
 				
 			else:
 				#Lock acquisition timout
@@ -1523,17 +1555,22 @@ class Agent:
 				itemId = itemPackage.id
 				if not (itemId in self.inventory):
 					self.inventory[itemId] = itemPackage
+					self.logger.debug("old {}.inventory[{}]=None".format(self.agentId, itemId))
 				else:
+					self.logger.debug("old {}.inventory[{}]={}".format(self.agentId, itemId, self.inventory[itemId]))
 					self.inventory[itemId] += itemPackage
 
+				self.logger.debug("new {}.inventory[{}]={}".format(self.agentId, itemId, self.inventory[itemId]))
 				self.inventoryLock.release()  #<== release inventoryLock
 
 				received = True
-				#Send ITEM_TRANSFER_ACK
-				if (incommingPacket):
-					respPayload = {"transferId": incommingPacket.payload["transferId"], "transferSuccess": received}
-					responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType="ITEM_TRANSFER_ACK", payload=respPayload, transactionId=incommingPacket.transactionId)
-					self.sendPacket(responsePacket)
+
+				if (self.needItemTransferAck):
+					#Send ITEM_TRANSFER_ACK
+					if (incommingPacket):
+						respPayload = {"transferId": incommingPacket.payload["transferId"], "transferSuccess": received}
+						responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType="ITEM_TRANSFER_ACK", payload=respPayload, transactionId=incommingPacket.transactionId)
+						self.sendPacket(responsePacket)
 			else:
 				self.logger.error("receiveItem() Lock \"inventoryLock\" acquisition timeout")
 				received = False
@@ -1590,30 +1627,33 @@ class Agent:
 					transferPacket = NetworkPacket(senderId=self.agentId, destinationId=recipientId, msgType="ITEM_TRANSFER", payload=transferPayload, transactionId=transferId)
 					self.sendPacket(transferPacket)
 
-				#Wait for transaction response
-				while not (transferId in self.responseBuffer):
-					time.sleep(0.00001)
-					pass
-				responsePacket = self.responseBuffer[transferId]
+				if (self.needItemTransferAck):
+					#Wait for transaction response
+					while not (transferId in self.responseBuffer):
+						time.sleep(0.00001)
+						pass
+					responsePacket = self.responseBuffer[transferId]
 
-				#Undo inventory change if not successful
-				transferSuccess = bool(responsePacket.payload["transferSuccess"])
-				if (not transferSuccess):
-					self.logger.error("{} {}".format(responsePacket, responsePacket.payload))
-					self.logger.error("Undoing inventory change ({},{})".format(itemPackage.id, -1*itemPackage.quantity))
-					self.inventoryLock.acquire()  #<== acquire currencyBalanceLock
-					self.inventory[itemId] += itemPackage
-					self.inventoryLock.release()  #<== acquire currencyBalanceLock
+					#Undo inventory change if not successful
+					transferSuccess = bool(responsePacket.payload["transferSuccess"])
+					if (not transferSuccess):
+						self.logger.error("{} {}".format(responsePacket, responsePacket.payload))
+						self.logger.error("Undoing inventory change ({},{})".format(itemPackage.id, -1*itemPackage.quantity))
+						self.inventoryLock.acquire()  #<== acquire currencyBalanceLock
+						self.inventory[itemId] += itemPackage
+						self.inventoryLock.release()  #<== acquire currencyBalanceLock
 
-				#Remove transaction from response buffer
-				if (delResponse):
-					acquired_responseBufferLock = self.responseBufferLock.acquire(timeout=self.lockTimeout)  #<== acquire responseBufferLock
-					if (acquired_responseBufferLock):
-						del self.responseBuffer[transferId]
-						self.responseBufferLock.release()  #<== release responseBufferLock
-					else:
-						self.logger.error("sendItem() Lock \"responseBufferLock\" acquisition timeout")
-						transferSuccess = False
+					#Remove transaction from response buffer
+					if (delResponse):
+						acquired_responseBufferLock = self.responseBufferLock.acquire(timeout=self.lockTimeout)  #<== acquire responseBufferLock
+						if (acquired_responseBufferLock):
+							del self.responseBuffer[transferId]
+							self.responseBufferLock.release()  #<== release responseBufferLock
+						else:
+							self.logger.error("sendItem() Lock \"responseBufferLock\" acquisition timeout")
+							transferSuccess = False
+				else:
+					transferSuccess = True
 
 			else:
 				#Lock acquisition timout
@@ -1856,10 +1896,21 @@ class Agent:
 				self.logger.debug("Fowarding {} to controller {}".format(request, self.controller.name))
 				offerAccepted = self.controller.evalTradeRequest(request)
 
-			#Notify counter party of response
-			respPayload = {"tradeRequest": request, "accepted": offerAccepted}
-			responsePacket = NetworkPacket(senderId=self.agentId, destinationId=senderId, msgType="TRADE_REQ_ACK", payload=respPayload, transactionId=request.reqId)
-			self.sendPacket(responsePacket)
+			#Add this trade offer to the outstanding trade dict
+			if (offerAccepted):
+				completedTransactionId = request.reqId
+				if (self.agentId == request.buyerId):
+					#We are the buyer. We need the item
+					completedTransactionId = "{}_ITEM".format(request.reqId)
+
+				if (self.agentId == request.sellerId):
+					#We are the seller. We need the money
+					completedTransactionId = "{}_CURRENCY".format(request.reqId)
+
+
+				self.outstandingTradesLock.acquire()
+				self.outstandingTrades[completedTransactionId] = True
+				self.outstandingTradesLock.release()
 
 			#Execute trade if offer accepted
 			if (offerAccepted):
@@ -1867,6 +1918,19 @@ class Agent:
 				tradeCompleted = self.executeTrade(request)
 			else:
 				self.logger.debug("{} rejected".format(request))
+
+			#Notify counter party of response
+			respPayload = {"tradeRequest": request, "accepted": offerAccepted}
+			responsePacket = NetworkPacket(senderId=self.agentId, destinationId=senderId, msgType="TRADE_REQ_ACK", payload=respPayload, transactionId=request.reqId)
+			self.sendPacket(responsePacket)
+
+			#Wait for counter party to fullfill their end of the trade
+			if (offerAccepted):
+				self.logger.debug("Waiting for counterparty to complete trade {}".format(request))
+				while (request.reqId in self.outstandingTrades):
+					time.sleep(0.00001)
+					pass
+				self.logger.debug("Counterparty completed trade {}".format(request))
 
 			self.tradeRequestLock.release()  #<== release tradeRequestLock
 			return tradeCompleted
@@ -1883,6 +1947,10 @@ class Agent:
 		Returns True if the trade completed. Returns False if not
 		'''
 		try:
+			quantity = request.itemPackage.quantity
+			if (quantity <= 0):
+				return False
+
 			self.tradeRequestLock.acquire()  #<== acquire tradeRequestLock
 
 			self.logger.debug("{}.sendTradeRequest({}, {}) start".format(self.agentId, request, recipientId))
@@ -1989,11 +2057,13 @@ class Agent:
 				self.landHoldingsLock.release()  #<== release landHoldingsLock
 
 				received = True
-				#Send ITEM_TRANSFER_ACK
-				if (incommingPacket):
-					respPayload = {"transferId": incommingPacket.payload["transferId"], "transferSuccess": received}
-					responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType="LAND_TRANSFER_ACK", payload=respPayload, transactionId=incommingPacket.transactionId)
-					self.sendPacket(responsePacket)
+
+				if (self.needLandTransferAck):
+					#Send ITEM_TRANSFER_ACK
+					if (incommingPacket):
+						respPayload = {"transferId": incommingPacket.payload["transferId"], "transferSuccess": received}
+						responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType="LAND_TRANSFER_ACK", payload=respPayload, transactionId=incommingPacket.transactionId)
+						self.sendPacket(responsePacket)
 			else:
 				self.logger.error("receiveLand() Lock \"landHoldingsLock\" acquisition timeout")
 				received = False
@@ -2049,30 +2119,33 @@ class Agent:
 					transferPacket = NetworkPacket(senderId=self.agentId, destinationId=recipientId, msgType="LAND_TRANSFER", payload=transferPayload, transactionId=transferId)
 					self.sendPacket(transferPacket)
 
-				#Wait for transaction response
-				while not (transferId in self.responseBuffer):
-					time.sleep(0.00001)
-					pass
-				responsePacket = self.responseBuffer[transferId]
+				if (self.needLandTransferAck):
+					#Wait for transaction response
+					while not (transferId in self.responseBuffer):
+						time.sleep(0.00001)
+						pass
+					responsePacket = self.responseBuffer[transferId]
 
-				#Undo inventory change if not successful
-				transferSuccess = bool(responsePacket.payload["transferSuccess"])
-				if (not transferSuccess):
-					self.logger.error("{} {}".format(responsePacket, responsePacket.payload))
-					self.logger.error("Undoing land holdings change ({},{})".format(allocation, -1*hectares))
-					self.landHoldingsLock.acquire()  #<== acquire currencyBalanceLock
-					self.landHoldings[allocation] += hectares
-					self.landHoldingsLock.release()  #<== acquire currencyBalanceLock
+					#Undo inventory change if not successful
+					transferSuccess = bool(responsePacket.payload["transferSuccess"])
+					if (not transferSuccess):
+						self.logger.error("{} {}".format(responsePacket, responsePacket.payload))
+						self.logger.error("Undoing land holdings change ({},{})".format(allocation, -1*hectares))
+						self.landHoldingsLock.acquire()  #<== acquire currencyBalanceLock
+						self.landHoldings[allocation] += hectares
+						self.landHoldingsLock.release()  #<== acquire currencyBalanceLock
 
-				#Remove transaction from response buffer
-				if (delResponse):
-					acquired_responseBufferLock = self.responseBufferLock.acquire(timeout=self.lockTimeout)  #<== acquire responseBufferLock
-					if (acquired_responseBufferLock):
-						del self.responseBuffer[transferId]
-						self.responseBufferLock.release()  #<== release responseBufferLock
-					else:
-						self.logger.error("sendLand() Lock \"responseBufferLock\" acquisition timeout")
-						transferSuccess = False
+					#Remove transaction from response buffer
+					if (delResponse):
+						acquired_responseBufferLock = self.responseBufferLock.acquire(timeout=self.lockTimeout)  #<== acquire responseBufferLock
+						if (acquired_responseBufferLock):
+							del self.responseBuffer[transferId]
+							self.responseBufferLock.release()  #<== release responseBufferLock
+						else:
+							self.logger.error("sendLand() Lock \"responseBufferLock\" acquisition timeout")
+							transferSuccess = False
+				else:
+					transferSuccess = True
 
 			else:
 				#Lock acquisition timout
@@ -2142,10 +2215,21 @@ class Agent:
 				self.logger.debug("Fowarding {} to controller {}".format(request, self.controller.name))
 				offerAccepted = self.controller.evalLandTradeRequest(request)
 
-			#Notify counter party of response
-			respPayload = {"tradeRequest": request, "accepted": offerAccepted}
-			responsePacket = NetworkPacket(senderId=self.agentId, destinationId=senderId, msgType="LAND_TRADE_REQ_ACK", payload=respPayload, transactionId=request.reqId)
-			self.sendPacket(responsePacket)
+			#Add this trade offer to the outstanding trade dict
+			if (offerAccepted):
+				completedTransactionId = request.reqId
+				if (self.agentId == request.buyerId):
+					#We are the buyer. We need the land
+					completedTransactionId = "{}_LAND".format(request.reqId)
+
+				if (self.agentId == request.sellerId):
+					#We are the seller. We need the money
+					completedTransactionId = "{}_CURRENCY".format(request.reqId)
+
+
+				self.outstandingTradesLock.acquire()
+				self.outstandingTrades[completedTransactionId] = True
+				self.outstandingTradesLock.release()
 
 			#Execute trade if offer accepted
 			if (offerAccepted):
@@ -2153,6 +2237,19 @@ class Agent:
 				tradeCompleted = self.executeLandTrade(request)
 			else:
 				self.logger.debug("{} rejected".format(request))
+
+			#Notify counter party of response
+			respPayload = {"tradeRequest": request, "accepted": offerAccepted}
+			responsePacket = NetworkPacket(senderId=self.agentId, destinationId=senderId, msgType="LAND_TRADE_REQ_ACK", payload=respPayload, transactionId=request.reqId)
+			self.sendPacket(responsePacket)
+
+			#Wait for counter party to fullfill their end of the trade
+			if (offerAccepted):
+				self.logger.debug("Waiting for counterparty to complete trade {}".format(request))
+				while (request.reqId in self.outstandingTrades):
+					time.sleep(0.00001)
+					pass
+				self.logger.debug("Counterparty completed trade {}".format(request))
 
 			self.landTradeRequestLock.release()  #<== release landTradeRequestLock
 			return tradeCompleted
@@ -2388,10 +2485,13 @@ class Agent:
 		'''
 		Returns a dictionary of all current labor contracts in which this agent is the employer
 		'''
+		self.laborContractsLock.acquire()
+		tempLaborContracts = copy.deepcopy(self.laborContracts)
+		self.laborContractsLock.release()
 		laborContractsList =  []
-		for endStep in self.laborContracts:
-			for contractHash in self.laborContracts[endStep]:
-				laborContractsList.append(self.laborContracts[endStep][contractHash])
+		for endStep in tempLaborContracts:
+			for contractHash in tempLaborContracts[endStep]:
+				laborContractsList.append(tempLaborContracts[endStep][contractHash])
 
 		employeeLaborInventory = {}
 		for contract in laborContractsList:
@@ -2493,9 +2593,9 @@ class Agent:
 	def acquireItem(self, itemContainer, sampleSize=5):
 		'''
 		Will sample the market and acquire the item at the lowest price, if we have enough money.
-		Returns True if successful, False if not
+		Returns the amount of the item that is acquired
 		'''
-		itemAcquired = False
+		itemAcquired = 0
 
 		#Sample market
 		listingDict = {}
@@ -2531,23 +2631,19 @@ class Agent:
 							tradeCompleted = self.sendTradeRequest(request=tradeRequest, recipientId=itemListing.sellerId)
 							if (tradeCompleted):
 								desiredAmount -= requestedQuantity
+								itemAcquired += requestedQuantity
 						else:
 							self.logger.warning("Could not acquire {} {}. Current balance ${} not enough at current unit price ${}".format(requestedQuantity, itemId, self.currencyBalance/100, price/100))
-							itemAcquired = False
 							return itemAcquired
 				else:
 					if (desiredAmount > 0):
 						self.logger.warning("Could not acquire enough {}. Could only get {}".format(itemId, itemContainer.quantity-desiredAmount))
 						self.logger.debug("listingDict = {}".format(listingDict))
-						itemAcquired = False
 						return itemAcquired
-
-			if (desiredAmount <= 0):
-				itemAcquired = True
 
 		else:
 			self.logger.warning("Could not acquire {}. No sellers found".format(itemContainer))
-			itemAcquired = False
+			itemAcquired = 0
 			return itemAcquired
 
 		if not (itemAcquired):
@@ -2748,7 +2844,7 @@ class Agent:
 		#Override quantity if this item is food and nutrition tracking is enabled
 		if (self.enableNutrition):
 			if (itemId in self.nutritionalDict):
-				quantity += self.nutritionTracker.getQuantityConsumed(itemId)
+				quantity += self.nutritionTracker.getQuantityConsumed(self, itemId)
 
 		utilityFunction = self.utilityFunctions[itemId]
 		try:
@@ -2941,10 +3037,8 @@ class Agent:
 			for foodId in mealPlan:
 				foodContainer = ItemContainer(foodId, mealPlan[foodId])
 				foodAcquired = self.acquireItem(foodContainer, sampleSize=5)
-				if not (foodAcquired):
-					acquisitionSuccess = False
-				else:
-					self.consumeItem(foodContainer)
+				if (foodAcquired > 0):
+					self.consumeItem(ItemContainer(foodId, foodAcquired))
 
 			if not (acquisitionSuccess):
 				self.logger.warning("autoEat() Could not acquire all ingredients for meal plan {}".format(mealPlan))

@@ -1004,7 +1004,7 @@ class TestFarmWorker:
 		self.searchStart = False
 
 		#Spawn starting balance
-		self.agent.receiveCurrency(9999999999)
+		self.agent.receiveCurrency(9999)
 
 		#Handle start skews
 		self.startStep = 0
@@ -1109,16 +1109,16 @@ class TestFarmCompetetive:
 
 		#Keep track of production targets
 		self.targetProductionRate = 10
-		self.currentProductionRateAvg = self.targetProductionRate
 		if ("startingProductionRate" in settings):
 			self.targetProductionRate = settings["startingProductionRate"]
 			self.logger.info("Initial production rate specified. Will initialize target production to {} {} per step".format(self.targetProductionRate, self.sellItemId))
 		else:
 			self.logger.info("No initial production rate specified. Will initialize target production to {} {} per step".format(self.targetProductionRate, self.sellItemId))
+		self.currentProductionRateAvg = self.targetProductionRate
 
 		#Keep track of sell price
-		baseUtility = self.agent.utilityFunctions[self.sellItemId].baseUtility
-		self.sellPrice = round(baseUtility*0.7)
+		averageCustomers = 13/2
+		self.sellPrice = (self.agent.utilityFunctions[self.sellItemId].getMarginalUtility(self.targetProductionRate/averageCustomers)) * (1+(random.random()-0.5))
 		self.currentSalesAvg = self.targetProductionRate 
 		self.stepSales = self.currentSalesAvg
 		#self.stepSalesLock = threading.Lock()  #TODO
@@ -1146,19 +1146,33 @@ class TestFarmCompetetive:
 		self.agent.subcribeTickBlocking()
 
 		#Spawn initial quantity of land
-		self.agent.receiveLand("UNALLOCATED", 9999)
+		self.agent.receiveLand("UNALLOCATED", 9999999999)
 
 		#Spawn initial inventory of items
 		self.agent.receiveItem(ItemContainer(self.sellItemId, self.targetProductionRate))
 
 	def adjustProduction(self):
+		self.logger.info("### Adjusting production ###")
+
 		#Alphas for moving exponential adjustments
-		prodAlpha = 0.2
-		priceAlpha = 0.2
+		prodAlpha = 0.3
+		priceAlpha = 0.3
+
+		#Get total contracted labor
+		contactLaborInventory = self.agent.getNetContractedEmployeeLabor()
+		laborSum = 0
+		for skillLevel in contactLaborInventory:
+			laborSum += contactLaborInventory[skillLevel]
+
+		#Get labor deficit ratio
+		laborDeficitRatio = 1
+		if (self.requiredLabor > 0):
+			laborDeficitRatio = 1 - (self.requiredLabor/(laborSum+self.requiredLabor))  #TODO: FIX ME
 
 		#Adjust target production
 		self.logger.info("Old target production rate = {}".format(self.targetProductionRate))
-		self.targetProductionRate = ((1-prodAlpha)*self.currentProductionRateAvg) + (prodAlpha*self.currentSalesAvg)
+		self.logger.info("Labor deficit ratio = {}".format(laborDeficitRatio))
+		self.targetProductionRate = ((1-prodAlpha)*self.targetProductionRate) + (prodAlpha*self.currentSalesAvg)#*(self.targetProductionRate/self.currentProductionRateAvg))
 		self.logger.info("New target production rate = {}".format(self.targetProductionRate))
 		self.logger.info("Average production rate = {}".format(self.currentProductionRateAvg))
 
@@ -1176,16 +1190,20 @@ class TestFarmCompetetive:
 		self.logger.info("Average market price = {}".format(averagePrice))
 		self.sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*averagePrice)
 
-		#Adjust target price based on inventory
+		#Adjust target price based on inventory and sale ratios
 		productInventory = 0
 		if (self.sellItemId in self.agent.inventory):
 			productInventory = self.agent.inventory[self.sellItemId].quantity
 
 		inventoryRatio = (self.currentProductionRateAvg+1) / (productInventory+1)
+		saleRatio = (self.currentSalesAvg+1)/(self.currentProductionRateAvg+1)
+		adjustmentRatio = saleRatio*inventoryRatio
 		self.logger.info("Inventory ratio = {}".format(inventoryRatio))
-		if (inventoryRatio > 1.2) or (inventoryRatio < 0.8):
+		self.logger.info("Sale ratio = {}".format(saleRatio))
+		self.logger.info("Adjustment ratio = {}".format(adjustmentRatio))
+		if (adjustmentRatio > 1.2) or (adjustmentRatio < 0.8):
 			#Adjust sell price
-			newPrice = self.sellPrice * inventoryRatio
+			newPrice = self.sellPrice * adjustmentRatio
 			self.sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*newPrice)
 			self.logger.info("New sale price = {}".format(self.sellPrice))
 
@@ -1373,7 +1391,7 @@ class TestFarmCompetetive:
 			if (self.agent.stepNum >= self.startStep):
 				#Update sales average
 				self.logger.info("Step sales = {}".format(self.stepSales))
-				alpha = 0.3
+				alpha = 0.2
 				self.currentSalesAvg = ((1-alpha)*self.currentSalesAvg) + (alpha*self.stepSales)
 				self.logger.info("Current sales average = {}".format(self.currentSalesAvg))
 				self.stepSales = 0

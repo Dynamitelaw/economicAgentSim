@@ -244,17 +244,18 @@ class ItemPriceTracker:
 					if (incommingPacket.payload["accepted"]):
 						#This item trade request was accepted
 						quantity = itemPackage.quantity
-						tradeRequest = incommingPacket.payload["tradeRequest"]
-						currencyAmount = tradeRequest.currencyAmount
-						unitPrice = currencyAmount/quantity
+						if (quantity > 0):
+							tradeRequest = incommingPacket.payload["tradeRequest"]
+							currencyAmount = tradeRequest.currencyAmount
+							unitPrice = currencyAmount/quantity
 
-						acquired_priceTrackingLock = self.priceTrackingLock.acquire(timeout=self.lockTimout)
-						if (acquired_priceTrackingLock):
-							self.unitPrices.append(unitPrice)
-							self.quantityPurchased += quantity
-							self.priceTrackingLock.release()
-						else:
-							self.logger.error("{}.handleSnoop() Lock priceTrackingLock acquisition timout B".format(self.name))
+							acquired_priceTrackingLock = self.priceTrackingLock.acquire(timeout=self.lockTimout)
+							if (acquired_priceTrackingLock):
+								self.unitPrices.append(unitPrice)
+								self.quantityPurchased += quantity
+								self.priceTrackingLock.release()
+							else:
+								self.logger.error("{}.handleSnoop() Lock priceTrackingLock acquisition timout B".format(self.name))
 
 
 class LaborContractTracker:

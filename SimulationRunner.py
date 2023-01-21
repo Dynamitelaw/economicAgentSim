@@ -256,6 +256,7 @@ def RunSimulation(settingsDict, logLevel="INFO"):
 		childProcesses.append(managerProc)
 		managerProc.start()
 		#managerProc.join()  #DO NOT use a join statment here, or anywhere else in this function. It breaks interrupt handling
+		#launchSimulation(simManagerSeed, settingsDict)
 
 	except KeyboardInterrupt:
 		for proc in childProcesses:
