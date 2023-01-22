@@ -1001,7 +1001,6 @@ class TestFarmWorker:
 
 		#Initiate thread kill flag to false
 		self.killThreads = False
-		self.searchStart = False
 
 		#Spawn starting balance
 		self.agent.receiveCurrency(9999)
@@ -1041,16 +1040,11 @@ class TestFarmWorker:
 				self.killThreads = True
 
 	def searchJobs(self):
-		if not (self.searchStart):
-			randomNum = random.random()
-			if (randomNum < 0.67):
-				self.agent.relinquishTimeTicks()
-				return
-			self.searchStart = True
-
 		if (len(self.agent.laborContracts) == 0):
+			self.logger.info("Searching for jobs")
 			#Select a job listing
 			sampledListings = self.agent.sampleLaborListings(sampleSize=7)
+			self.logger.info("Found {} job listings".format(len(sampledListings)))
 
 			#Sort listings by wage
 			wageDict = {}
@@ -1067,10 +1061,13 @@ class TestFarmWorker:
 			for wageKey in sortedWages:
 				for listing in wageDict[wageKey]:
 					applicationAccepted = self.agent.sendJobApplication(listing)
+					self.logger.info("Application accepted = {} for {}".format(applicationAccepted, listing))
 					if (applicationAccepted):
 						break
 				if (applicationAccepted):
 					break
+
+			self.logger.info("Could not find a job this step")
 
 
 class TestFarmCompetetive:
@@ -1130,7 +1127,7 @@ class TestFarmCompetetive:
 
 		self.laborSkillLevel = 0
 		self.maxTicksPerStep = 8
-		self.contractLength = 5
+		self.contractLength = int(5*(1+((random.random()-0.5)/2)))
 
 		self.workerWage = 20*(1 + ((random.random()-0.5)/2))
 		self.applications = 0
@@ -1155,8 +1152,8 @@ class TestFarmCompetetive:
 		self.logger.info("### Adjusting production ###")
 
 		#Alphas for moving exponential adjustments
-		prodAlpha = 0.3
-		priceAlpha = 0.3
+		prodAlpha = 0.1
+		priceAlpha = 0.2
 
 		#Get total contracted labor
 		contactLaborInventory = self.agent.getNetContractedEmployeeLabor()
@@ -1169,10 +1166,16 @@ class TestFarmCompetetive:
 		if (self.requiredLabor > 0):
 			laborDeficitRatio = 1 - (self.requiredLabor/(laborSum+self.requiredLabor))  #TODO: FIX ME
 
+		#Get product inventory
+		productInventory = 0
+		if (self.sellItemId in self.agent.inventory):
+			productInventory = self.agent.inventory[self.sellItemId].quantity
+
 		#Adjust target production
 		self.logger.info("Old target production rate = {}".format(self.targetProductionRate))
 		self.logger.info("Labor deficit ratio = {}".format(laborDeficitRatio))
-		self.targetProductionRate = ((1-prodAlpha)*self.targetProductionRate) + (prodAlpha*self.currentSalesAvg)#*(self.targetProductionRate/self.currentProductionRateAvg))
+		inventoryRatio = (self.currentProductionRateAvg+1) / (productInventory+1)
+		self.targetProductionRate = ((1-prodAlpha)*self.targetProductionRate) + (prodAlpha*self.currentSalesAvg*inventoryRatio*1.1)#*(self.targetProductionRate/self.currentProductionRateAvg))
 		self.logger.info("New target production rate = {}".format(self.targetProductionRate))
 		self.logger.info("Average production rate = {}".format(self.currentProductionRateAvg))
 
@@ -1190,18 +1193,14 @@ class TestFarmCompetetive:
 		self.logger.info("Average market price = {}".format(averagePrice))
 		self.sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*averagePrice)
 
-		#Adjust target price based on inventory and sale ratios
-		productInventory = 0
-		if (self.sellItemId in self.agent.inventory):
-			productInventory = self.agent.inventory[self.sellItemId].quantity
-
-		inventoryRatio = (self.currentProductionRateAvg+1) / (productInventory+1)
+		#inventoryRatio = (self.currentProductionRateAvg+1) / (productInventory+1)
 		saleRatio = (self.currentSalesAvg+1)/(self.currentProductionRateAvg+1)
-		adjustmentRatio = saleRatio*inventoryRatio
-		self.logger.info("Inventory ratio = {}".format(inventoryRatio))
+		#adjustmentRatio = saleRatio*inventoryRatio
+		adjustmentRatio = saleRatio
+		#self.logger.info("Inventory ratio = {}".format(inventoryRatio))
 		self.logger.info("Sale ratio = {}".format(saleRatio))
 		self.logger.info("Adjustment ratio = {}".format(adjustmentRatio))
-		if (adjustmentRatio > 1.2) or (adjustmentRatio < 0.8):
+		if (adjustmentRatio > 1.1) or (adjustmentRatio < 0.9):
 			#Adjust sell price
 			newPrice = self.sellPrice * adjustmentRatio
 			self.sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*newPrice)
@@ -1270,16 +1269,16 @@ class TestFarmCompetetive:
 			for listing in sampledListings:
 				sumWage += listing.wagePerTick
 			averageWage = sumWage/len(sampledListings)
-		self.workerWage = ((1-alpha)*self.workerWage)+(alpha*averageWage)
+		self.workerWage = ((1-alpha)*self.workerWage)+(alpha*averageWage*0.9)
 
 		#Adjust wage based on worker deficit and application number
 		divisor = 1
 		if (self.workerDeficit < 0):
-			divisor = pow(abs(self.workerDeficit), 1.2)
+			divisor = pow(abs(self.workerDeficit)*1.2, 0.7)
 		if (self.workerDeficit > 0):
-			divisor = pow(1/(self.workerDeficit), 1.2)
-		if (self.applications>0):
-			divisor = pow(self.applications/(divisor), 1.9)
+			divisor = 1/pow((self.workerDeficit*1.2), 0.7)
+		if (abs(self.applications/self.workerDeficit)>1.5):
+			divisor = pow(abs(self.applications/self.workerDeficit), 0.7)
 
 		dividend = 1.0
 		if (self.openSteps > 0):
@@ -1323,7 +1322,10 @@ class TestFarmCompetetive:
 
 	def manageLabor(self):
 		#Update worker deficit
-		self.workerDeficit = math.ceil(self.requiredLabor/self.maxTicksPerStep)
+		if (self.requiredLabor > 0):
+			self.workerDeficit = math.ceil(self.requiredLabor/self.maxTicksPerStep)
+		elif (self.requiredLabor < 0):
+			self.workerDeficit = math.floor(self.requiredLabor/self.maxTicksPerStep)
 
 		#Adjust wages
 		self.adjustNextWage()

@@ -132,7 +132,11 @@ class ProductionFunction:
 
 	def updateCosts(self):
 		#Update current production efficiency
-		newInnefficiency = self.startInnefficiency / math.pow(2, (self.producedItems/self.halfLifeQuant))
+		newInnefficiency = 0
+		try:
+			newInnefficiency = self.startInnefficiency / math.pow(2, (self.producedItems/self.halfLifeQuant))
+		except:
+			newInnefficiency = (1-self.efficiency)*0.95
 		self.efficiency = 1 - newInnefficiency
 
 		#Update fixed costs
@@ -690,8 +694,9 @@ class NutritionTracker:
 
 		#Keep track of previous food intake
 		self.historyWindow = 7  #number of steps
-		self.consumptionHistory = queue.Queue(self.historyWindow)
-		self.consumptionTotal = {}
+		#self.consumptionHistory = queue.Queue(self.historyWindow)
+		#self.consumptionTotal = {}
+		self.consumptionAvg = {}
 		self.stepConsumption = {}
 
 	def advanceStep(self):
@@ -712,14 +717,26 @@ class NutritionTracker:
 		self.currentFat = 0
 		self.currentWater = 0
 
-		#Move previous step consumption into consumption history
-		if (self.consumptionHistory.full()):
-			#History is full. Remove oldest entry
-			oldestStepConsumption = self.consumptionHistory.get()
-			for foodId in oldestStepConsumption:
-				self.consumptionTotal[foodId] -= oldestStepConsumption[foodId]
+		# #Move previous step consumption into consumption history
+		# if (self.consumptionHistory.full()):
+		# 	#History is full. Remove oldest entry
+		# 	oldestStepConsumption = self.consumptionHistory.get()
+		# 	for foodId in oldestStepConsumption:
+		# 		self.consumptionTotal[foodId] -= oldestStepConsumption[foodId]
 
-		self.consumptionHistory.put(copy.deepcopy(self.stepConsumption))
+		# self.consumptionHistory.put(copy.deepcopy(self.stepConsumption))
+
+		#Add step consumption to moving exponential average
+		alpha = 0.1
+		for foodId in self.stepConsumption:
+			if (foodId in self.consumptionAvg):
+				self.consumptionAvg[foodId] = ((1-alpha)*self.consumptionAvg[foodId]) + (alpha*self.stepConsumption[foodId])
+			else:
+				self.consumptionAvg[foodId] = self.stepConsumption[foodId]
+
+		for foodId in self.consumptionAvg:
+			if not (foodId in self.stepConsumption):
+				self.consumptionAvg[foodId] = ((1-alpha)*self.consumptionAvg[foodId])
 
 		#Reset step consumption
 		self.stepConsumption = {}
@@ -739,10 +756,9 @@ class NutritionTracker:
 			self.stepConsumption[foodId] = 0
 		self.stepConsumption[foodId] += quantity
 
-		#Add this to our consumption total
-		if not (foodId in self.consumptionTotal):
-			self.consumptionTotal[foodId] = 0
-		self.consumptionTotal[foodId] += quantity
+		#Add this to our consumption average
+		if not (foodId in self.consumptionAvg):
+			self.consumptionAvg[foodId] = quantity
 
 	def getAutoMeal(self):
 		'''
@@ -890,13 +906,16 @@ class NutritionTracker:
 
 
 	def getQuantityConsumed(self, agent, foodId):
-		if (foodId in self.consumptionTotal):
-			if (agent.stepNum < (self.historyWindow-1)):
-				quantity = self.consumptionTotal[foodId]
-				extrapolatedQuantity = quantity * (self.historyWindow/(agent.stepNum+1))
-				return extrapolatedQuantity
-			else:
-				return self.consumptionTotal[foodId]
+		# if (foodId in self.consumptionTotal):
+		# 	if (agent.stepNum < (self.historyWindow-1)):
+		# 		quantity = self.consumptionTotal[foodId]
+		# 		extrapolatedQuantity = quantity * (self.historyWindow/(agent.stepNum+1))
+		# 		return extrapolatedQuantity
+		# 	else:
+		# 		return self.consumptionTotal[foodId]
+
+		if (foodId in self.consumptionAvg):
+				return self.consumptionAvg[foodId]
 
 		return 0
 
