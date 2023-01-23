@@ -6,6 +6,7 @@ import random
 import os
 import threading
 import math
+from sortedcontainers import SortedList
 
 import utils
 from TradeClasses import *
@@ -1129,7 +1130,7 @@ class TestFarmCompetetive:
 		self.maxTicksPerStep = 8
 		self.contractLength = int(5*(1+((random.random()-0.5)/2)))
 
-		self.workerWage = 20*(1 + ((random.random()-0.5)/2))
+		self.workerWage = 60*(1 + ((random.random()-0.5)/2))
 		self.applications = 0
 		self.openSteps = 0
 		self.workerDeficit = math.ceil(self.requiredLabor/self.maxTicksPerStep)
@@ -1154,6 +1155,7 @@ class TestFarmCompetetive:
 		#Alphas for moving exponential adjustments
 		prodAlpha = 0.1
 		priceAlpha = 0.2
+		medianPriceAlpha = 0.4
 
 		#Get total contracted labor
 		contactLaborInventory = self.agent.getNetContractedEmployeeLabor()
@@ -1179,22 +1181,23 @@ class TestFarmCompetetive:
 		self.logger.info("New target production rate = {}".format(self.targetProductionRate))
 		self.logger.info("Average production rate = {}".format(self.currentProductionRateAvg))
 
-		#Adjust target price based on average price
+		#Adjust target price based on median price
 		self.logger.info("Old sale price = {}".format(self.sellPrice))
 
-		averagePrice = self.sellPrice
-		sampledListings = self.agent.sampleItemListings(ItemContainer(self.sellItemId, 0.01), sampleSize=10)
-		sumPrice = 0
+		medianPrice = self.sellPrice
+		sampledListings = self.agent.sampleItemListings(ItemContainer(self.sellItemId, 0.01), sampleSize=30)
+		sampledPrices = SortedList()
 		if (len(sampledListings) > 0):
 			for listing in sampledListings:
-				sumPrice += listing.unitPrice
-			averagePrice = sumPrice/len(sampledListings)
+				sampledPrices.add(listing.unitPrice)
+			medianPrice = sampledPrices[int(len(sampledListings)/2)]
 
-		self.logger.info("Average market price = {}".format(averagePrice))
-		self.sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*averagePrice)
+		self.logger.info("Median market price = {}".format(medianPrice))
+		self.sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*medianPrice*1.05)
 
+		#Adjust price based on inventory ratios
 		#inventoryRatio = (self.currentProductionRateAvg+1) / (productInventory+1)
-		saleRatio = (self.currentSalesAvg+1)/(self.currentProductionRateAvg+1)
+		saleRatio = pow((self.currentSalesAvg+1)/(self.currentProductionRateAvg+1), 1.3)
 		#adjustmentRatio = saleRatio*inventoryRatio
 		adjustmentRatio = saleRatio
 		#self.logger.info("Inventory ratio = {}".format(inventoryRatio))
@@ -1260,33 +1263,34 @@ class TestFarmCompetetive:
 
 
 	def adjustNextWage(self):
-		alpha = 0.3
+		medianAlpha = 0.4
+		adjustmentAlpha = 0.2
 		#Adjust wage  based on market rate
-		averageWage = self.workerWage
-		sampledListings = self.agent.sampleLaborListings(sampleSize=10)
-		sumWage = 0
+		medianWage = self.workerWage
+		sampledListings = self.agent.sampleLaborListings(sampleSize=30)
+		sampledWages = SortedList()
 		if (len(sampledListings) > 0):
 			for listing in sampledListings:
-				sumWage += listing.wagePerTick
-			averageWage = sumWage/len(sampledListings)
-		self.workerWage = ((1-alpha)*self.workerWage)+(alpha*averageWage*0.9)
+				sampledWages.add(listing.wagePerTick)
+			medianWage = sampledWages[int(len(sampledListings)/2)]
+		self.workerWage = ((1-medianAlpha)*self.workerWage)+(medianAlpha*medianWage*0.95)
 
 		#Adjust wage based on worker deficit and application number
 		divisor = 1
 		if (self.workerDeficit < 0):
-			divisor = pow(abs(self.workerDeficit)*1.2, 0.7)
-		if (self.workerDeficit > 0):
-			divisor = 1/pow((self.workerDeficit*1.2), 0.7)
+			divisor = pow(abs(self.workerDeficit)*1.2, 1.2)
+		if (self.workerDeficit > 0) and (self.openSteps > 2):
+			divisor = 1/pow((self.workerDeficit), 0.3)
 		if (abs(self.applications/self.workerDeficit)>1.5):
-			divisor = pow(abs(self.applications/self.workerDeficit), 0.7)
+			divisor = pow(abs(self.applications/self.workerDeficit), 1.5)
 
 		dividend = 1.0
-		if (self.openSteps > 0):
-			dividend = (pow(self.openSteps, 0.4))
+		if (self.openSteps > 3):
+			dividend = (pow(self.openSteps, 0.2))
 
 		#Adjust the wage for next time
 		adjustmentRatio = dividend/divisor
-		self.workerWage = ((1-alpha)*self.workerWage)+(alpha*adjustmentRatio*self.workerWage)
+		self.workerWage = ((1-adjustmentAlpha)*self.workerWage)+(adjustmentAlpha*adjustmentRatio*self.workerWage)
 
 		#Print stats
 		self.logger.debug("HR Stats: requiredLabor={}, workerDeficit={}, applications={}, openSteps={}, adjustmentRatio={}, workerWage={}".format(self.requiredLabor, self.workerDeficit, self.applications, self.openSteps, adjustmentRatio, self.workerWage))

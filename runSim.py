@@ -14,27 +14,30 @@ from SimulationRunner import RunSimulation
 
 
 def runSim(settingsFilePath, logLevel="INFO"):
-	if (not os.path.exists(settingsFilePath)):
-		raise ValueError("\"{}\" does not exist".format(settingsFilePath))
-
-	fileDict = {}
 	try:
-		file = open(settingsFilePath, "r")
-		fileDict = json.load(file)
-		file.close()
+		if (not os.path.exists(settingsFilePath)):
+			raise ValueError("\"{}\" does not exist".format(settingsFilePath))
+
+		fileDict = {}
+		try:
+			file = open(settingsFilePath, "r")
+			fileDict = json.load(file)
+			file.close()
+		except:
+			print(traceback.format_exc())
+			raise ValueError("Could not open \"{}\"".format(settingsFilePath))
+
+		if ("description" in fileDict):
+			description = fileDict["description"]
+			print("\n{}\n".format(description))
+
+		if (not "settings" in fileDict):
+			raise ValueError("\"settings\" missing from \"{}\"".format(settingsFilePath))
+
+		settingsDict = fileDict["settings"]
+		RunSimulation(settingsDict, logLevel)
 	except:
 		print(traceback.format_exc())
-		raise ValueError("Could not open \"{}\"".format(settingsFilePath))
-
-	if ("description" in fileDict):
-		description = fileDict["description"]
-		print("\n{}\n".format(description))
-
-	if (not "settings" in fileDict):
-		raise ValueError("\"settings\" missing from \"{}\"".format(settingsFilePath))
-
-	settingsDict = fileDict["settings"]
-	RunSimulation(settingsDict, logLevel)
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
