@@ -1193,11 +1193,11 @@ class TestFarmCompetetive:
 			medianPrice = sampledPrices[int(len(sampledListings)/2)]
 
 		self.logger.info("Median market price = {}".format(medianPrice))
-		self.sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*medianPrice*1.05)
+		self.sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*medianPrice)
 
 		#Adjust price based on inventory ratios
 		#inventoryRatio = (self.currentProductionRateAvg+1) / (productInventory+1)
-		saleRatio = pow((self.currentSalesAvg+1)/(self.currentProductionRateAvg+1), 1.3)
+		saleRatio = pow((self.currentSalesAvg+1)/(self.currentProductionRateAvg+1), 0.9)
 		#adjustmentRatio = saleRatio*inventoryRatio
 		adjustmentRatio = saleRatio
 		#self.logger.info("Inventory ratio = {}".format(inventoryRatio))
@@ -1273,7 +1273,7 @@ class TestFarmCompetetive:
 			for listing in sampledListings:
 				sampledWages.add(listing.wagePerTick)
 			medianWage = sampledWages[int(len(sampledListings)/2)]
-		self.workerWage = ((1-medianAlpha)*self.workerWage)+(medianAlpha*medianWage*0.95)
+		self.workerWage = ((1-medianAlpha)*self.workerWage)+(medianAlpha*medianWage)
 
 		#Adjust wage based on worker deficit and application number
 		divisor = 1
