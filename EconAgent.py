@@ -1118,6 +1118,7 @@ class Agent:
 		self.logger.info("{} instantiated".format(self.info))
 
 		self.lockTimeout = 5
+		self.responsePollTime = 0.00001
 
 		self.itemDict = itemDict
 
@@ -1199,6 +1200,56 @@ class Agent:
 		#Keep track of agent nutrition
 		self.enableNutrition = False
 		self.nutritionTracker = None
+
+		#####
+		# Keep track of accounting stats
+		#####
+		self.accountingAlpha = 0.2
+		#Labor income
+		self.laborIncomeTracking = False
+		self.totalLaborIncome = 0
+		self.avgLaborIncome = 0
+		self.stepLaborIncome = 0
+		self.laborIncomeLock = threading.Lock()
+		#Labor expenses
+		self.laborExpenseTracking = False
+		self.totalLaborExpense = 0
+		self.avgLaborExpense = 0
+		self.stepLaborExpense = 0
+		self.laborExpenseLock = threading.Lock()
+		#Trading revenue
+		self.tradeRevenueTracking = False
+		self.totalTradeRevenue = 0
+		self.avgTradeRevenue = 0
+		self.stepTradeRevenue = 0
+		self.tradeRevenueLock = threading.Lock()
+		#Item expenses
+		self.itemExpensesTracking = False
+		self.totalItemExpenses = 0
+		self.avgItemExpenses = 0
+		self.stepItemExpenses = 0
+		self.itemExpensesLock = threading.Lock()
+		#Land revenue
+		self.landRevenueTracking = False
+		self.totalLandRevenue = 0
+		self.landRevenueLock = threading.Lock()
+		#Land expenses
+		self.landExpensesTracking = False
+		self.totalLandExpenses = 0
+		self.landExpensesLock = threading.Lock()
+		#Currency inflows
+		self.currencyInflowTracking = False
+		self.totalCurrencyInflow = 0
+		self.avgCurrencyInflow = 0
+		self.stepCurrencyInflow = 0
+		self.currencyInflowLock = threading.Lock()
+		#Currency outflows
+		self.currencyOutflowTracking = False
+		self.totalCurrencyOutflow = 0
+		self.avgCurrencyOutflow = 0
+		self.stepCurrencyOutflow = 0
+		self.currencyOutflowLock = threading.Lock()
+
 
 		#Production functions
 		self.productionFunctions = {}
@@ -1355,7 +1406,7 @@ class Agent:
 
 			#Hanle incoming tick grants
 			elif ((incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST")):
-				self.logger.debug("laborInventory = {}".format(self.laborInventory))
+				#This is the start of a new step
 				self.fullfilledContracts = False
 
 				ticksGranted = incommingPacket.payload
@@ -1371,10 +1422,13 @@ class Agent:
 						self.tickBlockFlag = False
 						self.tickBlockFlag_Lock.release()  #<== tickBlockFlag_Lock release
 					else:
-						self.logger.error("TICK_GRANT tickBlockFlag_Lock acquire timeout")
+						self.logger.critical("TICK_GRANT tickBlockFlag_Lock acquire timeout")
 
 				else:
-					self.logger.error("TICK_GRANT timeTickLock acquire timeout")
+					self.logger.critical("TICK_GRANT timeTickLock acquire timeout")
+
+				#Update accounting
+				self.updateAcountingAverages()
 
 				#Daily nutritional stuff
 				if (self.enableNutrition):
@@ -1427,6 +1481,125 @@ class Agent:
 
 
 	#########################
+	# Accounting Methods
+	#########################
+	def updateAcountingAverages(self):
+		#Labor income
+		if (self.laborIncomeTracking):
+			self.laborIncomeLock.acquire()
+			self.avgLaborIncome = ((1-self.accountingAlpha)*self.avgLaborIncome) + (self.accountingAlpha*self.stepLaborIncome)
+			self.stepLaborIncome = 0
+			self.laborIncomeLock.release()
+		#Labor expenses
+		if (self.laborExpenseTracking):
+			self.laborExpenseLock.acquire()
+			self.avgLaborExpense = ((1-self.accountingAlpha)*self.avgLaborExpense) + (self.accountingAlpha*self.stepLaborExpense)
+			self.stepLaborExpense = 0
+			self.laborExpenseLock.release()
+		#Trading revenue
+		if (self.tradeRevenueTracking):
+			self.tradeRevenueLock.acquire()
+			self.avgTradeRevenue = ((1-self.accountingAlpha)*self.avgTradeRevenue) + (self.accountingAlpha*self.stepTradeRevenue)
+			self.stepTradeRevenue = 0
+			self.tradeRevenueLock.release()
+		#Item expenses
+		if (self.itemExpensesTracking):
+			self.itemExpensesLock.acquire()
+			self.avgItemExpenses = ((1-self.accountingAlpha)*self.avgItemExpenses) + (self.accountingAlpha*self.stepItemExpenses)
+			self.stepItemExpenses = 0
+			self.itemExpensesLock.release()
+		#Currency inflow
+		if (self.currencyInflowTracking):
+			self.currencyInflowLock.acquire()
+			self.avgCurrencyInflow = ((1-self.accountingAlpha)*self.avgCurrencyInflow) + (self.accountingAlpha*self.stepCurrencyInflow)
+			self.stepCurrencyInflow = 0
+			self.currencyInflowLock.release()
+		#Currency outflow
+		if (self.currencyOutflowTracking):
+			self.currencyOutflowLock.acquire()
+			self.avgCurrencyOutflow = ((1-self.accountingAlpha)*self.avgCurrencyOutflow) + (self.accountingAlpha*self.stepCurrencyOutflow)
+			self.stepCurrencyOutflow = 0
+			self.currencyOutflowLock.release()
+
+
+	#Labor income
+	def enableLaborIncomeTracking(self):
+		self.laborIncomeTracking = True
+	def getTotalLaborIncome(self):
+		return self.totalLaborIncome
+	def getAvgLaborIncome(self):
+		return self.avgLaborIncome
+	def resetLaborIncome(self):
+		self.totalLaborIncome = 0
+
+	#Labor expenses
+	def enableLaborExpenseTracking(self):
+		self.laborExpenseTracking = True
+	def getTotalLaborExpense(self):
+		return self.totalLaborExpense
+	def getAvgLaborExpense(self):
+		return self.avgLaborExpense
+	def resetLaborExpense(self):
+		self.totalLaborExpense = 0
+
+	#Trading revenue
+	def enableTradeRevenueTracking(self):
+		self.tradeRevenueTracking = True
+	def getTotalTradeRevenue(self):
+		return self.totalTradeRevenue
+	def getAvgTradeRevenue(self):
+		return self.avgTradeRevenue
+	def resetTradeRevenue(self):
+		self.totalTradeRevenue = 0
+
+	#Item expenses
+	def enableItemExpensesTracking(self):
+		self.itemExpensesTracking = True
+	def getTotalItemExpenses(self):
+		return self.totalItemExpenses
+	def getAvgItemExpenses(self):
+		return self.avgItemExpenses
+	def resetItemExpenses(self):
+		self.totalItemExpenses = 0
+
+	#Land revenue
+	def enableLandRevenueTracking(self):
+		self.landRevenueTracking = True
+	def getTotalLandRevenue(self):
+		return self.totalLandRevenue
+	def resetLandRevenue(self):
+		self.totalLandRevenue = 0
+
+	#Land expenses
+	def enableLandExpensesTracking(self):
+		self.landExpensesTracking = True
+	def getTotalLandExpenses(self):
+		return self.totalLandExpenses
+	def resetLandExpenses(self):
+		self.totalLandExpenses = 0
+
+	#Currency inflows
+	def enableCurrencyInflowTracking(self):
+		self.currencyInflowTracking = True
+	def getTotalCurrencyInflow(self):
+		return self.totalCurrencyInflow
+	def getAvgCurrencyInflow(self):
+		return self.avgCurrencyInflow
+	def resetCurrencyInflow(self):
+		self.totalCurrencyInflow = 0
+
+	#Currency outflows
+	def enableCurrencyOutflowTracking(self):
+		self.currencyOutflowTracking = True
+	def getTotalCurrencyOutflow(self):
+		return self.totalCurrencyOutflow
+	def getAvgCurrencyOutflow(self):
+		return self.avgCurrencyOutflow
+	def resetCurrencyOutflow(self):
+		self.totalCurrencyOutflow = 0
+
+
+	#########################
 	# Currency transfer functions
 	#########################
 	def receiveCurrency(self, cents, incommingPacket=None):
@@ -1461,12 +1634,28 @@ class Agent:
 					self.logger.error("receiveCurrency() Lock \"currencyBalanceLock\" acquisition timeout")
 					transferSuccess = False
 
+			#Send CURRENCY_TRANSFER_ACK
 			if (self.needCurrencyTransferAck):
-				#Send CURRENCY_TRANSFER_ACK
 				if (incommingPacket):
 					respPayload = {"paymentId": incommingPacket.payload["paymentId"], "transferSuccess": transferSuccess}
 					responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType="CURRENCY_TRANSFER_ACK", payload=respPayload, transactionId=incommingPacket.transactionId)
 					self.sendPacket(responsePacket)
+
+			#Update accounting
+			if (transferSuccess and self.currencyInflowTracking):
+				self.currencyInflowLock.acquire()
+				self.stepCurrencyInflow += int(cents)
+				self.totalCurrencyInflow += int(cents)
+				self.currencyInflowLock.release()
+
+			if (transferSuccess and self.laborIncomeTracking):
+				if (incommingPacket):
+					paymentId = incommingPacket.payload["paymentId"]
+					if ("LaborPayment_" in paymentId):
+						self.laborIncomeLock.acquire()
+						self.stepLaborIncome += int(cents)
+						self.totalLaborIncome += int(cents)
+						self.laborIncomeLock.release()
 
 			#Return transfer status
 			self.logger.debug("{}.receiveCurrency({}) return {}".format(self.agentId, cents, transferSuccess))
@@ -1519,7 +1708,7 @@ class Agent:
 				if (self.needCurrencyTransferAck):
 					#Wait for transaction response
 					while not (paymentId in self.responseBuffer):
-						time.sleep(0.0001)
+						time.sleep(self.responsePollTime)
 						pass
 					responsePacket = self.responseBuffer[paymentId]
 
@@ -1543,6 +1732,13 @@ class Agent:
 							transferSuccess = False
 				else:
 					transferSuccess = True
+
+				#Update accounting
+				if (transferSuccess and self.currencyOutflowTracking):
+					self.currencyOutflowLock.acquire()
+					self.stepCurrencyOutflow += int(cents)
+					self.totalCurrencyOutflow += int(cents)
+					self.currencyOutflowLock.release()
 				
 			else:
 				#Lock acquisition timout
@@ -1649,7 +1845,7 @@ class Agent:
 				if (self.needItemTransferAck):
 					#Wait for transaction response
 					while not (transferId in self.responseBuffer):
-						time.sleep(0.00001)
+						time.sleep(self.responsePollTime)
 						pass
 					responsePacket = self.responseBuffer[transferId]
 
@@ -1879,6 +2075,13 @@ class Agent:
 					
 				tradeCompleted = moneySent
 
+				#Update accounting
+				if (tradeCompleted and self.itemExpensesTracking):
+					self.itemExpensesLock.acquire()
+					self.stepItemExpenses += request.currencyAmount
+					self.totalItemExpenses += request.currencyAmount
+					self.itemExpensesLock.release()
+
 			if (self.agentId == request.sellerId):
 				#We are the seller. Send item package
 				itemSent = self.sendItem(request.itemPackage, request.buyerId, transactionId=request.reqId)
@@ -1886,6 +2089,13 @@ class Agent:
 					self.logger.error("Item transfer failed {}".format(request))
 					
 				tradeCompleted = itemSent
+
+				#Update accounting
+				if (tradeCompleted and self.tradeRevenueTracking):
+					self.tradeRequestLock.acquire()
+					self.stepTradeRevenue += request.currencyAmount
+					self.totalTradeRevenue += request.currencyAmount
+					self.tradeRequestLock.release()
 
 			return tradeCompleted
 
@@ -1947,7 +2157,7 @@ class Agent:
 			if (offerAccepted):
 				self.logger.debug("Waiting for counterparty to complete trade {}".format(request))
 				while (request.reqId in self.outstandingTrades):
-					time.sleep(0.00001)
+					time.sleep(self.responsePollTime)
 					pass
 				self.logger.debug("Counterparty completed trade {}".format(request))
 
@@ -1966,9 +2176,16 @@ class Agent:
 		Returns True if the trade completed. Returns False if not
 		'''
 		try:
+			#Make sure this request is valid
 			quantity = request.itemPackage.quantity
 			if (quantity <= 0):
 				return False
+
+			if (self.agentId == request.buyerId):
+				#We are the buyer. Make sure we have enough money
+				if (self.currencyBalance < request.currencyAmount):
+					self.logger.error("Current balance {} not enough for {}".format(self.currencyBalance, request))
+					return False
 
 			self.tradeRequestLock.acquire()  #<== acquire tradeRequestLock
 
@@ -1982,7 +2199,7 @@ class Agent:
 			
 			#Wait for trade response
 			while not (tradeId in self.responseBuffer):
-				time.sleep(0.00001)
+				time.sleep(self.responsePollTime)
 				pass
 			responsePacket = self.responseBuffer[tradeId]
 
@@ -2141,7 +2358,7 @@ class Agent:
 				if (self.needLandTransferAck):
 					#Wait for transaction response
 					while not (transferId in self.responseBuffer):
-						time.sleep(0.00001)
+						time.sleep(self.responsePollTime)
 						pass
 					responsePacket = self.responseBuffer[transferId]
 
@@ -2198,6 +2415,12 @@ class Agent:
 					
 				tradeCompleted = moneySent
 
+				#Update accounting
+				if (tradeCompleted and self.landExpensesTracking):
+					self.landExpensesLock.acquire()
+					self.totalLandExpenses += request.currencyAmount
+					self.landExpensesLock.release()
+
 			if (self.agentId == request.sellerId):
 				#We are the seller. Send item package
 				landSent = self.sendLand(request.allocation, request.hectares, request.buyerId, transactionId=request.reqId)
@@ -2205,6 +2428,12 @@ class Agent:
 					self.logger.error("Land transfer failed {}".format(request))
 					
 				tradeCompleted = landSent
+
+				#Update accounting
+				if (tradeCompleted and self.landRevenueTracking):
+					self.landRevenueLock.acquire()
+					self.totalLandRevenue += request.currencyAmount
+					self.landRevenueLock.release()
 
 			return tradeCompleted
 
@@ -2266,7 +2495,7 @@ class Agent:
 			if (offerAccepted):
 				self.logger.debug("Waiting for counterparty to complete trade {}".format(request))
 				while (request.reqId in self.outstandingTrades):
-					time.sleep(0.00001)
+					time.sleep()
 					pass
 				self.logger.debug("Counterparty completed trade {}".format(request))
 
@@ -2285,6 +2514,13 @@ class Agent:
 		Returns True if the trade completed. Returns False if not
 		'''
 		try:
+			#Make sure this request is valid
+			if (self.agentId == request.buyerId):
+				#We are the buyer. Make sure we have enough money
+				if (self.currencyBalance < request.currencyAmount):
+					self.logger.error("Current balance {} not enough for {}".format(self.currencyBalance, request))
+					return False
+
 			self.landTradeRequestLock.acquire()  #<== acquire landTradeRequestLock
 
 			self.logger.debug("{}.sendLandTradeRequest({}, {}) start".format(self.agentId, request, recipientId))
@@ -2297,7 +2533,7 @@ class Agent:
 			
 			#Wait for trade response
 			while not (tradeId in self.responseBuffer):
-				time.sleep(0.00001)
+				time.sleep(self.responsePollTime)
 				pass
 			responsePacket = self.responseBuffer[tradeId]
 
@@ -2387,6 +2623,13 @@ class Agent:
 					self.logger.error("{} failed".format(paymentId))
 
 				contractFulfilled = paymentSent
+
+				#Update accounting
+				if (self.laborExpenseTracking):
+					self.laborExpenseLock.acquire()
+					self.stepLaborExpense += netPayment
+					self.totalLaborExpense += netPayment
+					self.laborExpenseLock.release()
 		else:
 			self.logger.error("{} already expired".format(laborContract))
 			contractFulfilled = False
@@ -2465,7 +2708,7 @@ class Agent:
 			
 			#Wait for application response
 			while not (applicationId in self.responseBuffer):
-				time.sleep(0.00001)
+				time.sleep(self.responsePollTime)
 				pass
 			responsePacket = self.responseBuffer[applicationId]
 
@@ -2592,7 +2835,7 @@ class Agent:
 
 		#Wait for response from itemMarket
 		while not (transactionId in self.responseBuffer):
-			time.sleep(0.0001)
+			time.sleep(self.responsePollTime)
 			pass
 		responsePacket = self.responseBuffer[transactionId]
 		sampledListings = responsePacket.payload
@@ -2745,7 +2988,7 @@ class Agent:
 
 		#Wait for response from itemMarket
 		while not (transactionId in self.responseBuffer):
-			time.sleep(0.0001)
+			time.sleep(self.responsePollTime)
 			pass
 		responsePacket = self.responseBuffer[transactionId]
 		sampledListings = responsePacket.payload
@@ -2833,7 +3076,7 @@ class Agent:
 
 		#Wait for response from itemMarket
 		while not (transactionId in self.responseBuffer):
-			time.sleep(0.0001)
+			time.sleep(self.responsePollTime)
 			pass
 		responsePacket = self.responseBuffer[transactionId]
 		sampledListings = responsePacket.payload

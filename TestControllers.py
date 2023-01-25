@@ -1020,6 +1020,9 @@ class TestFarmWorker:
 		#Enable hunger
 		self.agent.enableHunger()
 
+		#Enable accounting
+		self.agent.enableLaborIncomeTracking()
+
 	def receiveMsg(self, incommingPacket):
 		self.logger.info("INBOUND {}".format(incommingPacket))
 
@@ -1029,6 +1032,8 @@ class TestFarmWorker:
 				self.agent.enableHunger()
 
 			if (self.agent.stepNum >= self.startStep):
+				avgLaborIncome = self.agent.getAvgLaborIncome()
+				self.logger.info("Avg Labor Income = {}".format(avgLaborIncome))
 				self.searchJobs()
 
 			self.agent.relinquishTimeTicks()
@@ -1149,9 +1154,11 @@ class TestFarmCompetetive:
 		#Spawn initial inventory of items
 		self.agent.receiveItem(ItemContainer(self.sellItemId, self.targetProductionRate))
 
-	def adjustProduction(self):
-		self.logger.info("### Adjusting production ###")
+		#Enable accounting
+		self.agent.enableCurrencyOutflowTracking()
+		self.agent.enableCurrencyInflowTracking()
 
+	def adjustProduction(self):
 		#Alphas for moving exponential adjustments
 		prodAlpha = 0.1
 		priceAlpha = 0.2
@@ -1175,7 +1182,6 @@ class TestFarmCompetetive:
 
 		#Adjust target production
 		self.logger.info("Old target production rate = {}".format(self.targetProductionRate))
-		self.logger.info("Labor deficit ratio = {}".format(laborDeficitRatio))
 		inventoryRatio = (self.currentProductionRateAvg+1) / (productInventory+1)
 		self.targetProductionRate = ((1-prodAlpha)*self.targetProductionRate) + (prodAlpha*self.currentSalesAvg*inventoryRatio*1.1)#*(self.targetProductionRate/self.currentProductionRateAvg))
 		self.logger.info("New target production rate = {}".format(self.targetProductionRate))
@@ -1196,13 +1202,8 @@ class TestFarmCompetetive:
 		self.sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*medianPrice)
 
 		#Adjust price based on inventory ratios
-		#inventoryRatio = (self.currentProductionRateAvg+1) / (productInventory+1)
 		saleRatio = pow((self.currentSalesAvg+1)/(self.currentProductionRateAvg+1), 0.9)
-		#adjustmentRatio = saleRatio*inventoryRatio
 		adjustmentRatio = saleRatio
-		#self.logger.info("Inventory ratio = {}".format(inventoryRatio))
-		self.logger.info("Sale ratio = {}".format(saleRatio))
-		self.logger.info("Adjustment ratio = {}".format(adjustmentRatio))
 		if (adjustmentRatio > 1.1) or (adjustmentRatio < 0.9):
 			#Adjust sell price
 			newPrice = self.sellPrice * adjustmentRatio
@@ -1350,19 +1351,13 @@ class TestFarmCompetetive:
 			self.openSteps = 0
 
 	def produce(self):
-		self.logger.info("Target production = {}".format(self.targetProductionRate))
-
 		#Produce items
 		maxProductionPossible = self.agent.getMaxProduction(self.sellItemId)
-		self.logger.info("Max production = {}".format(maxProductionPossible))
-		self.logger.info("Labor inventory = {}".format(self.agent.laborInventory))
-		self.logger.info("Next Labor inventory = {}".format(self.agent.nextLaborInventory))
 
 		productionAmount = self.targetProductionRate
 		if (productionAmount > maxProductionPossible):
 			productionAmount = maxProductionPossible
 
-		self.logger.info("Production = {}".format(productionAmount))
 		producedItems = self.agent.produceItem(ItemContainer(self.sellItemId, productionAmount))
 
 		#Update production average
@@ -1396,11 +1391,15 @@ class TestFarmCompetetive:
 
 			if (self.agent.stepNum >= self.startStep):
 				#Update sales average
-				self.logger.info("Step sales = {}".format(self.stepSales))
 				alpha = 0.2
 				self.currentSalesAvg = ((1-alpha)*self.currentSalesAvg) + (alpha*self.stepSales)
-				self.logger.info("Current sales average = {}".format(self.currentSalesAvg))
 				self.stepSales = 0
+
+				#Print business stats
+				self.logger.info("Current sales average = {}".format(self.currentSalesAvg))
+				avgRevenue = self.agent.getAvgCurrencyInflow()
+				avgExpenses = self.agent.getAvgCurrencyOutflow()
+				self.logger.info("Avg Daily Expenses={}, Avg Daily Revenue={}, Avg Daily Profit={}".format(avgExpenses, avgRevenue, avgRevenue-avgExpenses))
 
 				#Adjust production
 				self.adjustProduction()
