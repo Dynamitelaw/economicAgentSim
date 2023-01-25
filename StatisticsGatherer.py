@@ -735,6 +735,7 @@ class StatisticsGatherer:
 
 
 	def handleSnoop(self, snoopedPacket):
+		#self.logger.debug("Snooped packet = {}".format(snoopedPacket))
 		snoopType = snoopedPacket.msgType
 		if (snoopType in self.snoopers):
 			for trackerObj in self.snoopers[snoopType]:

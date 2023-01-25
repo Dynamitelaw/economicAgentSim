@@ -22,7 +22,7 @@ class ItemMarketplace:
 		self.logger = utils.getLogger("ItemMarketplace", logFile=logFile, console="ERROR", outputdir=os.path.join("LOGS", "Markets"), fileLevel=fileLevel)
 		self.logger.info("ItemMarketplace instantiated")
 
-		self.lockTimeout = 5
+		self.lockTimeout = 15
 
 		self.simManagerId = simManagerId
 
@@ -144,8 +144,7 @@ class ItemMarketplace:
 		Subscribes this agent as a tick blocker with the sim manager
 		'''
 		self.logger.info("Subscribing as a tick blocker")
-		tickBlockReq = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCK_SUBSCRIBE")
-		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlockReq)
+		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCK_SUBSCRIBE")
 		self.sendPacket(tickBlockPacket)
 
 
@@ -164,9 +163,8 @@ class ItemMarketplace:
 		self.logger.info("Stall of {} seconds detected. Sending TICK_BLOCKED".format(self.stallTime))
 
 		#Send tick blocked
-		tickBlocked = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCKED")
-		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlocked)
-		self.sendPacket(tickBlockPacket)
+		tickBlockedPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCKED")
+		self.sendPacket(tickBlockedPacket)
 
 	#########################
 	# Market functions
@@ -287,7 +285,7 @@ class LaborMarketplace:
 		self.logger = utils.getLogger("LaborMarketplace", logFile=logFile, console="ERROR", outputdir=os.path.join("LOGS", "Markets"), fileLevel=fileLevel)
 		self.logger.info("LaborMarketplace instantiated")
 
-		self.lockTimeout = 5
+		self.lockTimeout = 15
 
 		self.simManagerId = simManagerId
 
@@ -397,8 +395,7 @@ class LaborMarketplace:
 		Subscribes this agent as a tick blocker with the sim manager
 		'''
 		self.logger.info("Subscribing as a tick blocker")
-		tickBlockReq = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCK_SUBSCRIBE")
-		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlockReq)
+		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCK_SUBSCRIBE")
 		self.sendPacket(tickBlockPacket)
 
 
@@ -417,9 +414,8 @@ class LaborMarketplace:
 		self.logger.info("Stall of {} seconds detected. Sending TICK_BLOCKED".format(self.stallTime))
 
 		#Send tick blocked
-		tickBlocked = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCKED")
-		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlocked)
-		self.sendPacket(tickBlockPacket)
+		tickBlockedPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCKED")
+		self.sendPacket(tickBlockedPacket)
 
 	#########################
 	# Market functions
@@ -582,7 +578,7 @@ class LandMarketplace:
 		self.logger = utils.getLogger("LandMarketplace", logFile=logFile, console="ERROR", outputdir=os.path.join("LOGS", "Markets"), fileLevel=fileLevel)
 		self.logger.info("LandMarketplace instantiated")
 
-		self.lockTimeout = 5
+		self.lockTimeout = 15
 
 		self.simManagerId = simManagerId
 
@@ -692,8 +688,7 @@ class LandMarketplace:
 		Subscribes this agent as a tick blocker with the sim manager
 		'''
 		self.logger.info("Subscribing as a tick blocker")
-		tickBlockReq = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCK_SUBSCRIBE")
-		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlockReq)
+		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCK_SUBSCRIBE")
 		self.sendPacket(tickBlockPacket)
 
 
@@ -712,9 +707,8 @@ class LandMarketplace:
 		self.logger.info("Stall of {} seconds detected. Sending TICK_BLOCKED".format(self.stallTime))
 
 		#Send tick blocked
-		tickBlocked = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCKED")
-		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlocked)
-		self.sendPacket(tickBlockPacket)
+		tickBlockedPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCKED")
+		self.sendPacket(tickBlockedPacket)
 
 	#########################
 	# Market functions

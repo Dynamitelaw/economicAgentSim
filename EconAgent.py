@@ -1044,8 +1044,12 @@ def getAgentController(agent, settings={}, logFile=True, fileLevel="INFO"):
 		return TestEmployerCompetetive(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
 	if (agentInfo.agentType == "TestFarmWorker"):
 		return TestFarmWorker(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
+	if (agentInfo.agentType == "TestFarmWorkerV2"):
+		return TestFarmWorkerV2(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
 	if (agentInfo.agentType == "TestFarmCompetetive"):
 		return TestFarmCompetetive(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
+	if (agentInfo.agentType == "TestFarmCompetetiveV2"):
+		return TestFarmCompetetiveV2(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
 
 	#Unhandled agent type. Return default controller
 	return None
@@ -1261,7 +1265,7 @@ class Agent:
 		else:	
 			self.controller = getAgentController(self, settings=settings, logFile=logFile, fileLevel=fileLevel)
 			if (not self.controller):
-				self.logger.warning("No controller was instantiated")
+				self.logger.warning("No controller was instantiated. \"{}\" is not a valid controller type".format(self.agentType))
 		self.controllerStart = False
 
 		#Launch network link monitor
@@ -1946,8 +1950,9 @@ class Agent:
 		producedItems = productionFunction.produceItem(self, itemContainer.quantity)
 
 		#Send out production notification
-		productionNotification = NetworkPacket(senderId=self.agentId, msgType="PRODUCTION_NOTIFICATION", payload=producedItems)
-		self.sendPacket(productionNotification)
+		if (producedItems):
+			productionNotification = NetworkPacket(senderId=self.agentId, msgType="PRODUCTION_NOTIFICATION", payload=producedItems)
+			self.sendPacket(productionNotification)
 
 		return producedItems
 
@@ -3165,9 +3170,7 @@ class Agent:
 						#Send blocked signal to sim manager
 						self.logger.debug("We're tick blocked. Sending TICK_BLOCKED to simManager")
 
-						tickBlocked = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCKED")
-						tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlocked)
-						self.logger.info("OUTBOUND {}->{}".format(tickBlocked, tickBlockPacket))
+						tickBlockPacket = NetworkPacket(senderId=self.agentId, msgType="TICK_BLOCKED")
 						self.sendPacket(tickBlockPacket)
 				else:
 					#We do not have enought time ticks
@@ -3193,6 +3196,7 @@ class Agent:
 		'''
 		self.logger.debug("{}.relinquishTimeTicks() start".format(self.agentId))
 
+		self.logger.debug("{}.relinquishTimeTicks() waiting for time commitments to complete".format(self.agentId))
 		#Wait for labor contracts to be fullfilled
 		while not (self.fullfilledContracts):
 			time.sleep(0.05)
@@ -3201,6 +3205,7 @@ class Agent:
 		if (self.autoEatFlag):
 			while (self.eating):
 				time.sleep(0.05)
+		self.logger.debug("{}.relinquishTimeTicks() time commitments completed".format(self.agentId))
 
 		#Use all remaining time ticks
 		acquired_timeTickLock = self.timeTickLock.acquire(timeout=self.lockTimeout)  #<== timeTickLock acquire
@@ -3216,6 +3221,7 @@ class Agent:
 				self.landAllocationQueue.useTimeTicks(amount)
 
 				if (self.timeTicks <= 0):
+					self.logger.debug("We're tick blocked. Setting tickBlockFlag to True")
 					#We are out of time ticks. Set blocked flag
 					acquired_tickBlockFlag_Lock = self.tickBlockFlag_Lock.acquire(timeout=self.lockTimeout)  #<== tickBlockFlag_Lock acquire
 					if (acquired_tickBlockFlag_Lock):
@@ -3238,9 +3244,7 @@ class Agent:
 					#Send blocked signal to sim manager
 					self.logger.debug("We're tick blocked. Sending TICK_BLOCKED to simManager")
 
-					tickBlocked = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCKED")
-					tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlocked)
-					self.logger.info("OUTBOUND {}->{}".format(tickBlocked, tickBlockPacket))
+					tickBlockPacket = NetworkPacket(senderId=self.agentId, msgType="TICK_BLOCKED")
 					self.sendPacket(tickBlockPacket)
 
 				self.timeTickLock.release()  #<== timeTickLock release
@@ -3259,8 +3263,7 @@ class Agent:
 		Subscribes this agent as a tick blocker with the sim manager
 		'''
 		self.logger.info("Subscribing as a tick blocker")
-		tickBlockReq = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCK_SUBSCRIBE")
-		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlockReq)
+		tickBlockPacket = NetworkPacket(senderId=self.agentId, msgType="TICK_BLOCK_SUBSCRIBE")
 		self.sendPacket(tickBlockPacket)
 
 

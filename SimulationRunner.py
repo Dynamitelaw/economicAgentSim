@@ -189,6 +189,7 @@ def RunSimulation(settingsDict, logLevel="INFO"):
 			procDict[procName] = True
 
 		#Create agent seeds
+		procCounter = 0
 		for agentName in settingsDict["AgentSpawns"]:
 			for agentType in settingsDict["AgentSpawns"][agentName]:
 				agentSettings = settingsDict["AgentSpawns"][agentName][agentType]
@@ -203,7 +204,8 @@ def RunSimulation(settingsDict, logLevel="INFO"):
 
 				for i in range(numAgents):
 					agentId = "{}.{}.{}".format(agentName, agentType, i)
-					procNum = i%numProcess
+					procNum = procCounter%numProcess
+					procCounter += 1
 
 					spawnSettings = {}
 					if ("settings" in agentSettings):

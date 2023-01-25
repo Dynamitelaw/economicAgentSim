@@ -58,8 +58,7 @@ class SimulationManager:
 		self.procReadyDictLock = threading.Lock()
 		self.procErrors = {}
 
-		self.timeTickBlockers = {}
-		self.timeTickBlockers_Lock = threading.Lock()
+		self.allAgentsReady = False
 
 		#Spawn agent
 		self.agent = Agent(self.info, networkLink=networkLink, logFile=logFile, controller=self)
@@ -120,12 +119,7 @@ class SimulationManager:
 				for stepNum in tqdm (range (simulationSteps), ascii=False, ncols=80):
 					#Start new simulation day
 					self.logger.debug("Running simulation step {}".format(stepNum))
-
-					#Set all tick blockers to False
-					self.timeTickBlockers_Lock.acquire()
-					for agentId in self.timeTickBlockers:
-						self.timeTickBlockers[agentId] = False  #this agent is no longer blocked by time ticks
-					self.timeTickBlockers_Lock.release()
+					self.allAgentsReady = False
 
 					#Distribute ticks to agents
 					tickGrantPacket = NetworkPacket(senderId=self.agentId, msgType="TICK_GRANT_BROADCAST", payload=ticksPerStep)
@@ -134,19 +128,8 @@ class SimulationManager:
 
 					#Wait for all tick blockers to be set before advancing to next day
 					self.logger.debug("Waiting for all agents to be tick blocked")
-					allAgentsBlocked = False
-					while True:
-						allAgentsBlocked = True
-						for agentId in self.timeTickBlockers:
-							agentBlocked = self.timeTickBlockers[agentId]
-							if (not agentBlocked):
-								#self.logger.debug("Still waiting for {} to be tick blocked".format(agentId))
-								allAgentsBlocked = False
-								break
-
-						if (allAgentsBlocked):
-							self.logger.debug("All agents are tick blocked")
-							break
+					while (not self.allAgentsReady):
+						time.sleep(0.001)
 
 					#End simulation day
 					self.logger.debug("Ending simulation step {}".format(stepNum))
@@ -236,15 +219,8 @@ class SimulationManager:
 				self.procReadyDictLock.release()
 
 			#Handle time tick messages
-			if (controllerMsg.msgType == "TICK_BLOCK_SUBSCRIBE"):
-				self.logger.debug("{} has subscribed to tick blocking".format(controllerMsg.senderId))
-				self.timeTickBlockers_Lock.acquire()
-				self.timeTickBlockers[controllerMsg.senderId] = True
-				self.timeTickBlockers_Lock.release()
-			if (controllerMsg.msgType == "TICK_BLOCKED"):
-				#self.timeTickBlockers_Lock.acquire()
-				self.timeTickBlockers[controllerMsg.senderId] = True  #This agent is now blocked by time ticks
-				#self.timeTickBlockers_Lock.release()
+			if (controllerMsg.msgType == "ADVANCE_STEP"):
+				self.allAgentsReady = True
 
 			#Handle error messages
 			if (controllerMsg.msgType == "TERMINATE_SIMULATION"):

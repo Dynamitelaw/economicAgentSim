@@ -51,6 +51,12 @@ class ConnectionNetwork:
 		#Instantiate statistics gatherer
 		self.statsGatherer = self.addStatisticsGatherer(simulationSettings, itemDict, logFile)
 
+		#Keep track of tick blockers
+		self.simStarted = False
+		self.tickBlocksMonitoring = False
+		self.timeTickBlockers = {}
+		self.timeTickBlockers_Lock = threading.Lock()
+
 	def addConnection(self, agentId, networkLink):
 		self.logger.info("Adding connection to {}".format(agentId))
 		self.agentConnections[agentId] = networkLink
@@ -169,6 +175,13 @@ class ConnectionNetwork:
 							self.logger.debug("killAllFlag has already been set. Ignoring {}".format(incommingPacket))
 							continue
 
+					#Check if this is the start of the sim
+					if not (self.simStarted):
+						if (incommingPacket.msgType == "TICK_GRANT_BROADCAST"):
+							for agentId in self.timeTickBlockers:
+								self.timeTickBlockers[agentId] = False
+							self.simStarted = True
+
 					#We've received a broadcast message. Foward to all pipes
 					self.logger.debug("Fowarding broadcast")
 					acquired_agentConnectionsLock = self.agentConnectionsLock.acquire()  #<== acquire agentConnectionsLock
@@ -190,6 +203,23 @@ class ConnectionNetwork:
 			elif ("SNOOP_START" in incommingPacket.msgType):
 					#We've received a snoop start request. Add to snooping dict
 					self.setupSnoop(incommingPacket)
+
+			#Handle tick block subscriptions
+			elif ("TICK_BLOCK_SUBSCRIBE" in incommingPacket.msgType):
+					self.logger.info("{} has subscribed to tick blocking".format(incommingPacket.senderId))
+					self.timeTickBlockers_Lock.acquire()
+					self.timeTickBlockers[incommingPacket.senderId] = True
+					
+					if not (self.tickBlocksMonitoring):
+						self.tickBlocksMonitoring = True
+						blockMonitorThread = threading.Thread(target=self.monitorTickBlockers)
+						blockMonitorThread.start()
+
+					self.timeTickBlockers_Lock.release()
+
+			#Handle tick blocked packets
+			elif ("TICK_BLOCKED" in incommingPacket.msgType):
+					self.timeTickBlockers[incommingPacket.senderId] = True
 
 			#Handle marketplace packets
 			elif ("ITEM_MARKET" in incommingPacket.msgType):
@@ -226,6 +256,38 @@ class ConnectionNetwork:
 
 				sendThread = threading.Thread(target=self.sendPacket, args=(agentId, responsePacket))
 				sendThread.start()
+
+
+	def monitorTickBlockers(self):
+		self.logger.info("monitorTickBlockers() start")
+		while True:
+			if (self.killAllFlag):
+				break
+
+			allAgentsBlocked = True
+			try:
+				if (self.simStarted):
+					for agentId in self.timeTickBlockers:
+						agentBlocked = self.timeTickBlockers[agentId]
+						if (not agentBlocked):
+							self.logger.info("Still waiting for {} to be tick blocked".format(agentId))
+							allAgentsBlocked = False
+							break
+			except:
+				pass
+
+			if (allAgentsBlocked and self.simStarted):
+				self.logger.info("All agents are tick blocked. Reseting blocks and notifying simulation manager")
+				for agentId in self.timeTickBlockers:
+					self.timeTickBlockers[agentId] = False
+
+				controllerMsg = NetworkPacket(senderId=self.id, destinationId=self.simManagerId, msgType="ADVANCE_STEP")
+				networkPacket = NetworkPacket(senderId=self.id, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=controllerMsg)
+				self.sendPacket(self.simManagerId, networkPacket)
+
+			time.sleep(0.001)
+
+		self.logger.info("monitorTickBlockers() end")
 
 '''
 #Format
@@ -389,6 +451,15 @@ CONTROLLER_MSG_BROADCAST
 
 
 #########################
+# Simulation management
+#########################
+TICK_BLOCK_SUBSCRIBE:
+	Sent by a controller to the ConnectionNetwork. Tells the network to block simulation step progress until controller send a TICK_BLOCKED message
+
+TICK_BLOCKED
+	Sent by a controller to the ConnectionNetwork. Tells the network that the controller is out of time ticks and cannot execute more actions
+
+#########################
 # Controller messages
 #########################
 These message types are fowarded to the agent controller, so they have no hardcoded behavior.
@@ -399,15 +470,13 @@ NetworkPacket(msgType="CONTROLLER_MSG|CONTROLLER_MSG_BROADCAST", payload=control
 "controllerMessage" is expected to be a <NetworkPacket> obj.
 
 controllerMessage.msgTypes:
+	ADVANCE_STEP
+		Sent by the ConnectionNetwork to the SimulationManager. Tells the manager that all agents are ready for the next simulation step
 	STOP_TRADING:
 		Tells the recipient controller to cease all trading activity
 	TICK_GRANT:
 		payload=<int> tickAmount
 		Grants the recipient controller time ticks. Sent by the SimulationManager to synchronize sim time.
-	TICK_BLOCK_SUBSCRIBE:
-		Sent by a controller to the SimulationManager. Tells the manager to block simulation step progress until controller send a TICK_BLOCKED message
-	TICK_BLOCKED
-		Sent by a controller to the SimulationManager. Tells the manager that the controller is out of time ticks and cannot execute more actions
 	PROC_READY
 		Sent by child process to the SimulationManager. Tells the manager that all agents in the process have been instantiated
 	PROC_ERROR
