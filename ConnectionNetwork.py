@@ -270,7 +270,7 @@ class ConnectionNetwork:
 					for agentId in self.timeTickBlockers:
 						agentBlocked = self.timeTickBlockers[agentId]
 						if (not agentBlocked):
-							self.logger.info("Still waiting for {} to be tick blocked".format(agentId))
+							#self.logger.info("Still waiting for {} to be tick blocked".format(agentId))
 							allAgentsBlocked = False
 							break
 			except:

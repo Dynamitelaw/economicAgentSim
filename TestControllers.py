@@ -7,6 +7,7 @@ import os
 import threading
 import math
 from sortedcontainers import SortedList
+import traceback
 
 import utils
 from TradeClasses import *
@@ -1609,7 +1610,7 @@ class TestFarmCompetetiveV2:
 		#Alphas for moving exponential adjustments
 		prodAlpha = 0.1
 		priceAlpha = 0.2
-		medianPriceAlpha = 0.4
+		medianPriceAlpha = 0.2
 
 		#Get current profit margins
 		avgRevenue = self.agent.getAvgCurrencyInflow()
@@ -1617,11 +1618,20 @@ class TestFarmCompetetiveV2:
 		profitMargin = 0
 		if (avgExpenses > 0):
 			profitMargin = (avgRevenue-avgExpenses)/avgExpenses
+		self.logger.debug("Profit margin = {}".format(profitMargin))
 
-		#Adjust target production based on current profit margin
+		#Get product inventory
+		productInventory = 0
+		if (self.sellItemId in self.agent.inventory):
+			productInventory = self.agent.inventory[self.sellItemId].quantity
+
+		#Adjust target production based on current profit margin and inventory ratio
 		self.logger.info("Old target production rate = {}".format(self.targetProductionRate))
-		productionAdjustmentRatio = 1+profitMargin
-		self.targetProductionRate = ((1-prodAlpha)*self.targetProductionRate) + (prodAlpha*self.targetProductionRate*productionAdjustmentRatio)#*(self.targetProductionRate/self.currentProductionRateAvg))
+		saleRatio = (self.currentSalesAvg+1)/(self.currentProductionRateAvg+1)
+		inventoryRatio = (self.currentProductionRateAvg+1) / (productInventory+1)
+		productionAdjustmentRatio = pow((1+profitMargin), 0.6)*pow(inventoryRatio, 0.7)
+		self.logger.debug("Production adjustment ratio = {}".format(productionAdjustmentRatio))
+		self.targetProductionRate = ((1-prodAlpha)*self.targetProductionRate) + (prodAlpha*self.currentProductionRateAvg*productionAdjustmentRatio)
 		self.logger.info("New target production rate = {}".format(self.targetProductionRate))
 		self.logger.info("Average production rate = {}".format(self.currentProductionRateAvg))
 
@@ -1634,14 +1644,17 @@ class TestFarmCompetetiveV2:
 		if (len(sampledListings) > 0):
 			for listing in sampledListings:
 				sampledPrices.add(listing.unitPrice)
-			medianPrice = sampledPrices[int(len(sampledListings)/2)]
+			#medianPrice = sampledPrices[int(len(sampledListings)/2)]
+			medianPrice = sampledPrices[0]
 
 		self.logger.info("Median market price = {}".format(medianPrice))
-		self.sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*medianPrice)
+		self.sellPrice = ((1-medianPriceAlpha)*self.sellPrice) + (medianPriceAlpha*medianPrice)
 
 		#Adjust price based on sale ratios
-		saleRatio = pow((self.currentSalesAvg+1)/(self.currentProductionRateAvg+1), 0.9)
-		adjustmentRatio = saleRatio
+		adjustmentRatio = pow(saleRatio, 0.9)
+		self.logger.debug("Inventory ratio = {}".format(inventoryRatio))
+		self.logger.debug("Sale ratio = {}".format(saleRatio))
+		self.logger.debug("Price adjustment ratio = {}".format(adjustmentRatio))
 		if (adjustmentRatio > 1.1) or (adjustmentRatio < 0.9):
 			#Adjust sell price
 			newPrice = self.sellPrice * adjustmentRatio
@@ -1650,18 +1663,19 @@ class TestFarmCompetetiveV2:
 		#Adjust price based on minimum expenses
 		targetRevenue = self.targetProductionRate*self.sellPrice
 		if (targetRevenue < avgExpenses):
+			self.logger.debug("Adjusted price {} too low to cover costs. Resetting target revenue".format(self.sellPrice))
 			self.sellPrice = (avgExpenses/self.targetProductionRate)*1.1
 
 		self.logger.info("New sale price = {}".format(self.sellPrice))
 
 		#See if we have any deficits for the new production rate
 		inputDeficits = self.agent.getProductionInputDeficit(self.sellItemId, self.targetProductionRate)
-		self.logger.info("Input deficits = {}".format(inputDeficits))
+		self.logger.debug("Input deficits = {}".format(inputDeficits))
 		self.acquireDeficits(inputDeficits)
 
 		#Get rid of surplus inputs
 		surplusInputs = self.agent.getProductionInputSurplus(self.sellItemId, self.targetProductionRate)
-		self.logger.info("Input surplus = {}".format(surplusInputs))
+		self.logger.debug("Input surplus = {}".format(surplusInputs))
 		self.removeSurplus(surplusInputs)
 
 
@@ -1708,8 +1722,8 @@ class TestFarmCompetetiveV2:
 
 
 	def adjustNextWage(self):
-		medianAlpha = 0.4
-		adjustmentAlpha = 0.2
+		medianAlpha = 0.3
+		adjustmentAlpha = 0.1
 		#Adjust wage  based on market rate
 		medianWage = self.workerWage
 		sampledListings = self.agent.sampleLaborListings(sampleSize=30)
@@ -1725,7 +1739,7 @@ class TestFarmCompetetiveV2:
 		if (self.workerDeficit < 0):
 			divisor = pow(abs(self.workerDeficit)*1.2, 1.2)
 		if (self.workerDeficit > 0) and (self.openSteps > 2):
-			divisor = 1/pow((self.workerDeficit), 0.3)
+			divisor = 1/pow((self.workerDeficit), 0.2)
 		if (abs(self.applications/self.workerDeficit)>1.5):
 			divisor = pow(abs(self.applications/self.workerDeficit), 1.5)
 
@@ -1846,20 +1860,30 @@ class TestFarmCompetetiveV2:
 				self.logger.info("Avg Daily Expenses={}, Avg Daily Revenue={}, Avg Daily Profit={}".format(avgExpenses, avgRevenue, avgRevenue-avgExpenses))
 
 				if ((self.agent.stepNum-self.updateOffset)%self.updateRate == 0):
-					#Adjust production
-					self.adjustProduction()
+					try:
+						#Adjust production
+						self.adjustProduction()
 
-					#Manage worker hiring
-					self.manageLabor()
+						#Manage worker hiring
+						self.manageLabor()
 
-					#Produce items
-					self.produce()
+						#Produce items
+						self.produce()
 
-					#Update item listing
-					self.updateItemListing()
+						#Update item listing
+						self.updateItemListing()
+					except:
+						self.logger.critical("UNHANDLED ERROR DURING STEP")
+						self.logger.critical(traceback.format_exc())
+						self.logger.debug(self.getInfoDumpString())
 				else:
-					#Produce items
-					self.produce()
+					try:
+						#Produce items
+						self.produce()
+					except:
+						self.logger.critical("UNHANDLED ERROR DURING STEP")
+						self.logger.critical(traceback.format_exc())
+						self.logger.debug(self.getInfoDumpString())
 
 			#Relinquish time ticks
 			self.logger.info("Relinquishing time ticks")
@@ -1872,3 +1896,21 @@ class TestFarmCompetetiveV2:
 			
 			if (controllerMsg.msgType == "STOP_TRADING"):
 				self.killThreads = True
+
+
+	def getInfoDumpString(self):
+		infoString = "CONTROLLER_INFO_DUMP: "
+		infoString += "\ntargetProductionRate={}".format(self.targetProductionRate)
+		infoString += "\ncurrentProductionRateAvg={}".format(self.currentProductionRateAvg)
+		infoString += "\nsellPrice={}".format(self.sellPrice)
+		infoString += "\ncurrentSalesAvg={}".format(self.currentSalesAvg)
+		infoString += "\nstepSales={}".format(self.stepSales)
+		infoString += "\nrequiredLabor={}".format(self.requiredLabor)
+		infoString += "\nworkerWage={}".format(self.workerWage)
+		infoString += "\napplications={}".format(self.applications)
+		infoString += "\nopenSteps={}".format(self.openSteps)
+		infoString += "\nworkerDeficit={}".format(self.workerDeficit)
+		infoString += "\nlistingActive={}".format(self.listingActive)
+
+		return infoString
+		

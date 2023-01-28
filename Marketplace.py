@@ -79,6 +79,10 @@ class ItemMarketplace:
 
 			#Hanle incoming tick grants
 			elif ((incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST")):
+				currentTime = time.time()
+				if (currentTime > self.latestHandleTime):
+					self.latestHandleTime = currentTime
+
 				#Wait until we're not busy to send TICK_BLOCK
 				stallMonitor = threading.Thread(target=self.waitForStall)
 				stallMonitor.start()
@@ -153,7 +157,6 @@ class ItemMarketplace:
 		Subscribes this agent as a tick blocker with the sim manager
 		'''
 		#Wait for stall
-		previousHandleTime = self.latestHandleTime
 		while True:
 			time.sleep(self.stallTime/4)
 			timeDiff = time.time() - self.latestHandleTime
@@ -334,6 +337,10 @@ class LaborMarketplace:
 
 			#Hanle incoming tick grants
 			elif ((incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST")):
+				currentTime = time.time()
+				if (currentTime > self.latestHandleTime):
+					self.latestHandleTime = currentTime
+
 				#Wait until we're not busy to send TICK_BLOCK
 				stallMonitor = threading.Thread(target=self.waitForStall)
 				stallMonitor.start()
@@ -377,6 +384,10 @@ class LaborMarketplace:
 
 	def handlePacket(self, incommingPacket, agentLink, agentSendLock):
 		self.logger.info("INBOUND {}".format(incommingPacket))
+		currentTime = time.time()
+		if (currentTime > self.latestHandleTime):
+			self.latestHandleTime = currentTime
+
 		handled = False
 		if (incommingPacket.msgType == "LABOR_MARKET_UPDATE"):
 			handled = self.updateLaborListing(incommingPacket)
@@ -404,7 +415,6 @@ class LaborMarketplace:
 		Subscribes this agent as a tick blocker with the sim manager
 		'''
 		#Wait for stall
-		previousHandleTime = self.latestHandleTime
 		while True:
 			time.sleep(self.stallTime/4)
 			timeDiff = time.time() - self.latestHandleTime
@@ -445,7 +455,7 @@ class LaborMarketplace:
 			self.laborMarketLock.release()
 
 		self.laborMarketEmployerLocks[employerId].acquire()
-		self.laborMarket[skillLevel][employerId][laborListing.listingStr] = laborListing
+		self.laborMarket[skillLevel][employerId][laborListing.listingName] = laborListing
 		self.laborMarketEmployerLocks[employerId].release()
 
 		updateSuccess = True
@@ -627,6 +637,10 @@ class LandMarketplace:
 
 			#Hanle incoming tick grants
 			elif ((incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST")):
+				currentTime = time.time()
+				if (currentTime > self.latestHandleTime):
+					self.latestHandleTime = currentTime
+
 				#Wait until we're not busy to send TICK_BLOCK
 				stallMonitor = threading.Thread(target=self.waitForStall)
 				stallMonitor.start()
@@ -670,6 +684,10 @@ class LandMarketplace:
 
 	def handlePacket(self, incommingPacket, agentLink, agentSendLock):
 		self.logger.info("INBOUND {}".format(incommingPacket))
+		currentTime = time.time()
+		if (currentTime > self.latestHandleTime):
+			self.latestHandleTime = currentTime
+			
 		handled = False
 		if (incommingPacket.msgType == "LAND_MARKET_UPDATE"):
 			handled = self.updateLandListing(incommingPacket)

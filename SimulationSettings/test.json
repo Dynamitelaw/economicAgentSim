@@ -2,7 +2,7 @@
 	"description": "Test simulation with competetive farms. Used for testing and debug.",
 	"settings": {
 		"AgentNumProcesses": 6,
-		"SimulationSteps": 180,
+		"SimulationSteps": 1600,
 		"TicksPerStep": 16,
 		"AgentSpawns":{
 			"AppleFarm": {
