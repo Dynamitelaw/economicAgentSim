@@ -117,7 +117,9 @@ class SimulationManager:
 
 				self.logger.info("Starting Simulation (Steps={}, TicksPerStep={})".format(simulationSteps, ticksPerStep))
 				print("\n")
+				avgStepTime = 0
 				for stepNum in tqdm (range (simulationSteps), ascii=False, ncols=80):
+					stepStart = time.time()
 					#Start new simulation day
 					self.logger.debug("Running simulation step {}".format(stepNum))
 					self.allAgentsReady = False
@@ -129,11 +131,22 @@ class SimulationManager:
 
 					#Wait for all tick blockers to be set before advancing to next day
 					self.logger.debug("Waiting for all agents to be tick blocked")
+					pollCntr = 0
 					while (not self.allAgentsReady):
 						time.sleep(0.001)
+						pollCntr += 1
+						if (pollCntr >= 1000):
+							currentStepTime = time.time() - stepStart
+							if ((currentStepTime > (3*avgStepTime)) and (avgStepTime > 0)):
+								self.logger.debug("Still waiting for agents to be unblocked")
+							pollCntr = 0
 
 					#End simulation day
 					self.logger.debug("Ending simulation step {}".format(stepNum))
+					stepEnd = time.time()
+					stepTime = stepEnd - stepStart
+					alpha = 0.3
+					avgStepTime = ((1-alpha)*avgStepTime) + (alpha*stepTime)
 
 			#Calculate runtime
 			print("\n")

@@ -5,15 +5,16 @@ import time
 g_ItemQuantityPercision = 6
 
 class InfoRequest:
-	def __init__(self, requesterId, agentId, infoKey):
+	def __init__(self, requesterId, transactionId, infoKey, agentFilter=""):
 		self.requesterId = requesterId
-		self.agentId = agentId
+		self.transactionId = transactionId
+		self.agentFilter = agentFilter
 		self.infoKey = infoKey
 		self.info = None
 
-		stringTemp = "{}{}{}".format(requesterId, agentId, infoKey)
+		stringTemp = "{}{}{}".format(requesterId, agentFilter, infoKey)
 		self.hash = hashlib.sha256(stringTemp.encode('utf-8')).hexdigest()[:8 ]
-		self.reqString = "InfoReq_{}(requesterId={}, agentId={}, infoKey={})".format(self.hash, requesterId, agentId, infoKey)
+		self.reqString = "InfoReq_{}(requesterId={}, agentFilter={}, infoKey={})".format(self.hash, requesterId, agentFilter, infoKey)
 
 	def __str__(self):
 		return self.reqString

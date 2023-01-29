@@ -201,12 +201,12 @@ class ConnectionNetwork:
 						self.killAllLock.release()
 
 			#Handle snoop requests
-			elif ("SNOOP_START" in incommingPacket.msgType):
+			elif (incommingPacket.msgType == "SNOOP_START"):
 					#We've received a snoop start request. Add to snooping dict
 					self.setupSnoop(incommingPacket)
 
 			#Handle tick block subscriptions
-			elif ("TICK_BLOCK_SUBSCRIBE" in incommingPacket.msgType):
+			elif (incommingPacket.msgType == "TICK_BLOCK_SUBSCRIBE"):
 					self.logger.info("{} has subscribed to tick blocking".format(incommingPacket.senderId))
 					self.timeTickBlockers_Lock.acquire()
 					self.timeTickBlockers[incommingPacket.senderId] = True
@@ -219,7 +219,7 @@ class ConnectionNetwork:
 					self.timeTickBlockers_Lock.release()
 
 			#Handle tick blocked packets
-			elif ("TICK_BLOCKED" in incommingPacket.msgType):
+			elif (incommingPacket.msgType == "TICK_BLOCKED"):
 					self.timeTickBlockers[incommingPacket.senderId] = True
 
 			#Handle marketplace packets
@@ -239,6 +239,12 @@ class ConnectionNetwork:
 				if (incommingPacket.msgType in self.snoopDict):
 					snoopThread = threading.Thread(target=self.statsGatherer.handleSnoop, args=(incommingPacket,))
 					snoopThread.start()
+
+			#Handle info response packets
+			elif ("INFO_RESP" in incommingPacket.msgType):
+				#Foward to statistics gatherer
+				infoRespThread = threading.Thread(target=self.statsGatherer.handleInfoResp, args=(incommingPacket,))
+				infoRespThread.start()
 
 			#Route all over packets
 			elif (destinationId in self.agentConnections):
@@ -428,6 +434,10 @@ PRODUCTION_NOTIFICATION
 	Send when an item is produced by an agent. Is only fowarded if snooped on, otherwise ignored
 
 INFO_REQ
+	payload = <InfoRequest>
+	Request information from an agent
+
+INFO_REQ_BROADCAST
 	payload = <InfoRequest>
 	Request information from an agent
 

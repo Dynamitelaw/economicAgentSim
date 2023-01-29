@@ -3,7 +3,7 @@
 	"description": "Test simulation with competetive farms. Used for testing and debug.",
 	"settings": {
 		"AgentNumProcesses": 6,
-		"SimulationSteps": 5,
+		"SimulationSteps": 1600,
 		"TicksPerStep": 16,
 		"AgentSpawns":{
 			"AppleFarm": {
@@ -114,6 +114,10 @@
 				"ProductionTracker":{
 					"id": "chickpea",
 					"OuputPath": "FoodMarket/chickpea/ChickpeaProduction.csv"
+				},
+				"AccountingTracker":{
+					"AgentFilters": ["PeaFarm"],
+					"OuputPath": "FoodMarket/chickpea/ChickpeaFarmAccounting.csv"
 				}
 			},
 			"EggMarket":{

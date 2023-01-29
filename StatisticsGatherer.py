@@ -593,6 +593,139 @@ class ProductionTracker:
 					self.logger.error("{}.handleSnoop() Lock quantityProducedLock acquisition timout B".format(self.name))
 
 
+class AccountingTracker:
+	'''
+	Keeps track of agent accounting stats
+	'''
+	def __init__(self, gathererParent, settings, name, outputDir="OUTPUT"):
+		self.gathererParent = gathererParent
+		self.settings = settings
+		self.logger = gathererParent.logger
+		self.name = "{}.AccountingTracker".format(name)
+		self.lockTimout = 5
+
+		self.outputPath = os.path.join(outputDir, "Statistics", "Accounting.csv")
+		if ("OuputPath" in settings):
+			self.outputPath = os.path.join(outputDir, "Statistics", settings["OuputPath"])
+		utils.createFolderPath(self.outputPath)
+
+		self.outputFile = open(self.outputPath, "w")
+		self.columns = ["DayStepNumber", 
+		"CurrencyInflowMedian", "CurrencyOutflowMedian",
+		"ProfitMedian", "ProfitMarginMedian"]
+		csvHeader = ",".join(self.columns)+"\n"
+		self.outputFile.write(csvHeader)
+
+		self.startStep = 0
+		if ("StartStep" in settings):
+			self.startStep = int(settings["StartStep"])
+
+		self.stepNum = -1
+		self.stepNumLock = threading.Lock()
+
+		#Keep track of accounting stats
+		self.statLock = threading.Lock()
+		self.currencyInflows = SortedList()
+		self.currencyOutflows = SortedList()
+		self.profits = SortedList()
+		self.profitMargins = SortedList()
+
+		self.agentFilters = [""]
+		if ("AgentFilters" in settings):
+			self.agentFilters = list(settings["AgentFilters"])
+
+	def __str__(self):
+		return str(self.name)
+
+	def start(self):
+		pass
+
+	def end(self):
+		self.outputFile.close()
+
+	def addInfo(self, infoReq):
+		acquired_statLock = self.statLock.acquire(timeout=self.lockTimout)
+		if (acquired_statLock):
+			statsDict = infoReq.info
+			self.currencyInflows.add(statsDict["stepCurrencyInflow"])
+			self.currencyOutflows.add(statsDict["stepCurrencyOutflow"])
+			self.profits.add(statsDict["stepCurrencyInflow"]-statsDict["stepCurrencyOutflow"])
+			if (statsDict["stepCurrencyOutflow"] > 0):
+				self.profitMargins.add((statsDict["stepCurrencyInflow"]-statsDict["stepCurrencyOutflow"])/statsDict["stepCurrencyOutflow"])
+
+			self.statLock.release()
+		else:
+			self.logger.error("{}.addInfo() Lock statLock acquisition timout".format(self.name))
+
+	def getCsvLine(self):
+		DayStepNumber = self.stepNum-1
+		csvLine = ""
+		if (DayStepNumber >= self.startStep):
+			CurrencyInflowMedian = 0
+			currencyInflowLen = len(self.currencyInflows)
+			if (currencyInflowLen > 0):
+				CurrencyInflowMedian = self.currencyInflows[int(currencyInflowLen/2)]
+
+			CurrencyOutflowMedian = 0
+			currencyOutflowLen = len(self.currencyOutflows)
+			if (currencyOutflowLen > 0):
+				CurrencyOutflowMedian = self.currencyOutflows[int(currencyOutflowLen/2)]
+
+			ProfitMedian = 0
+			profitLen = len(self.profits)
+			if (profitLen > 0):
+				ProfitMedian = self.profits[int(profitLen/2)]
+
+			ProfitMarginMedian = 0
+			profitMarginLen = len(self.profitMargins)
+			if (profitMarginLen > 0):
+				ProfitMarginMedian = self.profitMargins[int(profitMarginLen/2)]
+
+			rowData = [DayStepNumber, CurrencyInflowMedian, CurrencyOutflowMedian, ProfitMedian, ProfitMarginMedian]
+
+			csvLine = ",".join([str(i) for i in rowData])
+			csvLine = "{}\n".format(csvLine)
+
+		return csvLine
+
+	def advanceStep(self):
+		#Update CSV with previous step data
+		acquired_stepNumLock = self.stepNumLock.acquire(timeout=self.lockTimout)
+		if (acquired_stepNumLock):
+			acquired_statLock = self.statLock.acquire(timeout=self.lockTimout)
+			if (acquired_statLock):
+				#Output data to csv
+				if (self.stepNum >= self.startStep):
+					csvLine = self.getCsvLine()
+					self.outputFile.write(csvLine)
+
+				self.stepNum += 1
+				self.currencyInflows.clear()
+				self.currencyOutflows.clear()
+				self.profits.clear()
+
+				self.statLock.release()
+			else:
+				self.logger.error("{}.advanceStep() Lock statLock acquisition timout".format(self.name))
+
+			self.stepNumLock.release()
+		else:
+			self.logger.error("{}.advanceStep() Lock stepNumLock acquisition timout".format(self.name))
+
+		#Obtain new step data
+		for agentFilter in self.agentFilters:
+			infoReq = InfoRequest(requesterId=self.gathererParent.agentId, transactionId=self.name, agentFilter=agentFilter, infoKey="acountingStats")
+			self.gathererParent.sendInfoReqBroadcast(self, infoReq)
+
+	def handleInfoResp(self, incommingPacket):
+		if (self.stepNum >= self.startStep):
+			#Handle incomming info packet
+			if (incommingPacket.msgType == "INFO_RESP"):
+				infoReq = incommingPacket.payload
+				if (infoReq.infoKey == "acountingStats"):
+					if (infoReq.transactionId == self.name):
+						self.addInfo(infoReq)
+
 
 #######################
 # StatisticsGatherer
@@ -638,12 +771,20 @@ class StatisticsGatherer:
 						self.logger.info("Spawning ProductionTracker({}) for {}".format(settings["Statistics"][statName][trackerType], statName))
 						trackerObj = ProductionTracker(self, settings["Statistics"][statName][trackerType], statName, outputDir=outputDir)
 						self.trackers.append(trackerObj)
+					elif (trackerType=="AccountingTracker"):
+						self.logger.info("Spawning AccountingTracker({}) for {}".format(settings["Statistics"][statName][trackerType], statName))
+						trackerObj = AccountingTracker(self, settings["Statistics"][statName][trackerType], statName, outputDir=outputDir)
+						self.trackers.append(trackerObj)
 					else:
 						self.logger.error("Unknown stat tracker \"{}\" specified in settings. Will not gather data for {}.{}".format(trackerType, statName, trackerType))
 
 		#Snoopers
 		self.snoopers = {}
 		self.snoopersLock = threading.Lock()
+
+		#Info reqs
+		self.infoReqs = {}
+		self.infoReqsLock = threading.Lock()
 
 		#Start monitoring network link
 		if (self.networkLink):
@@ -733,6 +874,13 @@ class StatisticsGatherer:
 		self.snoopers[msgType].append(trackerObj)
 		self.snoopersLock.release()
 
+	def sendInfoReqBroadcast(self, trackerObj, infoReq):
+		self.infoReqsLock.acquire()
+		self.infoReqs[infoReq.transactionId] = trackerObj
+		self.infoReqsLock.release()
+		infoReqPacket = NetworkPacket(senderId=self.agentId, msgType="INFO_REQ_BROADCAST", payload=infoReq)
+		self.sendPacket(infoReqPacket)
+
 
 	def handleSnoop(self, snoopedPacket):
 		#self.logger.debug("Snooped packet = {}".format(snoopedPacket))
@@ -740,4 +888,9 @@ class StatisticsGatherer:
 		if (snoopType in self.snoopers):
 			for trackerObj in self.snoopers[snoopType]:
 				trackerObj.handleSnoop(snoopedPacket)
+
+	def handleInfoResp(self, infoRespPacket):
+		transactionId = infoRespPacket.payload.transactionId
+		if (transactionId in self.infoReqs):
+			self.infoReqs[transactionId].handleInfoResp(infoRespPacket)
 

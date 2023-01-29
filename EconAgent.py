@@ -1213,46 +1213,60 @@ class Agent:
 		#Labor income
 		self.laborIncomeTracking = False
 		self.totalLaborIncome = 0
+		self.prevTotalLaborIncome = 0
 		self.avgLaborIncome = 0
 		self.stepLaborIncome = 0
+		self.prevStepLaborIncome = 0
 		self.laborIncomeLock = threading.Lock()
 		#Labor expenses
 		self.laborExpenseTracking = False
 		self.totalLaborExpense = 0
+		self.prevTotalLaborExpense = 0
 		self.avgLaborExpense = 0
 		self.stepLaborExpense = 0
+		self.prevStepLaborExpense = 0
 		self.laborExpenseLock = threading.Lock()
 		#Trading revenue
 		self.tradeRevenueTracking = False
 		self.totalTradeRevenue = 0
+		self.prevTotalTradeRevenue = 0
 		self.avgTradeRevenue = 0
 		self.stepTradeRevenue = 0
+		self.prevStepTradeRevenue = 0
 		self.tradeRevenueLock = threading.Lock()
 		#Item expenses
 		self.itemExpensesTracking = False
 		self.totalItemExpenses = 0
+		self.prevTotalItemExpenses = 0
 		self.avgItemExpenses = 0
 		self.stepItemExpenses = 0
+		self.prevStepItemExpenses = 0
 		self.itemExpensesLock = threading.Lock()
 		#Land revenue
 		self.landRevenueTracking = False
 		self.totalLandRevenue = 0
+		self.prevTotalLandRevenue = 0
 		self.landRevenueLock = threading.Lock()
 		#Land expenses
 		self.landExpensesTracking = False
 		self.totalLandExpenses = 0
+		self.prevTotalLandExpenses = 0
 		self.landExpensesLock = threading.Lock()
 		#Currency inflows
 		self.currencyInflowTracking = False
 		self.totalCurrencyInflow = 0
+		self.prevTotalCurrencyInflow = 0
 		self.avgCurrencyInflow = 0
 		self.stepCurrencyInflow = 0
+		self.prevStepCurrencyInflow = 0
 		self.currencyInflowLock = threading.Lock()
 		#Currency outflows
 		self.currencyOutflowTracking = False
 		self.totalCurrencyOutflow = 0
+		self.prevTotalCurrencyOutflow = 0
 		self.avgCurrencyOutflow = 0
 		self.stepCurrencyOutflow = 0
+		self.prevStepCurrencyOutflow = 0
 		self.currencyOutflowLock = threading.Lock()
 
 
@@ -1403,7 +1417,7 @@ class Agent:
 				self.nextLaborInventoryLock.release()
 
 			#Handle incoming information requests
-			elif (incommingPacket.msgType == "INFO_REQ"):
+			elif ((incommingPacket.msgType == "INFO_REQ") or (incommingPacket.msgType == "INFO_REQ_BROADCAST")):
 				infoRequest = incommingPacket.payload
 				#infoThread =  threading.Thread(target=self.handleInfoRequest, args=(infoRequest, ))
 				#infoThread.start()
@@ -1493,38 +1507,60 @@ class Agent:
 		if (self.laborIncomeTracking):
 			self.laborIncomeLock.acquire()
 			self.avgLaborIncome = ((1-self.accountingAlpha)*self.avgLaborIncome) + (self.accountingAlpha*self.stepLaborIncome)
+			self.prevStepLaborIncome = self.stepLaborIncome
+			self.prevTotalLaborIncome = self.totalLaborIncome
 			self.stepLaborIncome = 0
 			self.laborIncomeLock.release()
 		#Labor expenses
 		if (self.laborExpenseTracking):
 			self.laborExpenseLock.acquire()
 			self.avgLaborExpense = ((1-self.accountingAlpha)*self.avgLaborExpense) + (self.accountingAlpha*self.stepLaborExpense)
+			self.prevStepLaborExpense = self.stepLaborExpense
+			self.prevTotalLaborExpense = self.totalLaborExpense
 			self.stepLaborExpense = 0
 			self.laborExpenseLock.release()
 		#Trading revenue
 		if (self.tradeRevenueTracking):
 			self.tradeRevenueLock.acquire()
 			self.avgTradeRevenue = ((1-self.accountingAlpha)*self.avgTradeRevenue) + (self.accountingAlpha*self.stepTradeRevenue)
+			self.prevStepTradeRevenue = self.stepTradeRevenue
+			self.prevTotalTradeRevenue = self.totalTradeRevenue
 			self.stepTradeRevenue = 0
 			self.tradeRevenueLock.release()
 		#Item expenses
 		if (self.itemExpensesTracking):
 			self.itemExpensesLock.acquire()
 			self.avgItemExpenses = ((1-self.accountingAlpha)*self.avgItemExpenses) + (self.accountingAlpha*self.stepItemExpenses)
+			self.prevStepItemExpenses = self.stepItemExpenses
+			self.prevTotalItemExpenses = self.totalItemExpenses
 			self.stepItemExpenses = 0
 			self.itemExpensesLock.release()
 		#Currency inflow
 		if (self.currencyInflowTracking):
 			self.currencyInflowLock.acquire()
 			self.avgCurrencyInflow = ((1-self.accountingAlpha)*self.avgCurrencyInflow) + (self.accountingAlpha*self.stepCurrencyInflow)
-			self.stepCurrencyInflow = 0
+			self.prevStepCurrencyInflow = self.stepCurrencyInflow
+			self.prevTotalCurrencyInflow = self.totalCurrencyInflow
+			self.stepItemExpenses = 0
 			self.currencyInflowLock.release()
 		#Currency outflow
 		if (self.currencyOutflowTracking):
 			self.currencyOutflowLock.acquire()
 			self.avgCurrencyOutflow = ((1-self.accountingAlpha)*self.avgCurrencyOutflow) + (self.accountingAlpha*self.stepCurrencyOutflow)
+			self.prevStepCurrencyOutflow = self.stepCurrencyOutflow
+			self.prevTotalCurrencyOutflow = self.totalCurrencyOutflow
 			self.stepCurrencyOutflow = 0
 			self.currencyOutflowLock.release()
+		#Land revenue
+		if (self.landRevenueTracking):
+			self.landRevenueLock.acquire()
+			self.prevTotalLandRevenue = self.totalLandRevenue
+			self.landRevenueLock.release()
+		#Land expenses
+		if (self.landExpensesTracking):
+			self.landExpensesLock.acquire()
+			self.prevTotalLandExpenses = self.totalLandExpenses
+			self.landExpensesLock.release()
 
 
 	#Labor income
@@ -1602,6 +1638,43 @@ class Agent:
 		return self.avgCurrencyOutflow
 	def resetCurrencyOutflow(self):
 		self.totalCurrencyOutflow = 0
+
+	def getAccountingStats(self):
+		'''
+		Returns a dictionary of accounting stats for the previous step
+		'''
+		statsDict = {}
+
+		#Labor income
+		statsDict["totalLaborIncome"] = self.prevTotalLaborIncome
+		statsDict["avgLaborIncome"] = self.avgLaborIncome
+		statsDict["stepLaborIncome"] = self.prevStepLaborIncome
+		#Labor expenses
+		statsDict["totalLaborExpense"] = self.prevTotalLaborExpense
+		statsDict["avgLaborExpense"] = self.avgLaborExpense
+		statsDict["stepLaborExpense"] = self.prevStepLaborExpense
+		#Trading revenue
+		statsDict["totalTradeRevenue"] = self.prevTotalTradeRevenue
+		statsDict["avgTradeRevenue"] = self.avgTradeRevenue
+		statsDict["stepTradeRevenue"] = self.prevStepTradeRevenue
+		#Item expenses
+		statsDict["totalItemExpenses"] = self.prevTotalItemExpenses
+		statsDict["avgItemExpenses"] = self.avgItemExpenses
+		statsDict["stepItemExpenses"] = self.prevStepItemExpenses
+		#Land revenue
+		statsDict["totalLandRevenue"] = self.prevTotalLandRevenue
+		#Land expenses
+		statsDict["totalLandExpenses"] = self.prevTotalLandExpenses
+		#Currency inflows
+		statsDict["totalCurrencyInflow"] = self.prevTotalCurrencyInflow
+		statsDict["avgCurrencyInflow"] = self.avgCurrencyInflow
+		statsDict["stepCurrencyInflow"] = self.prevStepCurrencyInflow
+		#Currency outflows
+		statsDict["totalCurrencyOutflow"] = self.prevTotalCurrencyOutflow
+		statsDict["avgCurrencyOutflow"] = self.avgCurrencyOutflow
+		statsDict["stepCurrencyOutflow"] = self.prevStepCurrencyOutflow
+
+		return statsDict
 
 
 	#########################
@@ -3319,7 +3392,7 @@ class Agent:
 	# Misc functions
 	#########################
 	def handleInfoRequest(self, infoRequest):
-		if (self.agentId == infoRequest.agentId):
+		if (infoRequest.agentFilter in self.agentId) or (len(infoRequest.agentFilter) == 0):
 			infoKey = infoRequest.infoKey
 			if (infoKey == "currencyBalance"):
 				infoRequest.info = self.currencyBalance
@@ -3327,6 +3400,8 @@ class Agent:
 				infoRequest.info = self.inventory
 			if (infoKey == "debtBalance"):
 				infoRequest.info = self.debtBalance
+			if (infoKey == "acountingStats"):
+				infoRequest.info = self.getAccountingStats()
 			
 			infoRespPacket = NetworkPacket(senderId=self.agentId, destinationId=infoRequest.requesterId, msgType="INFO_RESP", payload=infoRequest)
 			self.sendPacket(infoRespPacket)
