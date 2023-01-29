@@ -2,6 +2,8 @@ from random import random, seed, randrange, choice
 import numpy as np
 import logging
 import os
+from datetime import datetime 
+import json
 
 
 def createFolderPath(filePath):
@@ -93,3 +95,20 @@ def getNormalSample(mean, std, onlyPositive=True):
 			sample = np.random.normal(mean, std, 1)[0]
 	return sample
 
+
+def getTimeStamp(sanitize=True):
+	date_time = datetime.now()
+	timeStamp = date_time.strftime("%m/%d/%Y %H:%M:%S")
+	if (sanitize):
+		timeStamp = timeStamp.replace("/", "_").replace(":", "_").replace(" ", "__")
+
+	return timeStamp
+
+
+def dictToJsonFile(dictionary, filePath):
+	jsonStr = json.dumps(dictionary, indent=4)
+	createFolderPath(filePath)
+
+	file = open(filePath, "w")
+	file.write(jsonStr)
+	file.close()

@@ -26,11 +26,12 @@ from StatisticsGatherer import *
 
 
 class ConnectionNetwork:
-	def __init__(self, itemDict, simManagerId=None, logFile=True, simulationSettings={}):
+	def __init__(self, itemDict, simManagerId=None, logFile=True, outputDir="OUTPUT", simulationSettings={}):
 		self.id = "ConnectionNetwork"
 		self.simManagerId = simManagerId
 
-		self.logger = utils.getLogger("{}".format(__name__), logFile=logFile)
+		self.outputDir = outputDir
+		self.logger = utils.getLogger("{}".format(__name__), logFile=logFile, outputdir=os.path.join(outputDir, "LOGS"))
 		self.lockTimeout = 5
 
 		self.agentConnections = {}
@@ -73,15 +74,15 @@ class ConnectionNetwork:
 		#Instantiate marketplace
 		marketplaceObj = None
 		if (marketType=="ItemMarketplace"):
-			marketplaceObj = ItemMarketplace(marketDict, market_agentLink, simManagerId=self.simManagerId)
+			marketplaceObj = ItemMarketplace(marketDict, market_agentLink, simManagerId=self.simManagerId, outputDir=self.outputDir)
 			self.addConnection(marketplaceObj.agentId, market_networkLink)
 
 		if (marketType=="LaborMarketplace"):
-			marketplaceObj = LaborMarketplace(market_agentLink, simManagerId=self.simManagerId)
+			marketplaceObj = LaborMarketplace(market_agentLink, simManagerId=self.simManagerId, outputDir=self.outputDir)
 			self.addConnection(marketplaceObj.agentId, market_networkLink)
 
 		if (marketType=="LandMarketplace"):
-			marketplaceObj = LandMarketplace(market_agentLink, simManagerId=self.simManagerId)
+			marketplaceObj = LandMarketplace(market_agentLink, simManagerId=self.simManagerId, outputDir=self.outputDir)
 			self.addConnection(marketplaceObj.agentId, market_networkLink)
 
 		return marketplaceObj
@@ -95,7 +96,7 @@ class ConnectionNetwork:
 		market_agentLink = Link(sendPipe=marketPipeSend, recvPipe=marketPipeRecv)
 
 		#Instantiate gatherer
-		statsGatherer = StatisticsGatherer(settings=settings, itemDict=itemDict, networkLink=market_agentLink, logFile=logFile)
+		statsGatherer = StatisticsGatherer(settings=settings, itemDict=itemDict, networkLink=market_agentLink, logFile=logFile, outputDir=self.outputDir)
 		self.addConnection(statsGatherer.agentId, market_networkLink)
 
 		return statsGatherer

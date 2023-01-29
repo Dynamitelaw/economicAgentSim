@@ -23,16 +23,16 @@ class ConsumptionTracker:
 	'''
 	Keeps track of consumption over time
 	'''
-	def __init__(self, gathererParent, settings, name):
+	def __init__(self, gathererParent, settings, name, outputDir="OUTPUT"):
 		self.gathererParent = gathererParent
 		self.settings = settings
 		self.logger = gathererParent.logger
 		self.name = "{}.ConsumptionTracker".format(name)
 		self.lockTimout = 5
 
-		self.outputPath = os.path.join("Statistics", "Consumption.csv")
+		self.outputPath = os.path.join(outputDir, "Statistics", "Consumption.csv")
 		if ("OuputPath" in settings):
-			self.outputPath = os.path.join("Statistics", settings["OuputPath"])
+			self.outputPath = os.path.join(outputDir, "Statistics", settings["OuputPath"])
 		utils.createFolderPath(self.outputPath)
 
 		self.outputFile = open(self.outputPath, "w")
@@ -121,7 +121,7 @@ class ItemPriceTracker:
 	'''
 	Keeps track of price and quantity purchased of an item over time
 	'''
-	def __init__(self, gathererParent, settings, name):
+	def __init__(self, gathererParent, settings, name, outputDir="OUTPUT"):
 		self.gathererParent = gathererParent
 		self.settings = settings
 		self.logger = gathererParent.logger
@@ -134,9 +134,9 @@ class ItemPriceTracker:
 			raise ValueError(errorMsg)
 		self.itemId = settings["id"]
 
-		self.outputPath = os.path.join("Statistics", "Price_{}.csv".format(self.itemId))
+		self.outputPath = os.path.join(outputDir, "Statistics", "Price_{}.csv".format(self.itemId))
 		if ("OuputPath" in settings):
-			self.outputPath = os.path.join("Statistics", settings["OuputPath"])
+			self.outputPath = os.path.join(outputDir, "Statistics", settings["OuputPath"])
 		utils.createFolderPath(self.outputPath)
 
 		self.outputFile = open(self.outputPath, "w")
@@ -262,7 +262,7 @@ class LaborContractTracker:
 	'''
 	Keeps track of signed labor contracts over time
 	'''
-	def __init__(self, gathererParent, settings, name):
+	def __init__(self, gathererParent, settings, name, outputDir="OUTPUT"):
 		self.gathererParent = gathererParent
 		self.settings = settings
 		self.logger = gathererParent.logger
@@ -330,9 +330,9 @@ class LaborContractTracker:
 			self.employerClasses = settings["EmployerClasses"]
 
 		#Initialize output file
-		self.outputPath = os.path.join("Statistics", "LaborContractTracker_{}_{}.csv".format(self.minSkill, self.maxSkill))
+		self.outputPath = os.path.join(outputDir, "Statistics", "LaborContractTracker_{}_{}.csv".format(self.minSkill, self.maxSkill))
 		if ("OuputPath" in settings):
-			self.outputPath = os.path.join("Statistics", settings["OuputPath"])
+			self.outputPath = os.path.join(outputDir, "Statistics", settings["OuputPath"])
 		utils.createFolderPath(self.outputPath)
 
 		self.outputFile = open(self.outputPath, "w")
@@ -502,7 +502,7 @@ class ProductionTracker:
 	'''
 	Keeps track of the production of an item
 	'''
-	def __init__(self, gathererParent, settings, name):
+	def __init__(self, gathererParent, settings, name, outputDir="OUTPUT"):
 		self.gathererParent = gathererParent
 		self.settings = settings
 		self.logger = gathererParent.logger
@@ -515,9 +515,9 @@ class ProductionTracker:
 			raise ValueError(errorMsg)
 		self.itemId = settings["id"]
 
-		self.outputPath = os.path.join("Statistics", "Production_{}.csv".format(self.itemId))
+		self.outputPath = os.path.join(outputDir, "Statistics", "Production_{}.csv".format(self.itemId))
 		if ("OuputPath" in settings):
-			self.outputPath = os.path.join("Statistics", settings["OuputPath"])
+			self.outputPath = os.path.join(outputDir, "Statistics", settings["OuputPath"])
 		utils.createFolderPath(self.outputPath)
 
 		self.outputFile = open(self.outputPath, "w")
@@ -601,10 +601,10 @@ class StatisticsGatherer:
 	'''
 	The StatisticsGatherer gathers and calculates statistics during a simulation
 	'''
-	def __init__(self, settings={}, itemDict=None, networkLink=None, logFile=True, fileLevel="INFO"):
+	def __init__(self, settings={}, itemDict=None, networkLink=None, logFile=True, fileLevel="INFO", outputDir="OUTPUT"):
 		self.agentId = "StatisticsGatherer"
 
-		self.logger = utils.getLogger(self.agentId, console="WARNING", logFile=logFile, fileLevel=fileLevel)
+		self.logger = utils.getLogger(self.agentId, console="WARNING", logFile=logFile, fileLevel=fileLevel, outputdir=os.path.join(outputDir, "LOGS"))
 		self.logger.info("{} instantiated".format(self.agentId))
 
 		self.itemDict = itemDict
@@ -624,19 +624,19 @@ class StatisticsGatherer:
 				for trackerType in settings["Statistics"][statName]:
 					if (trackerType=="ConsumptionTracker"):
 						self.logger.info("Spawning ConsumptionTracker({}) for {}".format(settings["Statistics"][statName][trackerType], statName))
-						trackerObj = ConsumptionTracker(self, settings["Statistics"][statName][trackerType], statName)
+						trackerObj = ConsumptionTracker(self, settings["Statistics"][statName][trackerType], statName, outputDir=outputDir)
 						self.trackers.append(trackerObj)
 					elif (trackerType=="ItemPriceTracker"):
 						self.logger.info("Spawning ItemPriceTracker({}) for {}".format(settings["Statistics"][statName][trackerType], statName))
-						trackerObj = ItemPriceTracker(self, settings["Statistics"][statName][trackerType], statName)
+						trackerObj = ItemPriceTracker(self, settings["Statistics"][statName][trackerType], statName, outputDir=outputDir)
 						self.trackers.append(trackerObj)
 					elif (trackerType=="LaborContractTracker"):
 						self.logger.info("Spawning LaborContractTracker({}) for {}".format(settings["Statistics"][statName][trackerType], statName))
-						trackerObj = LaborContractTracker(self, settings["Statistics"][statName][trackerType], statName)
+						trackerObj = LaborContractTracker(self, settings["Statistics"][statName][trackerType], statName, outputDir=outputDir)
 						self.trackers.append(trackerObj)
 					elif (trackerType=="ProductionTracker"):
 						self.logger.info("Spawning ProductionTracker({}) for {}".format(settings["Statistics"][statName][trackerType], statName))
-						trackerObj = ProductionTracker(self, settings["Statistics"][statName][trackerType], statName)
+						trackerObj = ProductionTracker(self, settings["Statistics"][statName][trackerType], statName, outputDir=outputDir)
 						self.trackers.append(trackerObj)
 					else:
 						self.logger.error("Unknown stat tracker \"{}\" specified in settings. Will not gather data for {}.{}".format(trackerType, statName, trackerType))

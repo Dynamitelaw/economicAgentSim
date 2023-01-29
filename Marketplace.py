@@ -17,9 +17,9 @@ import utils
 
 
 class ItemMarketplace:
-	def __init__(self, itemDict, networkLink, simManagerId=None, logFile=True, fileLevel="INFO"):
+	def __init__(self, itemDict, networkLink, simManagerId=None, logFile=True, fileLevel="INFO", outputDir="OUTPUT"):
 		self.agentId = "ItemMarketplace"
-		self.logger = utils.getLogger("ItemMarketplace", logFile=logFile, console="ERROR", outputdir=os.path.join("LOGS", "Markets"), fileLevel=fileLevel)
+		self.logger = utils.getLogger("ItemMarketplace", logFile=logFile, console="ERROR", outputdir=os.path.join(outputDir, "LOGS", "Markets"), fileLevel=fileLevel)
 		self.logger.info("ItemMarketplace instantiated")
 
 		self.lockTimeout = 15
@@ -283,9 +283,9 @@ class ItemMarketplace:
 
 
 class LaborMarketplace:
-	def __init__(self, networkLink, simManagerId=None, logFile=True, fileLevel="INFO"):
+	def __init__(self, networkLink, simManagerId=None, logFile=True, fileLevel="INFO", outputDir="OUTPUT"):
 		self.agentId = "LaborMarketplace"
-		self.logger = utils.getLogger("LaborMarketplace", logFile=logFile, console="ERROR", outputdir=os.path.join("LOGS", "Markets"), fileLevel=fileLevel)
+		self.logger = utils.getLogger("LaborMarketplace", logFile=logFile, console="ERROR", outputdir=os.path.join(outputDir, "LOGS", "Markets"), fileLevel=fileLevel)
 		self.logger.info("LaborMarketplace instantiated")
 
 		self.lockTimeout = 15
@@ -583,9 +583,9 @@ class LaborMarketplace:
 
 
 class LandMarketplace:
-	def __init__(self, networkLink, simManagerId=None, logFile=True, fileLevel="INFO"):
+	def __init__(self, networkLink, simManagerId=None, logFile=True, fileLevel="INFO", outputDir="OUTPUT"):
 		self.agentId = "LandMarketplace"
-		self.logger = utils.getLogger("LandMarketplace", logFile=logFile, console="ERROR", outputdir=os.path.join("LOGS", "Markets"), fileLevel=fileLevel)
+		self.logger = utils.getLogger("LandMarketplace", logFile=logFile, console="ERROR", outputdir=os.path.join(outputDir, "LOGS", "Markets"), fileLevel=fileLevel)
 		self.logger.info("LandMarketplace instantiated")
 
 		self.lockTimeout = 15

@@ -36,12 +36,13 @@ def launchSimulation(simManagerSeed, settingsDict):
 			print(traceback.format_exc())
 
 
-def launchAgents(launchDict, allAgentDict, procName, managerId, managementPipe):
+def launchAgents(launchDict, allAgentDict, procName, managerId, managementPipe, outputDir="OUTPUT"):
 	'''
 	Instantiate all agents in launchDict, then wait for a kill message from Simulation Manager before exiting
 	'''
 	try:
-		logger = utils.getLogger("{}:{}".format(__name__, procName), console="INFO")
+		outputDirPath = outputDir
+		logger = utils.getLogger("{}:{}".format(__name__, procName), console="INFO", outputdir=os.path.join(outputDirPath, "LOGS"))
 
 		curr_proc = multiprocessing.current_process()
 		logger.info("{} started".format(procName))
@@ -120,12 +121,21 @@ def launchAgents(launchDict, allAgentDict, procName, managerId, managementPipe):
 			print(traceback.format_exc())
 
 
-def RunSimulation(settingsDict, logLevel="INFO"):
+def RunSimulation(settingsDict, logLevel="INFO", outputDir=None):
 	'''
 	Run's a single simulation with the specified settings
 	'''
-	logger = utils.getLogger("SimulationRunner:RunSimulation")
+	#Set output directory
+	outputDirPath = outputDir
+	if not (outputDirPath):
+		outputDirPath = os.path.join("OUTPUT", utils.getTimeStamp())
+	utils.createFolderPath(outputDirPath)
+	print("Output directory = {}".format(outputDirPath))
+
+	logger = utils.getLogger("SimulationRunner:RunSimulation", outputdir=os.path.join(outputDirPath, "LOGS"))
 	logger.info("settingsDict={}".format(settingsDict))
+	logger.info("Output directory = {}".format(os.path.abspath(outputDirPath)))
+	utils.dictToJsonFile({"settings": settingsDict}, os.path.join(outputDirPath, "settings.json"))
 
 	childProcesses = []
 	try:
@@ -210,7 +220,7 @@ def RunSimulation(settingsDict, logLevel="INFO"):
 					spawnSettings = {}
 					if ("settings" in agentSettings):
 						spawnSettings = agentSettings["settings"]
-					agentSeed = AgentSeed(agentId, agentType, ticksPerStep=settingsDict["TicksPerStep"], settings=spawnSettings, simManagerId=managerId, itemDict=allItemsDict, fileLevel=logLevel)
+					agentSeed = AgentSeed(agentId, agentType, ticksPerStep=settingsDict["TicksPerStep"], settings=spawnSettings, simManagerId=managerId, itemDict=allItemsDict, fileLevel=logLevel, outputDir=outputDirPath)
 					spawnDict[procNum][agentId] = agentSeed
 					allAgentDict[agentId] = agentSeed.agentInfo
 		print("\n")
@@ -218,12 +228,12 @@ def RunSimulation(settingsDict, logLevel="INFO"):
 		###########################
 		# Setup Simulation Manager
 		###########################
-		simManagerSeed = SimulationManagerSeed(managerId, allAgentDict, procDict)
+		simManagerSeed = SimulationManagerSeed(managerId, allAgentDict, procDict, outputDir=outputDirPath)
 
 		##########################
 		# Setup ConnectionNetwork
 		##########################
-		xactNetwork = ConnectionNetwork(itemDict=allItemsDict, simManagerId=managerId, simulationSettings=settingsDict)
+		xactNetwork = ConnectionNetwork(itemDict=allItemsDict, simManagerId=managerId, simulationSettings=settingsDict, outputDir=outputDirPath)
 		xactNetwork.addConnection(agentId=managerId, networkLink=simManagerSeed.networkLink)
 		for procNum in spawnDict:
 			for agentId in spawnDict[procNum]:
@@ -244,7 +254,7 @@ def RunSimulation(settingsDict, logLevel="INFO"):
 
 			xactNetwork.addConnection(agentId=procName, networkLink=networkLink)
 
-			proc = multiprocessing.Process(target=launchAgents, args=(spawnDict[procNum], allAgentDict, procName, managerId, managementLink))
+			proc = multiprocessing.Process(target=launchAgents, args=(spawnDict[procNum], allAgentDict, procName, managerId, managementLink, outputDirPath))
 			childProcesses.append(proc)
 			proc.start()
 

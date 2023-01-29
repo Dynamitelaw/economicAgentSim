@@ -27,6 +27,11 @@ def runSim(settingsFilePath, logLevel="INFO"):
 			print(traceback.format_exc())
 			raise ValueError("Could not open \"{}\"".format(settingsFilePath))
 
+		outputDirPath = None
+		if ("name" in fileDict):
+			print("#### {} ####".format(fileDict["name"]))
+			outputDirPath = os.path.join("OUTPUT", fileDict["name"])
+
 		if ("description" in fileDict):
 			description = fileDict["description"]
 			print("\n{}\n".format(description))
@@ -35,7 +40,7 @@ def runSim(settingsFilePath, logLevel="INFO"):
 			raise ValueError("\"settings\" missing from \"{}\"".format(settingsFilePath))
 
 		settingsDict = fileDict["settings"]
-		RunSimulation(settingsDict, logLevel)
+		RunSimulation(settingsDict, logLevel, outputDir=outputDirPath)
 	except:
 		print(traceback.format_exc())
 

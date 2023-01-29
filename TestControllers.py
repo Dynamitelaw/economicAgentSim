@@ -18,12 +18,12 @@ class PushoverController:
 	'''
 	This controller will accept all valid trade requests, and will not take any other action. Used for testing.
 	'''
-	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO", outputDir="OUTPUT"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.name = "{}_PushoverController".format(agent.agentId)
 
-		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join(outputDir, "LOGS", "Controller_Logs"), fileLevel=fileLevel)
 
 		#Keep track of agent assets
 		self.currencyBalance = agent.currencyBalance  #(int) cents  #This prevents accounting errors due to float arithmetic (plus it's faster)
@@ -66,14 +66,14 @@ class TestSeller:
 	Will create items out of thin air.
 	Used for testing.
 	'''
-	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO", outputDir="OUTPUT"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.simManagerId = agent.simManagerId
 
 		self.name = "{}_TestSeller".format(agent.agentId)
 
-		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join(outputDir, "LOGS", "Controller_Logs"), fileLevel=fileLevel)
 
 		#Keep track of agent assets
 		self.currencyBalance = agent.currencyBalance  #(int) cents  #This prevents accounting errors due to float arithmetic (plus it's faster)
@@ -216,14 +216,14 @@ class TestBuyer:
 	Will create currency out of thin air.
 	Used for testing.
 	'''
-	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO", outputDir="OUTPUT"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.simManagerId = agent.simManagerId
 
 		self.name = "{}_TestBuyer".format(agent.agentId)
 
-		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join(outputDir, "LOGS", "Controller_Logs"), fileLevel=fileLevel)
 
 		#Keep track of agent assets
 		self.currencyBalance = agent.currencyBalance  #(int) cents  #This prevents accounting errors due to float arithmetic (plus it's faster)
@@ -331,14 +331,14 @@ class TestEmployer:
 	Will create currency out of thin air.
 	Used for testing.
 	'''
-	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO", outputDir="OUTPUT"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.simManagerId = agent.simManagerId
 
 		self.name = "{}_TestEmployer".format(agent.agentId)
 
-		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join(outputDir, "LOGS", "Controller_Logs"), fileLevel=fileLevel)
 
 		#Initiate thread kill flag to false
 		self.killThreads = False
@@ -396,14 +396,14 @@ class TestWorker:
 	This controller will accept random job listings. 
 	Used for testing.
 	'''
-	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO", outputDir="OUTPUT"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.simManagerId = agent.simManagerId
 
 		self.name = "{}_TestWorker".format(agent.agentId)
 
-		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join(outputDir, "LOGS", "Controller_Logs"), fileLevel=fileLevel)
 
 		#Initiate thread kill flag to false
 		self.killThreads = False
@@ -472,14 +472,14 @@ class TestLandSeller:
 	Will create land out of thin air.
 	Used for testing.
 	'''
-	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO", outputDir="OUTPUT"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.simManagerId = agent.simManagerId
 
 		self.name = "{}_TestLandSeller".format(agent.agentId)
 
-		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join(outputDir, "LOGS", "Controller_Logs"), fileLevel=fileLevel)
 
 		#Determine what land to sell
 		landTypes = ["UNALLOCATED", "apple", "potato"]
@@ -567,14 +567,14 @@ class TestLandBuyer:
 	Will create currency out of thin air.
 	Used for testing.
 	'''
-	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO", outputDir="OUTPUT"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.simManagerId = agent.simManagerId
 
 		self.name = "{}_TestLandBuyer".format(agent.agentId)
 
-		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join(outputDir, "LOGS", "Controller_Logs"), fileLevel=fileLevel)
 
 		self.landTypes = ["UNALLOCATED", "apple", "potato"]
 
@@ -673,14 +673,14 @@ class TestEater:
 	Will create currency out of thin air.
 	Used for testing.
 	'''
-	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO", outputDir="OUTPUT"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.simManagerId = agent.simManagerId
 
 		self.name = "{}_TestEater".format(agent.agentId)
 
-		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join(outputDir, "LOGS", "Controller_Logs"), fileLevel=fileLevel)
 
 		#Keep track of agent assets
 		self.currencyBalance = agent.currencyBalance  #(int) cents  #This prevents accounting errors due to float arithmetic (plus it's faster)
@@ -726,13 +726,13 @@ class TestSpawner:
 	Will adjust sell price until quantityProduces ~= quantityPurchased
 	Used for testing.
 	'''
-	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO", outputDir="OUTPUT"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.simManagerId = agent.simManagerId
 
 		self.name = "{}_TestFarmer".format(agent.agentId)
-		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join(outputDir, "LOGS", "Controller_Logs"), fileLevel=fileLevel)
 
 		self.inventory = agent.inventory
 
@@ -880,14 +880,14 @@ class TestEmployerCompetetive:
 	Will create currency out of thin air.
 	Used for testing.
 	'''
-	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO", outputDir="OUTPUT"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.simManagerId = agent.simManagerId
 
 		self.name = "{}_TestEmployer".format(agent.agentId)
 
-		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join(outputDir, "LOGS", "Controller_Logs"), fileLevel=fileLevel)
 
 		#Initiate thread kill flag to false
 		self.killThreads = False
@@ -992,14 +992,14 @@ class TestFarmWorker:
 	This controller will try to find the highest paying job. Will automatically pruchase and consume food. 
 	Used for testing.
 	'''
-	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO", outputDir="OUTPUT"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.simManagerId = agent.simManagerId
 
 		self.name = "{}_TestFarmWorker".format(agent.agentId)
 
-		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join(outputDir, "LOGS", "Controller_Logs"), fileLevel=fileLevel)
 
 		#Initiate thread kill flag to false
 		self.killThreads = False
@@ -1083,14 +1083,14 @@ class TestFarmCompetetive:
 	Will sell that item on the marketplace, and adjust the price to maxmimize revenue.
 	Used for testing.
 	'''
-	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO", outputDir="OUTPUT"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.simManagerId = agent.simManagerId
 
 		self.name = "{}_TestFarmCompetetive".format(agent.agentId)
 
-		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join(outputDir, "LOGS", "Controller_Logs"), fileLevel=fileLevel)
 
 		#Initiate thread kill flag to false
 		self.killThreads = False
@@ -1432,14 +1432,14 @@ class TestFarmWorkerV2:
 	This controller will try to find the highest paying job. Will automatically pruchase and consume food. 
 	Used for testing.
 	'''
-	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO", outputDir="OUTPUT"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.simManagerId = agent.simManagerId
 
 		self.name = "{}_TestFarmWorkerV2".format(agent.agentId)
 
-		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join(outputDir, "LOGS", "Controller_Logs"), fileLevel=fileLevel)
 
 		#Initiate thread kill flag to false
 		self.killThreads = False
@@ -1528,14 +1528,14 @@ class TestFarmCompetetiveV2:
 	Will sell that item on the marketplace, and adjust the price to maxmimize profit.
 	Used for testing.
 	'''
-	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO"):
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO", outputDir="OUTPUT"):
 		self.agent = agent
 		self.agentId = agent.agentId
 		self.simManagerId = agent.simManagerId
 
 		self.name = "{}_TestFarmCompetetiveV2".format(agent.agentId)
 
-		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join("LOGS", "Controller_Logs"), fileLevel=fileLevel)
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join(outputDir, "LOGS", "Controller_Logs"), fileLevel=fileLevel)
 
 		#Initiate thread kill flag to false
 		self.killThreads = False
@@ -1629,7 +1629,7 @@ class TestFarmCompetetiveV2:
 		self.logger.info("Old target production rate = {}".format(self.targetProductionRate))
 		saleRatio = (self.currentSalesAvg+1)/(self.currentProductionRateAvg+1)
 		inventoryRatio = (self.currentProductionRateAvg+1) / (productInventory+1)
-		productionAdjustmentRatio = pow((1+profitMargin), 0.6)*pow(inventoryRatio, 0.5)
+		productionAdjustmentRatio = pow((1+profitMargin), 0.7)*pow(inventoryRatio, 0.7)
 		self.logger.debug("Production adjustment ratio = {}".format(productionAdjustmentRatio))
 		self.targetProductionRate = ((1-prodAlpha)*self.targetProductionRate) + (prodAlpha*self.currentProductionRateAvg*productionAdjustmentRatio)
 		self.logger.info("New target production rate = {}".format(self.targetProductionRate))
@@ -1659,12 +1659,6 @@ class TestFarmCompetetiveV2:
 			#Adjust sell price
 			newPrice = self.sellPrice * adjustmentRatio
 			self.sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*newPrice)
-
-		#Adjust price based on minimum expenses
-		# targetRevenue = self.targetProductionRate*self.sellPrice
-		# if (targetRevenue < avgExpenses):
-		# 	self.logger.debug("Adjusted price {} too low to cover costs. Resetting target revenue".format(self.sellPrice))
-		# 	self.sellPrice = (avgExpenses/self.targetProductionRate)*1.1
 
 		self.logger.info("New sale price = {}".format(self.sellPrice))
 
@@ -1727,12 +1721,12 @@ class TestFarmCompetetiveV2:
 		#Adjust wage based on worker deficit and application number
 		divisor = 1
 		if (self.workerDeficit < 0):
-			divisor = pow(abs(self.workerDeficit)*1.2, 0.8)
+			divisor = pow(abs(self.workerDeficit)*1.2, 0.9)
 		if (self.workerDeficit > 0) and (self.openSteps > 2):
 			divisor = 1/pow((self.workerDeficit), 0.2)
 		if (self.workerDeficit > 0):
 			if (abs(self.applications/self.workerDeficit)>1.5):
-				divisor = pow(abs(self.applications/self.workerDeficit), 0.9)
+				divisor = pow(abs(self.applications/self.workerDeficit), 1.1)
 
 		dividend = 1.0
 		if (self.openSteps > 3):

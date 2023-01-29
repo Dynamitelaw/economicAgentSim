@@ -1013,7 +1013,7 @@ class AgentInfo:
 		return "AgentInfo(ID={}, Type={})".format(self.agentId, self.agentType)
 
 
-def getAgentController(agent, settings={}, logFile=True, fileLevel="INFO"):
+def getAgentController(agent, settings={}, logFile=True, fileLevel="INFO", outputDir="OUTPUT"):
 	'''
 	Instantiates an agent controller, dependant on the agentType
 	'''
@@ -1021,35 +1021,35 @@ def getAgentController(agent, settings={}, logFile=True, fileLevel="INFO"):
 
 	#Test controllers
 	if (agentInfo.agentType == "PushoverController"):
-		return PushoverController(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
+		return PushoverController(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
 	if (agentInfo.agentType == "TestSnooper"):
-		return TestSnooper(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
+		return TestSnooper(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
 	if (agentInfo.agentType == "TestSeller"):
-		return TestSeller(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
+		return TestSeller(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
 	if (agentInfo.agentType == "TestBuyer"):
-		return TestBuyer(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
+		return TestBuyer(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
 	if (agentInfo.agentType == "TestEmployer"):
-		return TestEmployer(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
+		return TestEmployer(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
 	if (agentInfo.agentType == "TestWorker"):
-		return TestWorker(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
+		return TestWorker(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
 	if (agentInfo.agentType == "TestLandSeller"):
-		return TestLandSeller(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
+		return TestLandSeller(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
 	if (agentInfo.agentType == "TestLandBuyer"):
-		return TestLandBuyer(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
+		return TestLandBuyer(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
 	if (agentInfo.agentType == "TestEater"):
-		return TestEater(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
+		return TestEater(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
 	if (agentInfo.agentType == "TestSpawner"):
-		return TestSpawner(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
+		return TestSpawner(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
 	if (agentInfo.agentType == "TestEmployerCompetetive"):
-		return TestEmployerCompetetive(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
+		return TestEmployerCompetetive(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
 	if (agentInfo.agentType == "TestFarmWorker"):
-		return TestFarmWorker(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
+		return TestFarmWorker(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
 	if (agentInfo.agentType == "TestFarmWorkerV2"):
-		return TestFarmWorkerV2(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
+		return TestFarmWorkerV2(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
 	if (agentInfo.agentType == "TestFarmCompetetive"):
-		return TestFarmCompetetive(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
+		return TestFarmCompetetive(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
 	if (agentInfo.agentType == "TestFarmCompetetiveV2"):
-		return TestFarmCompetetiveV2(agent, settings=settings, logFile=logFile, fileLevel=fileLevel)
+		return TestFarmCompetetiveV2(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
 
 	#Unhandled agent type. Return default controller
 	return None
@@ -1062,7 +1062,7 @@ class AgentSeed:
 	So the AgentSeed class is a pickle-safe info container that can be passed to child processes.
 	The process can then call AgentSeed.spawnAgent() to instantiate an Agent obj.
 	'''
-	def __init__(self, agentId, agentType=None, ticksPerStep=24, settings={}, simManagerId=None, itemDict=None, allAgentDict=None, logFile=True, fileLevel="INFO", disableNetworkLink=False):
+	def __init__(self, agentId, agentType=None, ticksPerStep=24, settings={}, simManagerId=None, itemDict=None, allAgentDict=None, logFile=True, fileLevel="INFO", outputDir="OUTPUT", disableNetworkLink=False):
 		self.agentInfo = AgentInfo(agentId, agentType)
 		self.ticksPerStep = ticksPerStep
 		self.settings = settings
@@ -1071,6 +1071,7 @@ class AgentSeed:
 		self.allAgentDict = allAgentDict
 		self.logFile = logFile
 		self.fileLevel = fileLevel
+		self.outputDir = outputDir
 
 		if (disableNetworkLink):
 			self.networkLink = None
@@ -1083,7 +1084,7 @@ class AgentSeed:
 			self.agentLink = Link(sendPipe=agentPipeSend, recvPipe=agentPipeRecv)
 
 	def spawnAgent(self):
-		return Agent(self.agentInfo, simManagerId=self.simManagerId, ticksPerStep=self.ticksPerStep, settings=self.settings, itemDict=self.itemDict, allAgentDict=self.allAgentDict, networkLink=self.agentLink, logFile=self.logFile, fileLevel=self.fileLevel)
+		return Agent(self.agentInfo, simManagerId=self.simManagerId, ticksPerStep=self.ticksPerStep, settings=self.settings, itemDict=self.itemDict, allAgentDict=self.allAgentDict, networkLink=self.agentLink, logFile=self.logFile, fileLevel=self.fileLevel, outputDir=self.outputDir)
 
 	def __str__(self):
 		return "AgentSeed({})".format(self.agentInfo)
@@ -1111,14 +1112,14 @@ class Agent:
 		-marketplace updates and polling
 
 	'''
-	def __init__(self, agentInfo, simManagerId=None, ticksPerStep=24, settings={}, itemDict=None, allAgentDict=None, networkLink=None, logFile=True, fileLevel="INFO", controller=None):
+	def __init__(self, agentInfo, simManagerId=None, ticksPerStep=24, settings={}, itemDict=None, allAgentDict=None, networkLink=None, logFile=True, fileLevel="INFO", outputDir="OUTPUT", controller=None):
 		self.info = agentInfo
 		self.agentId = agentInfo.agentId
 		self.agentType = agentInfo.agentType
 		
 		self.simManagerId = simManagerId
 
-		self.logger = utils.getLogger("{}:{}".format(__name__, self.agentId), console="ERROR", logFile=logFile, outputdir=os.path.join("LOGS", "Agent_Logs"), fileLevel=fileLevel)
+		self.logger = utils.getLogger("{}:{}".format(__name__, self.agentId), console="ERROR", logFile=logFile, outputdir=os.path.join(outputDir, "LOGS", "Agent_Logs"), fileLevel=fileLevel)
 		self.logger.info("{} instantiated".format(self.info))
 
 		self.lockTimeout = 5
@@ -1263,7 +1264,7 @@ class Agent:
 		if (controller):
 			self.controller = controller
 		else:	
-			self.controller = getAgentController(self, settings=settings, logFile=logFile, fileLevel=fileLevel)
+			self.controller = getAgentController(self, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
 			if (not self.controller):
 				self.logger.warning("No controller was instantiated. \"{}\" is not a valid controller type".format(self.agentType))
 		self.controllerStart = False
