@@ -1445,7 +1445,7 @@ class TestFarmWorkerV2:
 		self.killThreads = False
 
 		#Spawn starting balance
-		self.agent.receiveCurrency(9999)
+		self.agent.receiveCurrency(99999)
 
 		#Wage expectations
 		self.expectedWage = 0
@@ -1545,7 +1545,7 @@ class TestFarmCompetetiveV2:
 		if ("StartSkew" in settings):
 			skewRate = settings["StartSkew"]+1
 			self.startStep = int(random.random()/(1.0/skewRate))
-		self.updateRate = 3
+		self.updateRate = 5
 		self.updateOffset = self.startStep
 
 		#Determine what to produce
@@ -1608,7 +1608,7 @@ class TestFarmCompetetiveV2:
 
 	def adjustProduction(self):
 		#Alphas for moving exponential adjustments
-		prodAlpha = 0.1
+		prodAlpha = 0.2
 		priceAlpha = 0.2
 		medianPriceAlpha = 0.2
 
@@ -1629,7 +1629,7 @@ class TestFarmCompetetiveV2:
 		self.logger.info("Old target production rate = {}".format(self.targetProductionRate))
 		saleRatio = (self.currentSalesAvg+1)/(self.currentProductionRateAvg+1)
 		inventoryRatio = (self.currentProductionRateAvg+1) / (productInventory+1)
-		productionAdjustmentRatio = pow((1+profitMargin), 0.6)*pow(inventoryRatio, 0.7)
+		productionAdjustmentRatio = pow((1+profitMargin), 0.6)*pow(inventoryRatio, 0.5)
 		self.logger.debug("Production adjustment ratio = {}".format(productionAdjustmentRatio))
 		self.targetProductionRate = ((1-prodAlpha)*self.targetProductionRate) + (prodAlpha*self.currentProductionRateAvg*productionAdjustmentRatio)
 		self.logger.info("New target production rate = {}".format(self.targetProductionRate))
@@ -1655,28 +1655,18 @@ class TestFarmCompetetiveV2:
 		self.logger.debug("Inventory ratio = {}".format(inventoryRatio))
 		self.logger.debug("Sale ratio = {}".format(saleRatio))
 		self.logger.debug("Price adjustment ratio = {}".format(adjustmentRatio))
-		if (adjustmentRatio > 1.1) or (adjustmentRatio < 0.9):
+		if (adjustmentRatio > 1.05) or (adjustmentRatio < 0.95):
 			#Adjust sell price
 			newPrice = self.sellPrice * adjustmentRatio
 			self.sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*newPrice)
 
 		#Adjust price based on minimum expenses
-		targetRevenue = self.targetProductionRate*self.sellPrice
-		if (targetRevenue < avgExpenses):
-			self.logger.debug("Adjusted price {} too low to cover costs. Resetting target revenue".format(self.sellPrice))
-			self.sellPrice = (avgExpenses/self.targetProductionRate)*1.1
+		# targetRevenue = self.targetProductionRate*self.sellPrice
+		# if (targetRevenue < avgExpenses):
+		# 	self.logger.debug("Adjusted price {} too low to cover costs. Resetting target revenue".format(self.sellPrice))
+		# 	self.sellPrice = (avgExpenses/self.targetProductionRate)*1.1
 
 		self.logger.info("New sale price = {}".format(self.sellPrice))
-
-		#See if we have any deficits for the new production rate
-		inputDeficits = self.agent.getProductionInputDeficit(self.sellItemId, self.targetProductionRate)
-		self.logger.debug("Input deficits = {}".format(inputDeficits))
-		self.acquireDeficits(inputDeficits)
-
-		#Get rid of surplus inputs
-		surplusInputs = self.agent.getProductionInputSurplus(self.sellItemId, self.targetProductionRate)
-		self.logger.debug("Input surplus = {}".format(surplusInputs))
-		self.removeSurplus(surplusInputs)
 
 
 	def liquidateItem(self, itemContainer):
@@ -1722,7 +1712,7 @@ class TestFarmCompetetiveV2:
 
 
 	def adjustNextWage(self):
-		medianAlpha = 0.3
+		medianAlpha = 0.2
 		adjustmentAlpha = 0.1
 		#Adjust wage  based on market rate
 		medianWage = self.workerWage
@@ -1737,11 +1727,12 @@ class TestFarmCompetetiveV2:
 		#Adjust wage based on worker deficit and application number
 		divisor = 1
 		if (self.workerDeficit < 0):
-			divisor = pow(abs(self.workerDeficit)*1.2, 1.2)
+			divisor = pow(abs(self.workerDeficit)*1.2, 0.8)
 		if (self.workerDeficit > 0) and (self.openSteps > 2):
 			divisor = 1/pow((self.workerDeficit), 0.2)
-		if (abs(self.applications/self.workerDeficit)>1.5):
-			divisor = pow(abs(self.applications/self.workerDeficit), 1.5)
+		if (self.workerDeficit > 0):
+			if (abs(self.applications/self.workerDeficit)>1.5):
+				divisor = pow(abs(self.applications/self.workerDeficit), 0.9)
 
 		dividend = 1.0
 		if (self.openSteps > 3):
@@ -1809,6 +1800,16 @@ class TestFarmCompetetiveV2:
 			self.openSteps = 0
 
 	def produce(self):
+		#See if we have any deficits for the new production rate
+		inputDeficits = self.agent.getProductionInputDeficit(self.sellItemId, self.targetProductionRate)
+		self.logger.debug("Input deficits = {}".format(inputDeficits))
+		self.acquireDeficits(inputDeficits)
+
+		#Get rid of surplus inputs
+		surplusInputs = self.agent.getProductionInputSurplus(self.sellItemId, self.targetProductionRate)
+		self.logger.debug("Input surplus = {}".format(surplusInputs))
+		self.removeSurplus(surplusInputs)
+
 		#Produce items
 		maxProductionPossible = self.agent.getMaxProduction(self.sellItemId)
 
@@ -1817,6 +1818,7 @@ class TestFarmCompetetiveV2:
 			productionAmount = maxProductionPossible
 
 		producedItems = self.agent.produceItem(ItemContainer(self.sellItemId, productionAmount))
+		self.logger.debug("Produced {}".format(producedItems))
 
 		#Update production average
 		alpha = 0.4
