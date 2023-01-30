@@ -3,7 +3,7 @@
 	"description": "Test simulation with competetive farms. Used for testing and debug.",
 	"settings": {
 		"AgentNumProcesses": 6,
-		"SimulationSteps": 1600,
+		"SimulationSteps": 20,
 		"TicksPerStep": 16,
 		"AgentSpawns":{
 			"AppleFarm": {
@@ -28,7 +28,17 @@
 			},
 			"PeaFarm": {
 				"TestFarmCompetetiveV2":{
-					"quantity": 9,
+					"quantity": 8,
+					"settings": {
+						"itemId": "chickpea",
+						"startingProductionRate": 6.68,
+						"StartSkew": 9
+					}
+				}
+			},
+			"PeaFarmAccounting": {
+				"TestFarmCompetetiveV2":{
+					"quantity": 1,
 					"settings": {
 						"itemId": "chickpea",
 						"startingProductionRate": 6.68,
@@ -116,7 +126,7 @@
 					"OuputPath": "FoodMarket/chickpea/ChickpeaProduction.csv"
 				},
 				"AccountingTracker":{
-					"AgentFilters": ["PeaFarm"],
+					"AgentFilters": ["PeaFarmAccounting"],
 					"OuputPath": "FoodMarket/chickpea/ChickpeaFarmAccounting.csv"
 				}
 			},

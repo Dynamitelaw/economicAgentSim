@@ -31,7 +31,7 @@ class ConnectionNetwork:
 		self.simManagerId = simManagerId
 
 		self.outputDir = outputDir
-		self.logger = utils.getLogger("{}".format(__name__), logFile=logFile, outputdir=os.path.join(outputDir, "LOGS"))
+		self.logger = utils.getLogger("{}".format(__name__), logFile=logFile, outputdir=os.path.join(outputDir, "LOGS"), fileLevel="INFO")
 		self.lockTimeout = 5
 
 		self.agentConnections = {}
@@ -113,7 +113,7 @@ class ConnectionNetwork:
 			acquired_sendLock = self.sendLocks[pipeId].acquire()
 			if (acquired_sendLock):
 				self.logger.debug("Acquired lock sendLocks[{}]".format(pipeId))
-				self.logger.info("OUTBOUND {} {}".format(packet, pipeId))
+				self.logger.debug("OUTBOUND {} {}".format(packet, pipeId))
 				self.agentConnections[pipeId].sendPipe.send(packet)
 				self.sendLocks[pipeId].release()
 				self.logger.debug("Release lock sendLocks[{}]".format(pipeId))
@@ -147,9 +147,9 @@ class ConnectionNetwork:
 	def monitorLink(self, agentId):
 		agentLink = self.agentConnections[agentId]
 		while True:
-			self.logger.info("Monitoring {} link {}".format(agentId, agentLink))
+			self.logger.debug("Monitoring {} link {}".format(agentId, agentLink))
 			incommingPacket = agentLink.recvPipe.recv()
-			self.logger.info("INBOUND {} {}".format(agentId, incommingPacket))
+			self.logger.debug("INBOUND {} {}".format(agentId, incommingPacket))
 			destinationId = incommingPacket.destinationId
 
 			#Handle kill packets
@@ -267,6 +267,11 @@ class ConnectionNetwork:
 
 	def monitorTickBlockers(self):
 		self.logger.info("monitorTickBlockers() start")
+
+		prevBlockerAgent = None
+		prevStartTime = time.time()
+		averageLoopTime = 0
+		warningSent = False
 		while True:
 			if (self.killAllFlag):
 				break
@@ -277,13 +282,30 @@ class ConnectionNetwork:
 					for agentId in self.timeTickBlockers:
 						agentBlocked = self.timeTickBlockers[agentId]
 						if (not agentBlocked):
-							#self.logger.info("Still waiting for {} to be tick blocked".format(agentId))
+							if (agentId != prevBlockerAgent):
+								self.logger.info("Still waiting for {} to be tick blocked".format(agentId))
+							if not (warningSent):
+								if (averageLoopTime > 0):
+									currentWaitTime = time.time() - prevStartTime
+									if (currentWaitTime > (5*averageLoopTime)):
+										self.logger.warning("Still waiting for {} to be tick blocked. Current step time {} seconds is 5x the average step time {} seconds. {} is probably stuck.".format(agentId, currentWaitTime, averageLoopTime, agentId))
+										warningSent = True
+										
 							allAgentsBlocked = False
+							prevBlockerAgent = agentId
 							break
 			except:
 				pass
 
 			if (allAgentsBlocked and self.simStarted):
+				warningSent = False
+				endTime = time.time()
+				if (averageLoopTime == 0):
+					averageLoopTime = endTime-prevStartTime
+				alpha = 0.3
+				averageLoopTime = ((1-alpha)*averageLoopTime) + (alpha*(endTime-prevStartTime))
+				prevStartTime = time.time()
+
 				self.logger.info("All agents are tick blocked. Reseting blocks and notifying simulation manager")
 				for agentId in self.timeTickBlockers:
 					self.timeTickBlockers[agentId] = False

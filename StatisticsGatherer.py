@@ -612,6 +612,7 @@ class AccountingTracker:
 		self.outputFile = open(self.outputPath, "w")
 		self.columns = ["DayStepNumber", 
 		"CurrencyInflowMedian", "CurrencyOutflowMedian",
+		"TradeRevenueMedian",
 		"ProfitMedian", "ProfitMarginMedian"]
 		csvHeader = ",".join(self.columns)+"\n"
 		self.outputFile.write(csvHeader)
@@ -627,6 +628,7 @@ class AccountingTracker:
 		self.statLock = threading.Lock()
 		self.currencyInflows = SortedList()
 		self.currencyOutflows = SortedList()
+		self.tradeRevenues = SortedList()
 		self.profits = SortedList()
 		self.profitMargins = SortedList()
 
@@ -649,9 +651,10 @@ class AccountingTracker:
 			statsDict = infoReq.info
 			self.currencyInflows.add(statsDict["stepCurrencyInflow"])
 			self.currencyOutflows.add(statsDict["stepCurrencyOutflow"])
-			self.profits.add(statsDict["stepCurrencyInflow"]-statsDict["stepCurrencyOutflow"])
+			self.tradeRevenues.add(statsDict["stepTradeRevenue"])
+			self.profits.add(statsDict["stepTradeRevenue"]-statsDict["stepCurrencyOutflow"])
 			if (statsDict["stepCurrencyOutflow"] > 0):
-				self.profitMargins.add((statsDict["stepCurrencyInflow"]-statsDict["stepCurrencyOutflow"])/statsDict["stepCurrencyOutflow"])
+				self.profitMargins.add((statsDict["stepTradeRevenue"]-statsDict["stepCurrencyOutflow"])/statsDict["stepCurrencyOutflow"])
 
 			self.statLock.release()
 		else:
@@ -671,6 +674,11 @@ class AccountingTracker:
 			if (currencyOutflowLen > 0):
 				CurrencyOutflowMedian = self.currencyOutflows[int(currencyOutflowLen/2)]
 
+			TradeRevenueMedian = 0
+			tradeRevenueLen = len(self.tradeRevenues)
+			if (tradeRevenueLen > 0):
+				TradeRevenueMedian = self.tradeRevenues[int(tradeRevenueLen/2)]
+
 			ProfitMedian = 0
 			profitLen = len(self.profits)
 			if (profitLen > 0):
@@ -681,7 +689,7 @@ class AccountingTracker:
 			if (profitMarginLen > 0):
 				ProfitMarginMedian = self.profitMargins[int(profitMarginLen/2)]
 
-			rowData = [DayStepNumber, CurrencyInflowMedian, CurrencyOutflowMedian, ProfitMedian, ProfitMarginMedian]
+			rowData = [DayStepNumber, CurrencyInflowMedian, CurrencyOutflowMedian, TradeRevenueMedian, ProfitMedian, ProfitMarginMedian]
 
 			csvLine = ",".join([str(i) for i in rowData])
 			csvLine = "{}\n".format(csvLine)
@@ -702,7 +710,9 @@ class AccountingTracker:
 				self.stepNum += 1
 				self.currencyInflows.clear()
 				self.currencyOutflows.clear()
+				self.tradeRevenues.clear()
 				self.profits.clear()
+				self.profitMargins.clear()
 
 				self.statLock.release()
 			else:

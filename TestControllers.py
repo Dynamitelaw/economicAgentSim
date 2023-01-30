@@ -1603,6 +1603,7 @@ class TestFarmCompetetiveV2:
 		self.agent.receiveItem(ItemContainer(self.sellItemId, self.targetProductionRate))
 
 		#Enable accounting
+		self.agent.enableTradeRevenueTracking()
 		self.agent.enableCurrencyOutflowTracking()
 		self.agent.enableCurrencyInflowTracking()
 
@@ -1613,7 +1614,7 @@ class TestFarmCompetetiveV2:
 		medianPriceAlpha = 0.2
 
 		#Get current profit margins
-		avgRevenue = self.agent.getAvgCurrencyInflow()
+		avgRevenue = self.agent.getAvgTradeRevenue()
 		avgExpenses = self.agent.getAvgCurrencyOutflow()
 		profitMargin = 0
 		if (avgExpenses > 0):
@@ -1629,7 +1630,7 @@ class TestFarmCompetetiveV2:
 		self.logger.info("Old target production rate = {}".format(self.targetProductionRate))
 		saleRatio = (self.currentSalesAvg+1)/(self.currentProductionRateAvg+1)
 		inventoryRatio = (self.currentProductionRateAvg+1) / (productInventory+1)
-		productionAdjustmentRatio = pow((1+profitMargin), 0.7)*pow(inventoryRatio, 0.7)
+		productionAdjustmentRatio = pow((1+profitMargin), 0.9)*pow(inventoryRatio, 1.1)
 		self.logger.debug("Production adjustment ratio = {}".format(productionAdjustmentRatio))
 		self.targetProductionRate = ((1-prodAlpha)*self.targetProductionRate) + (prodAlpha*self.currentProductionRateAvg*productionAdjustmentRatio)
 		self.logger.info("New target production rate = {}".format(self.targetProductionRate))
@@ -1644,8 +1645,8 @@ class TestFarmCompetetiveV2:
 		if (len(sampledListings) > 0):
 			for listing in sampledListings:
 				sampledPrices.add(listing.unitPrice)
-			#medianPrice = sampledPrices[int(len(sampledListings)/2)]
-			medianPrice = sampledPrices[0]
+			medianPrice = sampledPrices[int(len(sampledListings)/2)]
+			#medianPrice = sampledPrices[0]
 
 		self.logger.info("Median market price = {}".format(medianPrice))
 		self.sellPrice = ((1-medianPriceAlpha)*self.sellPrice) + (medianPriceAlpha*medianPrice)
@@ -1721,12 +1722,12 @@ class TestFarmCompetetiveV2:
 		#Adjust wage based on worker deficit and application number
 		divisor = 1
 		if (self.workerDeficit < 0):
-			divisor = pow(abs(self.workerDeficit)*1.2, 0.9)
+			divisor = pow(abs(self.workerDeficit)*1.2, 1.2)
 		if (self.workerDeficit > 0) and (self.openSteps > 2):
 			divisor = 1/pow((self.workerDeficit), 0.2)
 		if (self.workerDeficit > 0):
 			if (abs(self.applications/self.workerDeficit)>1.5):
-				divisor = pow(abs(self.applications/self.workerDeficit), 1.1)
+				divisor = pow(abs(self.applications/self.workerDeficit), 1.5)
 
 		dividend = 1.0
 		if (self.openSteps > 3):
@@ -1825,6 +1826,7 @@ class TestFarmCompetetiveV2:
 
 
 	def evalTradeRequest(self, request):
+		self.logger.debug("evalTradeRequest({}) start".format(request))
 		productInventory = 0
 		if (request.itemPackage.id in self.agent.inventory):
 			productInventory = self.agent.inventory[request.itemPackage.id].quantity
@@ -1833,6 +1835,7 @@ class TestFarmCompetetiveV2:
 		if (tradeAccepted):
 			self.stepSales += request.itemPackage.quantity
 
+		self.logger.debug("evalTradeRequest({}) return {}".format(request, tradeAccepted))
 		return tradeAccepted
 
 
@@ -1851,8 +1854,9 @@ class TestFarmCompetetiveV2:
 
 				#Print business stats
 				self.logger.info("Current sales average = {}".format(self.currentSalesAvg))
-				avgRevenue = self.agent.getAvgCurrencyInflow()
+				avgRevenue = self.agent.getAvgTradeRevenue()
 				avgExpenses = self.agent.getAvgCurrencyOutflow()
+				self.logger.debug(self.agent.getAccountingStats())
 				self.logger.info("Avg Daily Expenses={}, Avg Daily Revenue={}, Avg Daily Profit={}".format(avgExpenses, avgRevenue, avgRevenue-avgExpenses))
 
 				if ((self.agent.stepNum-self.updateOffset)%self.updateRate == 0):

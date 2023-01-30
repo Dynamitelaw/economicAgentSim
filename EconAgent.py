@@ -254,7 +254,9 @@ class ProductionFunction:
 		####
 
 		#Determine our theoretical labor availability per step
+		agent.laborContractsLock.acquire()
 		tempLaborContracts = copy.deepcopy(agent.laborContracts)
+		agent.laborContractsLock.release()
 		laborContractsList =  []
 		for endStep in tempLaborContracts:
 			for contractHash in tempLaborContracts[endStep]:
@@ -421,7 +423,9 @@ class ProductionFunction:
 
 
 		#Check fixed labor requirements
+		agent.laborInventoryLock.acquire()
 		tempLaborInventory =  copy.deepcopy(agent.laborInventory)
+		agent.laborInventoryLock.release()
 		availableSkillLevels = [i for i in agent.laborInventory.keys()]
 		availableSkillLevels.sort(reverse=True)
 
@@ -716,15 +720,6 @@ class NutritionTracker:
 		self.currentProtein = 0
 		self.currentFat = 0
 		self.currentWater = 0
-
-		# #Move previous step consumption into consumption history
-		# if (self.consumptionHistory.full()):
-		# 	#History is full. Remove oldest entry
-		# 	oldestStepConsumption = self.consumptionHistory.get()
-		# 	for foodId in oldestStepConsumption:
-		# 		self.consumptionTotal[foodId] -= oldestStepConsumption[foodId]
-
-		# self.consumptionHistory.put(copy.deepcopy(self.stepConsumption))
 
 		#Add step consumption to moving exponential average
 		alpha = 0.1
@@ -1541,7 +1536,7 @@ class Agent:
 			self.avgCurrencyInflow = ((1-self.accountingAlpha)*self.avgCurrencyInflow) + (self.accountingAlpha*self.stepCurrencyInflow)
 			self.prevStepCurrencyInflow = self.stepCurrencyInflow
 			self.prevTotalCurrencyInflow = self.totalCurrencyInflow
-			self.stepItemExpenses = 0
+			self.stepCurrencyInflow = 0
 			self.currencyInflowLock.release()
 		#Currency outflow
 		if (self.currencyOutflowTracking):
@@ -2002,6 +1997,7 @@ class Agent:
 			self.logger.error("Cannot consume {}. Item missing from inventory".format(itemContainer))
 			consumeSuccess = False
 
+		self.logger.debug("consumeItem({}) return {}".format(itemContainer, consumeSuccess))
 		return consumeSuccess
 
 
@@ -2009,14 +2005,18 @@ class Agent:
 		'''
 		Returns an item container of produced items if successful, False if not.
 		'''
+		self.logger.debug("produceItem({}) start".format(itemContainer))
+
 		#Make sure we can produce this item
 		itemId = itemContainer.id
 		if not (self.itemDict):
 			self.logger.error("Cannot produce {}. No global item dictionary set for this agent".format(itemContainer, itemId))
+			self.logger.debug("produceItem({}) end".format(itemContainer))
 			return False
 
 		if not (itemId in self.itemDict):
 			self.logger.error("Cannot produce {}. \"{}\" missing from global item dictionary".format(itemContainer, itemId))
+			self.logger.debug("produceItem({}) end".format(itemContainer))
 			return False
 
 		#Produce item
@@ -2028,6 +2028,7 @@ class Agent:
 			productionNotification = NetworkPacket(senderId=self.agentId, msgType="PRODUCTION_NOTIFICATION", payload=producedItems)
 			self.sendPacket(productionNotification)
 
+		self.logger.debug("produceItem({}) end".format(itemContainer))
 		return producedItems
 
 
@@ -2035,6 +2036,8 @@ class Agent:
 		'''
 		Returns the max amount of itemId this agent can produce at this time
 		'''
+		self.logger.debug("getMaxProduction({}) start".format(itemId))
+
 		if not (self.itemDict):
 			self.logger.error("Cannot produce {}. No global item dictionary set for this agent".format(itemId))
 			return False
@@ -2045,6 +2048,9 @@ class Agent:
 
 		productionFunction = self.getProductionFunction(itemId)
 		maxQuantity = productionFunction.getMaxProduction(self)
+		
+		self.logger.debug("getMaxProduction({}) return {}".format(itemId, maxQuantity))
+
 		return maxQuantity
 
 
@@ -2070,6 +2076,8 @@ class Agent:
 		'''
 		Returns a dictionary of what this agent is missing to produce this item at the specified quantity
 		'''
+		self.logger.debug("getProductionInputDeficit({},{}) start".format(itemId, stepProductionQuantity))
+
 		productionFunction = self.getProductionFunction(itemId)
 		deltas = productionFunction.getProductionInputDeltas(self, stepProductionQuantity)
 
@@ -2096,6 +2104,7 @@ class Agent:
 				deficitDict["LaborDeficit"][skillLevel] = deltas["LaborDeltas"][skillLevel]
 
 
+		self.logger.debug("getProductionInputDeficit({},{}) end".format(itemId, stepProductionQuantity))
 		return deficitDict
 
 
@@ -2103,6 +2112,8 @@ class Agent:
 		'''
 		Returns a dictionary of what this agent has but does not need to produce this item at the specified quantity
 		'''
+		self.logger.debug("getProductionInputDeficit({},{}) start".format(itemId, stepProductionQuantity))
+
 		productionFunction = self.getProductionFunction(itemId)
 		deltas = productionFunction.getProductionInputDeltas(self, stepProductionQuantity)
 
@@ -2132,6 +2143,7 @@ class Agent:
 			if (deltas["LaborDeltas"][skillLevel] < 0):
 				surplusDict["LaborSurplus"][skillLevel] = abs(deltas["LaborDeltas"][skillLevel])
 
+		self.logger.debug("getProductionInputDeficit({},{}) end".format(itemId, stepProductionQuantity))
 		return surplusDict
 
 	#########################
@@ -2171,11 +2183,12 @@ class Agent:
 
 				#Update accounting
 				if (tradeCompleted and self.tradeRevenueTracking):
-					self.tradeRequestLock.acquire()
+					self.tradeRevenueLock.acquire()
 					self.stepTradeRevenue += request.currencyAmount
 					self.totalTradeRevenue += request.currencyAmount
-					self.tradeRequestLock.release()
+					self.tradeRevenueLock.release()
 
+			self.logger.debug("Completed {}".format(request))
 			return tradeCompleted
 
 		except Exception as e:
@@ -2189,6 +2202,7 @@ class Agent:
 		Will pass along trade request to agent controller for approval. Will execute trade if approved.
 		Returns True if trade is completed, False if not
 		'''
+		self.logger.debug("receiveTradeRequest({}) start".format(request))
 		try:
 			self.tradeRequestLock.acquire()  #<== acquire tradeRequestLock
 
@@ -2198,6 +2212,7 @@ class Agent:
 			offerAccepted = False
 			if (senderId != request.sellerId) and (senderId != request.buyerId):
 				#This request was sent by a third party. Reject it
+				self.logger.debug("{} was sent by a third party. Rejecting it".format(request))
 				offerAccepted = False
 			else:
 				#Offer is valid. Evaluate offer
@@ -2641,7 +2656,9 @@ class Agent:
 		'''
 		Fulfills all non-expired labor contracts
 		'''
+		self.laborContractsLock.acquire()
 		laborContractsTemp = copy.deepcopy(self.laborContracts)
+		self.laborContractsLock.release()
 		for endStep in list(laborContractsTemp.keys()):
 			if (self.stepNum > endStep):
 				self.logger.debug("Removing all contracts that expire on step {}".format(endStep))
