@@ -695,10 +695,7 @@ class TestEater:
 
 	def controllerStart(self, incommingPacket):
 		#Subscribe for tick blocking
-		tickBlockReq = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCK_SUBSCRIBE")
-		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlockReq)
-		self.logger.debug("OUTBOUND {}->{}".format(tickBlockReq, tickBlockPacket))
-		self.agent.sendPacket(tickBlockPacket)
+		self.agent.subcribeTickBlocking()
 
 		#Enable nutritional tracking
 		self.agent.enableHunger()
@@ -708,7 +705,7 @@ class TestEater:
 
 		if (incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST"):
 			#Print a shit ton of money
-			self.agent.receiveCurrency(50000)
+			self.agent.receiveCurrency(500000)
 			self.agent.relinquishTimeTicks()
 
 		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
@@ -1566,6 +1563,7 @@ class TestFarmCompetetiveV2:
 		else:
 			self.logger.info("No initial production rate specified. Will initialize target production to {} {} per step".format(self.targetProductionRate, self.sellItemId))
 		self.currentProductionRateAvg = self.targetProductionRate
+		self.targetInventoryDays = 3
 
 		#Keep track of sell price
 		averageCustomers = 480/9
@@ -1581,7 +1579,7 @@ class TestFarmCompetetiveV2:
 
 		self.laborSkillLevel = 0
 		self.maxTicksPerStep = 8
-		self.contractLength = int(10*(1+((random.random()-0.5)/2)))
+		self.contractLength = int(14*(1+((random.random()-0.5)/2)))
 
 		self.workerWage = 60*(1 + ((random.random()-0.5)/2))
 		self.applications = 0
@@ -1600,7 +1598,7 @@ class TestFarmCompetetiveV2:
 		self.agent.receiveLand("UNALLOCATED", 9999999999)
 
 		#Spawn initial inventory of items
-		self.agent.receiveItem(ItemContainer(self.sellItemId, self.targetProductionRate))
+		self.agent.receiveItem(ItemContainer(self.sellItemId, self.targetProductionRate*self.targetInventoryDays))
 
 		#Enable accounting
 		self.agent.enableTradeRevenueTracking()
@@ -1630,7 +1628,7 @@ class TestFarmCompetetiveV2:
 		self.logger.info("Old target production rate = {}".format(self.targetProductionRate))
 		saleRatio = (self.currentSalesAvg+1)/(self.currentProductionRateAvg+1)
 		inventoryRatio = (self.currentProductionRateAvg+1) / (productInventory+1)
-		productionAdjustmentRatio = pow((1+profitMargin), 0.9)*pow(inventoryRatio, 1.1)
+		productionAdjustmentRatio = pow((1+profitMargin), 0.9)*pow(self.targetInventoryDays*inventoryRatio, 1.2)
 		self.logger.debug("Production adjustment ratio = {}".format(productionAdjustmentRatio))
 		self.targetProductionRate = ((1-prodAlpha)*self.targetProductionRate) + (prodAlpha*self.currentProductionRateAvg*productionAdjustmentRatio)
 		self.logger.info("New target production rate = {}".format(self.targetProductionRate))
@@ -1660,6 +1658,12 @@ class TestFarmCompetetiveV2:
 			#Adjust sell price
 			newPrice = self.sellPrice * adjustmentRatio
 			self.sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*newPrice)
+
+		#Make sure sell price covers our costs
+		targetRevenue = self.sellPrice*self.targetProductionRate
+		if (targetRevenue < avgExpenses):
+			self.logger.debug("Adjusted price too low to conver costs. Reseting for target profit margin of 5%")
+			self.sellPrice = math.ceil((avgExpenses/self.targetProductionRate)*1.05)
 
 		self.logger.info("New sale price = {}".format(self.sellPrice))
 

@@ -1,0 +1,102 @@
+{
+	"name": "DietFinder",
+	"description": "Used to find the average diet of a population.",
+	"settings": {
+		"AgentNumProcesses": 6,
+		"SimulationSteps": 90,
+		"TicksPerStep": 16,
+		"AgentSpawns":{
+			"AppleFarmer": {
+				"TestSpawner":{
+					"quantity": 1,
+					"settings": {
+						"itemId": "apple",
+						"spawnRate": 400
+					}
+				}
+			},
+			"ButterMaker": {
+				"TestSpawner":{
+					"quantity": 1,
+					"settings": {
+						"itemId": "butter",
+						"spawnRate": 400
+					}
+				}
+			},
+			"PeaFarmer": {
+				"TestSpawner":{
+					"quantity": 1,
+					"settings": {
+						"itemId": "chickpea",
+						"spawnRate": 400
+					}
+				}
+			},
+			"EggFarmer": {
+				"TestSpawner":{
+					"quantity": 1,
+					"settings": {
+						"itemId": "egg",
+						"spawnRate": 400
+					}
+				}
+			},
+			"SpudFarmer": {
+				"TestSpawner":{
+					"quantity": 1,
+					"settings": {
+						"itemId": "potato",
+						"spawnRate": 400
+					}
+				}
+			},
+			"River": {
+				"TestSpawner":{
+					"quantity": 1,
+					"settings": {
+						"itemId": "water",
+						"spawnRate": 1500
+					}
+				}
+			},
+			"Eater": {
+				"TestEater":{
+					"quantity": 480
+				}
+			}
+		},
+		"Statistics": {
+			"AppleMarket":{
+				"ItemPriceTracker":{
+					"id": "apple",
+					"OuputPath": "FoodMarket/apple/ApplePrice.csv"
+				}
+			},
+			"ButterMarket":{
+				"ItemPriceTracker":{
+					"id": "butter",
+					"OuputPath": "FoodMarket/butter/ButterPrice.csv"
+				}
+			},
+			"PeaMarket":{
+				"ItemPriceTracker":{
+					"id": "chickpea",
+					"OuputPath": "FoodMarket/chickpea/ChickpeaPrice.csv"
+				}
+			},
+			"EggMarket":{
+				"ItemPriceTracker":{
+					"id": "egg",
+					"OuputPath": "FoodMarket/egg/EggPrice.csv"
+				}
+			},
+			"SpudMarket":{
+				"ItemPriceTracker":{
+					"id": "potato",
+					"OuputPath": "FoodMarket/potato/PotatoPrice.csv"
+				}
+			}
+		}
+	}
+}

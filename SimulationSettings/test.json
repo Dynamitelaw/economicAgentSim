@@ -3,12 +3,22 @@
 	"description": "Test simulation with competetive farms. Used for testing and debug.",
 	"settings": {
 		"AgentNumProcesses": 6,
-		"SimulationSteps": 20,
+		"SimulationSteps": 2400,
 		"TicksPerStep": 16,
 		"AgentSpawns":{
 			"AppleFarm": {
 				"TestFarmCompetetiveV2":{
-					"quantity": 9,
+					"quantity": 8,
+					"settings": {
+						"itemId": "apple",
+						"startingProductionRate": 20,
+						"StartSkew": 9
+					}
+				}
+			},
+			"AppleFarmAccounting": {
+				"TestFarmCompetetiveV2":{
+					"quantity": 1,
 					"settings": {
 						"itemId": "apple",
 						"startingProductionRate": 20,
@@ -104,6 +114,10 @@
 				"ProductionTracker":{
 					"id": "apple",
 					"OuputPath": "FoodMarket/apple/AppleProduction.csv"
+				},
+				"AccountingTracker":{
+					"AgentFilters": ["AppleFarmAccounting"],
+					"OuputPath": "FoodMarket/apple/AppleFarmAccounting.csv"
 				}
 			},
 			"ButterMarket":{

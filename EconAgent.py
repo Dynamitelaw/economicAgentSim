@@ -789,7 +789,7 @@ class NutritionTracker:
 		foodMarginalUtil = {}
 		for foodId in self.nutritionalDict:
 			marginalUtility = self.agent.getMarginalUtility(foodId)
-			foodMarginalUtil[foodId] = marginalUtility * pow((self.targetCalories/self.avgCalories), 1.5)  #Sale the utility of food with hunger level
+			foodMarginalUtil[foodId] = marginalUtility * pow((self.targetCalories/self.avgCalories), 3)  #Sale the utility of food with hunger level
 
 		#Iteratively approach meal plan that closely meets deficits while maximizing net utility
 		mealPlan = {}
@@ -807,11 +807,11 @@ class NutritionTracker:
 				if (foodId == "water"):
 					continue
 
-				#If current price is more than marginalUtility, exclude this food type
-				avgUnitPrice = foodUnitPrices[foodId]
-				marginalUtility = foodMarginalUtil[foodId]
-				if (avgUnitPrice > marginalUtility):
-					continue
+				# #If current price is more than marginalUtility, exclude this food type
+				# avgUnitPrice = foodUnitPrices[foodId]
+				# marginalUtility = foodMarginalUtil[foodId]
+				# if (avgUnitPrice > marginalUtility):
+				# 	continue
 
 				#Calculate roughly how much of this food we need to meed our nutritional deficit
 				foodVec = self.nutritionalDict[foodId]["vector"]
@@ -823,8 +823,8 @@ class NutritionTracker:
 
 				#Get net utility of this food
 				netUtil = marginalUtility-avgUnitPrice
-				if (netUtil < 0):
-					netUtil = 0
+				if (netUtil <= 0):
+					netUtil = (marginalUtility/avgUnitPrice)
 				foodNetUtils[foodId] = netUtil
 
 			#Scale required amounts by net utility distribution
@@ -868,9 +868,11 @@ class NutritionTracker:
 			planNutritionVec = np.add(planNutritionVec, nutritionVec)
 
 		#Scale meal plan by calories
+		#self.logger.debug("getAutoMeal() nutrition vector = {}".format(planNutritionVec))
 		totalCost = 0
 		if (planNutritionVec[0] > 0):
 			calorieScale = self.targetCalories/planNutritionVec[0]
+			#self.logger.debug("getAutoMeal() calorie scale = {}".format(calorieScale))
 			for foodId in mealPlan:
 				quantity = mealPlan[foodId]*calorieScale
 				mealPlan[foodId] = quantity
@@ -881,6 +883,7 @@ class NutritionTracker:
 		if (currencyBalance < totalCost):
 			#We don't have enough money for this meal. Scale down the meal
 			povertyScale = currencyBalance / totalCost
+			self.logger.debug("getAutoMeal() Don't have enough money to eat a full meal. Scaling down to meal by {}".format(povertyScale))
 			for foodId in mealPlan:
 				quantity = mealPlan[foodId]*povertyScale
 				mealPlan[foodId] = quantity
@@ -895,7 +898,6 @@ class NutritionTracker:
 		if (waterDeficit > 0):
 			if ("water" in foodUnitPrices):
 				mealPlan["water"] = waterDeficit
-
 
 		return mealPlan
 
@@ -2696,10 +2698,10 @@ class Agent:
 					self.logger.error("{}.sendLaborTime({}, {}) failed. Not enough time ticks ({})".format(self.agentId, ticks, employerId, self.timeTicks))
 					contractFulfilled = False
 				else:
+					laborId = "LaborSend_{}(agentId={}, employerId={}, ticks={})".format(contractHash, self.agentId, employerId, ticks, contractHash)
 					ticksSpent = self.useTimeTicks(ticks)
 					if (ticksSpent):
 						payload = {"ticks": ticks, "skillLevel": self.skillLevel}
-						laborId = "LaborSend_{}(agentId={}, employerId={}, ticks={})".format(contractHash, self.agentId, employerId, ticks, contractHash)
 						laborPacket = NetworkPacket(senderId=self.agentId, destinationId=laborContract.employerId, transactionId=laborId, payload=payload, msgType="LABOR_TIME_SEND")
 						self.sendPacket(laborPacket)
 						contractFulfilled = True
@@ -2995,7 +2997,7 @@ class Agent:
 							return itemAcquired
 				else:
 					if (desiredAmount > 0):
-						self.logger.warning("Could not acquire enough {}. Could only get {}".format(itemId, itemContainer.quantity-desiredAmount))
+						self.logger.warning("Could not acquire enough {}. Could only get {}".format(itemId, itemAcquired))
 						self.logger.debug("listingDict = {}".format(listingDict))
 						return itemAcquired
 
@@ -3235,6 +3237,8 @@ class Agent:
 					self.logger.debug("Time tick balance = {}".format(self.timeTicks))
 					useSuccess = True
 
+					self.timeTickLock.release()  #<== timeTickLock release
+
 					#Advance land allocation queue
 					self.landAllocationQueue.useTimeTicks(amount)
 
@@ -3268,7 +3272,7 @@ class Agent:
 					self.logger.error("Cannot use {} time ticks. Only have {} available".format(amount, self.timeTicks))
 					useSuccess = False
 
-				self.timeTickLock.release()  #<== timeTickLock release
+					self.timeTickLock.release()  #<== timeTickLock release
 			else:
 				#Lock timout
 				self.logger.error("{}.useTimeTicks({}) timeTickLock acquire timeout".format(self.agentId, amount))
@@ -3308,6 +3312,8 @@ class Agent:
 				self.logger.debug("Time tick balance = {}".format(self.timeTicks))
 				useSuccess = True
 
+				self.timeTickLock.release()  #<== timeTickLock release
+
 				#Advance land allocation queue
 				self.landAllocationQueue.useTimeTicks(amount)
 
@@ -3338,7 +3344,6 @@ class Agent:
 					tickBlockPacket = NetworkPacket(senderId=self.agentId, msgType="TICK_BLOCKED")
 					self.sendPacket(tickBlockPacket)
 
-				self.timeTickLock.release()  #<== timeTickLock release
 			else:
 				#Lock timout
 				self.logger.error("{}.relinquishTimeTicks({}) timeTickLock acquire timeout".format(self.agentId, amount))

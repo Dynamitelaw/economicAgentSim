@@ -108,19 +108,22 @@ class ConnectionNetwork:
 
 	def sendPacket(self, pipeId, packet):
 		self.logger.debug("ConnectionNetwork.sendPacket({}, {}) start".format(pipeId, packet))
-		if (pipeId in self.agentConnections):
-			self.logger.debug("Requesting lock sendLocks[{}]".format(pipeId))
-			acquired_sendLock = self.sendLocks[pipeId].acquire()
-			if (acquired_sendLock):
-				self.logger.debug("Acquired lock sendLocks[{}]".format(pipeId))
-				self.logger.debug("OUTBOUND {} {}".format(packet, pipeId))
-				self.agentConnections[pipeId].sendPipe.send(packet)
-				self.sendLocks[pipeId].release()
-				self.logger.debug("Release lock sendLocks[{}]".format(pipeId))
+		try:
+			if (pipeId in self.agentConnections):
+				self.logger.debug("Requesting lock sendLocks[{}]".format(pipeId))
+				acquired_sendLock = self.sendLocks[pipeId].acquire()
+				if (acquired_sendLock):
+					self.logger.debug("Acquired lock sendLocks[{}]".format(pipeId))
+					self.logger.debug("OUTBOUND {} {}".format(packet, pipeId))
+					self.agentConnections[pipeId].sendPipe.send(packet)
+					self.sendLocks[pipeId].release()
+					self.logger.debug("Release lock sendLocks[{}]".format(pipeId))
+				else:
+					self.logger.error("ConnectionNetwork.sendPacket() Lock sendLocks[{}] acquire timeout".format(pipeId))
 			else:
-				self.logger.error("ConnectionNetwork.sendPacket() Lock sendLocks[{}] acquire timeout".format(pipeId))
-		else:
-			self.logger.warning("Cannot send {}. Pipe[{}] already killed".format(pipeId, packet))
+				self.logger.warning("Cannot send {}. Pipe[{}] already killed".format(pipeId, packet))
+		except:
+			self.logger.critical("UNHANLDED ERROR in sendPacket({}, {})\n{}".format(pipeId, packet, traceback.format_exc()))
 
 	def setupSnoop(self, incommingPacket):
 		'''
