@@ -20,12 +20,13 @@ class SimulationManagerSeed:
 	'''
 	Used to spawn a simulation manager
 	'''
-	def __init__(self, managerId, allAgentDict, allProcDict, logFile=True, outputDir="OUTPUT"):
+	def __init__(self, managerId, allAgentDict, allProcDict, logFile=True, logLevel="INFO", outputDir="OUTPUT"):
 		self.managerId = managerId
 		self.agentType = "SimulationManager"
 		self.agentInfo = AgentInfo(self.managerId, self.agentType)
 		self.logFile = logFile
 		self.outputDir = outputDir
+		self.logLevel = logLevel
 
 		self.allAgentDict = allAgentDict
 		self.allProcDict = allProcDict
@@ -37,19 +38,19 @@ class SimulationManagerSeed:
 		self.agentLink = Link(sendPipe=agentPipeSend, recvPipe=agentPipeRecv)
 
 	def spawnManager(self):
-		return SimulationManager(self.agentInfo, allAgentDict=self.allAgentDict, allProcDict=self.allProcDict, networkLink=self.agentLink, logFile=self.logFile, outputDir=self.outputDir)
+		return SimulationManager(self.agentInfo, allAgentDict=self.allAgentDict, allProcDict=self.allProcDict, networkLink=self.agentLink, logFile=self.logFile, logLevel=self.logLevel, outputDir=self.outputDir)
 
 
 class SimulationManager:
 	'''
 	The master object that controls and manages the simulation using network commands
 	'''
-	def __init__(self, agentInfo, allAgentDict, allProcDict, networkLink=None, logFile=True, outputDir="OUTPUT", controller=None):
+	def __init__(self, agentInfo, allAgentDict, allProcDict, networkLink=None, logFile=True, logLevel="INFO", outputDir="OUTPUT", controller=None):
 		self.info = agentInfo
 		self.agentId = agentInfo.agentId
 		self.agentType = agentInfo.agentType
 
-		self.logger = utils.getLogger("{}:{}".format("SimulationManager", self.agentId), outputdir=os.path.join(outputDir, "LOGS"), console="INFO", logFile=logFile, fileLevel="DEBUG")
+		self.logger = utils.getLogger("{}:{}".format("SimulationManager", self.agentId), outputdir=os.path.join(outputDir, "LOGS"), console="INFO", logFile=logFile, fileLevel=logLevel)
 		self.logger.info("{} instantiated".format(self.info))
 
 		self.agentDict = allAgentDict

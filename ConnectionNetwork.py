@@ -26,11 +26,12 @@ from StatisticsGatherer import *
 
 
 class ConnectionNetwork:
-	def __init__(self, itemDict, simManagerId=None, logFile=True, outputDir="OUTPUT", simulationSettings={}):
+	def __init__(self, itemDict, simManagerId=None, logFile=True, logLevel="INFO", outputDir="OUTPUT", simulationSettings={}):
 		self.id = "ConnectionNetwork"
 		self.simManagerId = simManagerId
 
 		self.outputDir = outputDir
+		#self.logger = utils.getLogger("{}".format(__name__), logFile=logFile, outputdir=os.path.join(outputDir, "LOGS"), fileLevel=logLevel)   #This causes a serious performance hit. Only enable it if you REALLY need to
 		self.logger = utils.getLogger("{}".format(__name__), logFile=logFile, outputdir=os.path.join(outputDir, "LOGS"), fileLevel="INFO")
 		self.lockTimeout = 5
 
@@ -159,14 +160,18 @@ class ConnectionNetwork:
 			if (incommingPacket.msgType == "KILL_PIPE_NETWORK"):
 					#We've received a kill command for this pipe. Remove destPipe from connections, then kill this monitor thread
 					self.logger.info("Killing pipe {} {}".format(agentId, agentLink))
-					acquired_agentConnectionsLock = self.agentConnectionsLock.acquire(timeout=self.lockTimeout)  #<== acquire agentConnectionsLock
-					if (acquired_agentConnectionsLock):
-						del self.agentConnections[incommingPacket.senderId]
-						del self.sendLocks[incommingPacket.senderId]
-						self.agentConnectionsLock.release()  #<== release agentConnectionsLock
-						break
-					else:
-						self.logger.error("monitorLink() Lock \"agentConnectionsLock\" acquisition timeout")
+					try:
+						acquired_agentConnectionsLock = self.agentConnectionsLock.acquire(timeout=self.lockTimeout)  #<== acquire agentConnectionsLock
+						if (acquired_agentConnectionsLock):
+							del self.agentConnections[incommingPacket.senderId]
+							del self.sendLocks[incommingPacket.senderId]
+							self.agentConnectionsLock.release()  #<== release agentConnectionsLock
+							break
+						else:
+							self.logger.error("monitorLink() Lock \"agentConnectionsLock\" acquisition timeout")
+							break
+					except:
+						self.logger.critical(traceback.format_exc())
 						break
 
 			#Handle broadcasts

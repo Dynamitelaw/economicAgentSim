@@ -1590,6 +1590,9 @@ class TestFarmCompetetiveV2:
 		self.laborListing = LaborListing(employerId=self.agentId, ticksPerStep=self.maxTicksPerStep, wagePerTick=self.workerWage, minSkillLevel=self.laborSkillLevel, contractLength=self.contractLength, listingName="Employer_{}".format(self.agentId))
 
 
+	#########################
+	# Communication functions
+	#########################
 	def controllerStart(self, incommingPacket):
 		#Subscribe for tick blocking
 		self.agent.subcribeTickBlocking()
@@ -1605,248 +1608,12 @@ class TestFarmCompetetiveV2:
 		self.agent.enableCurrencyOutflowTracking()
 		self.agent.enableCurrencyInflowTracking()
 
-	def adjustProduction(self):
-		#Alphas for moving exponential adjustments
-		prodAlpha = 0.2
-		priceAlpha = 0.2
-		medianPriceAlpha = 0.2
-
-		#Get current profit margins
-		avgRevenue = self.agent.getAvgTradeRevenue()
-		avgExpenses = self.agent.getAvgCurrencyOutflow()
-		profitMargin = 0
-		if (avgExpenses > 0):
-			profitMargin = (avgRevenue-avgExpenses)/avgExpenses
-		self.logger.debug("Profit margin = {}".format(profitMargin))
-
-		#Get product inventory
-		productInventory = 0
-		if (self.sellItemId in self.agent.inventory):
-			productInventory = self.agent.inventory[self.sellItemId].quantity
-
-		#Adjust target production based on current profit margin and inventory ratio
-		self.logger.info("Old target production rate = {}".format(self.targetProductionRate))
-		saleRatio = (self.currentSalesAvg+1)/(self.currentProductionRateAvg+1)
-		inventoryRatio = (self.currentProductionRateAvg+1) / (productInventory+1)
-		productionAdjustmentRatio = pow((1+profitMargin), 0.9)*pow(self.targetInventoryDays*inventoryRatio, 1.2)
-		self.logger.debug("Production adjustment ratio = {}".format(productionAdjustmentRatio))
-		self.targetProductionRate = ((1-prodAlpha)*self.targetProductionRate) + (prodAlpha*self.currentProductionRateAvg*productionAdjustmentRatio)
-		self.logger.info("New target production rate = {}".format(self.targetProductionRate))
-		self.logger.info("Average production rate = {}".format(self.currentProductionRateAvg))
-
-		#Adjust target price based on median price
-		self.logger.info("Old sale price = {}".format(self.sellPrice))
-
-		medianPrice = self.sellPrice
-		sampledListings = self.agent.sampleItemListings(ItemContainer(self.sellItemId, 0.01), sampleSize=30)
-		sampledPrices = SortedList()
-		if (len(sampledListings) > 0):
-			for listing in sampledListings:
-				sampledPrices.add(listing.unitPrice)
-			medianPrice = sampledPrices[int(len(sampledListings)/2)]
-			#medianPrice = sampledPrices[0]
-
-		self.logger.info("Median market price = {}".format(medianPrice))
-		self.sellPrice = ((1-medianPriceAlpha)*self.sellPrice) + (medianPriceAlpha*medianPrice)
-
-		#Adjust price based on sale ratios
-		adjustmentRatio = pow(saleRatio, 0.9)
-		self.logger.debug("Inventory ratio = {}".format(inventoryRatio))
-		self.logger.debug("Sale ratio = {}".format(saleRatio))
-		self.logger.debug("Price adjustment ratio = {}".format(adjustmentRatio))
-		if (adjustmentRatio > 1.05) or (adjustmentRatio < 0.95):
-			#Adjust sell price
-			newPrice = self.sellPrice * adjustmentRatio
-			self.sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*newPrice)
-
-		#Make sure sell price covers our costs
-		targetRevenue = self.sellPrice*self.targetProductionRate
-		if (targetRevenue < avgExpenses):
-			self.logger.debug("Adjusted price too low to conver costs. Reseting for target profit margin of 5%")
-			self.sellPrice = math.ceil((avgExpenses/self.targetProductionRate)*1.05)
-
-		self.logger.info("New sale price = {}".format(self.sellPrice))
-
-
-	def liquidateItem(self, itemContainer):
-		self.agent.consumeItem(itemContainer)
-
-
-	def acquireDeficits(self, deficits):
-		#Allocate more land if we don't have enough
-		landDeficit = deficits["LandDeficit"] - self.agent.landHoldings["ALLOCATING"]
-		if (landDeficit > 0):
-			self.agent.allocateLand(self.sellItemId, landDeficit)
-
-		#Spawn fixed item inputs
-		for itemId in deficits["FixedItemDeficit"]:
-			self.agent.receiveItem(deficits["FixedItemDeficit"][itemId])
-
-		#Adjust labor requirements
-		for skillLevel in deficits["LaborDeficit"]:
-			self.requiredLabor = deficits["LaborDeficit"][skillLevel]
-
-		#Spawn variable item inputs
-		for itemId in deficits["VariableItemDeficit"]:
-			self.agent.receiveItem(deficits["VariableItemDeficit"][itemId])
-
-
-	def removeSurplus(self, surplusInputs):
-		#Deallocate land if we have too much
-		landSurplus = surplusInputs["LandSurplus"]
-		if (landSurplus > 0):
-			self.agent.deallocateLand(self.sellItemId, landSurplus)
-
-		#Liquidate fixed item inputs
-		for itemId in surplusInputs["FixedItemSurplus"]:
-			self.liquidateItem(surplusInputs["FixedItemSurplus"][itemId])
-
-		#Adjust labor requirements
-		for skillLevel in surplusInputs["LaborSurplus"]:
-			self.requiredLabor = -1*surplusInputs["LaborSurplus"][skillLevel]
-
-		#Liquidate variable item inputs
-		for itemId in surplusInputs["VariableItemSurplus"]:
-			self.liquidateItem(surplusInputs["VariableItemSurplus"][itemId])
-
-
-	def adjustNextWage(self):
-		medianAlpha = 0.2
-		adjustmentAlpha = 0.1
-		#Adjust wage  based on market rate
-		medianWage = self.workerWage
-		sampledListings = self.agent.sampleLaborListings(sampleSize=30)
-		sampledWages = SortedList()
-		if (len(sampledListings) > 0):
-			for listing in sampledListings:
-				sampledWages.add(listing.wagePerTick)
-			medianWage = sampledWages[int(len(sampledListings)/2)]
-		self.workerWage = ((1-medianAlpha)*self.workerWage)+(medianAlpha*medianWage)
-
-		#Adjust wage based on worker deficit and application number
-		divisor = 1
-		if (self.workerDeficit < 0):
-			divisor = pow(abs(self.workerDeficit)*1.2, 1.2)
-		if (self.workerDeficit > 0) and (self.openSteps > 2):
-			divisor = 1/pow((self.workerDeficit), 0.2)
-		if (self.workerDeficit > 0):
-			if (abs(self.applications/self.workerDeficit)>1.5):
-				divisor = pow(abs(self.applications/self.workerDeficit), 1.5)
-
-		dividend = 1.0
-		if (self.openSteps > 3):
-			dividend = (pow(self.openSteps, 0.2))
-
-		#Adjust the wage for next time
-		adjustmentRatio = dividend/divisor
-		self.workerWage = ((1-adjustmentAlpha)*self.workerWage)+(adjustmentAlpha*adjustmentRatio*self.workerWage)
-
-		#Print stats
-		self.logger.debug("HR Stats: requiredLabor={}, workerDeficit={}, applications={}, openSteps={}, adjustmentRatio={}, workerWage={}".format(self.requiredLabor, self.workerDeficit, self.applications, self.openSteps, adjustmentRatio, self.workerWage))
-
-
-	def evalJobApplication(self, laborContract):
-		self.logger.debug("Recieved job application {}".format(laborContract))
-		if (self.openSteps > 0):
-			self.applications = 0
-		self.openSteps = 0
-
-		self.applications += 1
-
-		#Hire them if we need the labor
-		if (self.requiredLabor > 0):
-			self.logger.info("Accepting job application {}".format(laborContract))
-			#Spawn money needed for this contract
-			totalWages = int((laborContract.wagePerTick * laborContract.ticksPerStep * laborContract.contractLength + 100)*10)
-			self.agent.receiveCurrency(totalWages)
-
-			#Decrease required labor
-			self.requiredLabor -= laborContract.ticksPerStep
-			if (self.requiredLabor < 0):
-				self.requiredLabor = 0
-
-			self.logger.debug("Accepted job application {}".format(laborContract))
-			return True
-		else:
-			#We don't need more labor. Reject this application
-			self.logger.debug("Rejected job application {}".format(laborContract))
-			return False
-
-
-	def manageLabor(self):
-		#Update worker deficit
-		if (self.requiredLabor > 0):
-			self.workerDeficit = math.ceil(self.requiredLabor/self.maxTicksPerStep)
-		elif (self.requiredLabor < 0):
-			self.workerDeficit = math.floor(self.requiredLabor/self.maxTicksPerStep)
-
-		#Adjust wages
-		self.adjustNextWage()
-
-		#Update job listing
-		if (self.requiredLabor > 0):
-			self.laborListing = LaborListing(employerId=self.agentId, ticksPerStep=self.maxTicksPerStep, wagePerTick=self.workerWage, minSkillLevel=self.laborSkillLevel, contractLength=self.contractLength, listingName="Employer_{}".format(self.agentId))
-			self.logger.info("Updating job listing | {}".format(self.laborListing))
-			listingUpdated = self.agent.updateLaborListing(self.laborListing)
-			if (self.listingActive):
-				self.openSteps += 1
-			self.listingActive = True
-		else:
-			#Remove listing
-			self.agent.removeLaborListing(self.laborListing)
-			self.listingActive = False
-			self.applications = 0
-			self.openSteps = 0
-
-	def produce(self):
-		#See if we have any deficits for the new production rate
-		inputDeficits = self.agent.getProductionInputDeficit(self.sellItemId, self.targetProductionRate)
-		self.logger.debug("Input deficits = {}".format(inputDeficits))
-		self.acquireDeficits(inputDeficits)
-
-		#Get rid of surplus inputs
-		surplusInputs = self.agent.getProductionInputSurplus(self.sellItemId, self.targetProductionRate)
-		self.logger.debug("Input surplus = {}".format(surplusInputs))
-		self.removeSurplus(surplusInputs)
-
-		#Produce items
-		maxProductionPossible = self.agent.getMaxProduction(self.sellItemId)
-
-		productionAmount = self.targetProductionRate
-		if (productionAmount > maxProductionPossible):
-			productionAmount = maxProductionPossible
-
-		producedItems = self.agent.produceItem(ItemContainer(self.sellItemId, productionAmount))
-		self.logger.debug("Produced {}".format(producedItems))
-
-		#Update production average
-		alpha = 0.4
-		self.currentProductionRateAvg = ((1-alpha)*self.currentProductionRateAvg) + (alpha*productionAmount)
-
-	def updateItemListing(self):
-		self.itemListing = ItemListing(sellerId=self.agentId, itemId=self.sellItemId, unitPrice=self.sellPrice, maxQuantity=self.currentProductionRateAvg/3)
-		self.logger.info("Updating item listing | {}".format(self.itemListing))
-		listingUpdated = self.agent.updateItemListing(self.itemListing)
-
-
-	def evalTradeRequest(self, request):
-		self.logger.debug("evalTradeRequest({}) start".format(request))
-		productInventory = 0
-		if (request.itemPackage.id in self.agent.inventory):
-			productInventory = self.agent.inventory[request.itemPackage.id].quantity
-
-		tradeAccepted = productInventory>request.itemPackage.quantity
-		if (tradeAccepted):
-			self.stepSales += request.itemPackage.quantity
-
-		self.logger.debug("evalTradeRequest({}) return {}".format(request, tradeAccepted))
-		return tradeAccepted
-
 
 	def receiveMsg(self, incommingPacket):
 		self.logger.info("INBOUND {}".format(incommingPacket))
 
 		if (incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST"):
+			# A new step has started
 			if (self.agent.stepNum == self.startStep):
 				self.logger.info("StepNum = {}, Starting controller functionality".format(self.agent.stepNum))
 
@@ -1894,6 +1661,9 @@ class TestFarmCompetetiveV2:
 			ticksRelinquished = self.agent.relinquishTimeTicks()
 			self.logger.info("Ticks relinquished. Waiting for tick grant")
 
+		if (incommingPacket.msgType == "KILL_PIPE_AGENT") or (incommingPacket.msgType == "KILL_ALL_BROADCAST"):
+			self.killThreads = True
+
 		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
 			controllerMsg = incommingPacket.payload
 			self.logger.info("INBOUND {}".format(controllerMsg))
@@ -1902,6 +1672,280 @@ class TestFarmCompetetiveV2:
 				self.killThreads = True
 
 
+	def evalTradeRequest(self, request):
+		self.logger.debug("evalTradeRequest({}) start".format(request))
+		productInventory = 0
+		if (request.itemPackage.id in self.agent.inventory):
+			productInventory = self.agent.inventory[request.itemPackage.id].quantity
+
+		tradeAccepted = productInventory>request.itemPackage.quantity
+		if (tradeAccepted):
+			self.stepSales += request.itemPackage.quantity
+
+		self.logger.debug("evalTradeRequest({}) return {}".format(request, tradeAccepted))
+		return tradeAccepted
+
+	#########################
+	# Production management 
+	#########################
+
+	def adjustProductionTarget(self, inventoryRatio, profitMargin):
+		#Adjust target production based on current profit margin and inventory ratio
+		prodAlpha = 0.2
+
+		productionAdjustmentRatio = pow((1+profitMargin), 0.5)*pow(self.targetInventoryDays*inventoryRatio, 1.4)
+		self.logger.debug("Production adjustment ratio = {}".format(productionAdjustmentRatio))
+		targetProductionRate = ((1-prodAlpha)*self.targetProductionRate) + (prodAlpha*self.currentProductionRateAvg*productionAdjustmentRatio)
+
+		return targetProductionRate
+
+
+	def adjustSalePrice(self, avgRevenue, avgExpenses, medianPrice, saleRatio):
+		#Make sure sell price covers our costs
+		priceAdjustmentRatio = 1
+		if (avgRevenue < avgExpenses):
+			costAdjustmentRatio = pow(avgExpenses/avgRevenue, 0.2)
+			self.logger.debug("Current price too low to cover costs. Cost adjustment ratio = {}".format(costAdjustmentRatio))
+			priceAdjustmentRatio = priceAdjustmentRatio*costAdjustmentRatio
+
+
+		#Adjust target price based on median price
+		priceAdjustmentRatio = priceAdjustmentRatio * pow(medianPrice/self.sellPrice, 1)
+
+		#Adjust price based on sale ratios
+		priceAdjustmentRatio = priceAdjustmentRatio * pow(saleRatio, 1.3)
+
+		#Get final price
+		priceAlpha = 0.1
+		sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*self.sellPrice*priceAdjustmentRatio)
+
+		return sellPrice
+
+	def adjustProduction(self):
+		########
+		# Get current algortithm inputs
+		########
+
+		#Get current profit margins
+		avgRevenue = self.agent.getAvgTradeRevenue()
+		avgExpenses = self.agent.getAvgCurrencyOutflow()
+		profitMargin = 0
+		if (avgExpenses > 0):
+			profitMargin = (avgRevenue-avgExpenses)/avgExpenses
+		self.logger.debug("Profit margin = {}".format(profitMargin))
+
+		#Get product inventory
+		self.logger.info("Average production rate = {}".format(self.currentProductionRateAvg))
+		productInventory = 0
+		if (self.sellItemId in self.agent.inventory):
+			productInventory = self.agent.inventory[self.sellItemId].quantity
+		inventoryRatio = (self.currentProductionRateAvg+1) / (productInventory+1)
+		self.logger.debug("Inventory ratio = {}".format(inventoryRatio))
+
+		#Get current sales
+		saleRatio = (self.currentSalesAvg+1)/(self.currentProductionRateAvg+1)
+		self.logger.debug("Sale ratio = {}".format(saleRatio))
+
+		#Get median market price
+		medianPrice = self.sellPrice
+		sampledListings = self.agent.sampleItemListings(ItemContainer(self.sellItemId, 0.01), sampleSize=30)
+		sampledPrices = SortedList()
+		if (len(sampledListings) > 0):
+			for listing in sampledListings:
+				sampledPrices.add(listing.unitPrice)
+			medianPrice = sampledPrices[int(len(sampledListings)/2)]
+		self.logger.info("Median market price = {}".format(medianPrice))
+		
+
+		########
+		# Get new production values
+		########
+
+		#Adjust target production rate
+		self.logger.info("Old target production rate = {}".format(self.targetProductionRate))
+		self.targetProductionRate = self.adjustProductionTarget(inventoryRatio, profitMargin)
+		self.logger.info("New target production rate = {}".format(self.targetProductionRate))
+
+		#Adjust sale price 
+		self.logger.info("Old sale price = {}".format(self.sellPrice))
+		self.sellPrice = self.adjustSalePrice(avgRevenue, avgExpenses, medianPrice, saleRatio)
+		self.logger.info("New sale price = {}".format(self.sellPrice))
+
+
+	def liquidateItem(self, itemContainer):
+		self.agent.consumeItem(itemContainer)
+
+
+	def acquireDeficits(self, deficits):
+		#Allocate more land if we don't have enough
+		landDeficit = deficits["LandDeficit"] - self.agent.landHoldings["ALLOCATING"]
+		if (landDeficit > 0):
+			self.agent.allocateLand(self.sellItemId, landDeficit)
+
+		#Spawn fixed item inputs
+		for itemId in deficits["FixedItemDeficit"]:
+			self.agent.receiveItem(deficits["FixedItemDeficit"][itemId])
+
+		#Adjust labor requirements
+		for skillLevel in deficits["LaborDeficit"]:
+			self.requiredLabor = deficits["LaborDeficit"][skillLevel]
+
+		#Spawn variable item inputs
+		for itemId in deficits["VariableItemDeficit"]:
+			self.agent.receiveItem(deficits["VariableItemDeficit"][itemId])
+
+
+	def removeSurplus(self, surplusInputs):
+		#Deallocate land if we have too much
+		landSurplus = surplusInputs["LandSurplus"]
+		if (landSurplus > 0):
+			self.agent.deallocateLand(self.sellItemId, landSurplus)
+
+		#Liquidate fixed item inputs
+		for itemId in surplusInputs["FixedItemSurplus"]:
+			self.liquidateItem(surplusInputs["FixedItemSurplus"][itemId])
+
+		#Adjust labor requirements
+		for skillLevel in surplusInputs["LaborSurplus"]:
+			self.requiredLabor = -1*surplusInputs["LaborSurplus"][skillLevel]
+
+		#Liquidate variable item inputs
+		for itemId in surplusInputs["VariableItemSurplus"]:
+			self.liquidateItem(surplusInputs["VariableItemSurplus"][itemId])
+
+
+	def produce(self):
+		#See if we have any deficits for the new production rate
+		inputDeficits = self.agent.getProductionInputDeficit(self.sellItemId, self.targetProductionRate)
+		self.logger.debug("Input deficits = {}".format(inputDeficits))
+		self.acquireDeficits(inputDeficits)
+
+		#Get rid of surplus inputs
+		surplusInputs = self.agent.getProductionInputSurplus(self.sellItemId, self.targetProductionRate)
+		self.logger.debug("Input surplus = {}".format(surplusInputs))
+		self.removeSurplus(surplusInputs)
+
+		#Produce items
+		maxProductionPossible = self.agent.getMaxProduction(self.sellItemId)
+
+		productionAmount = self.targetProductionRate
+		if (productionAmount > maxProductionPossible):
+			productionAmount = maxProductionPossible
+
+		producedItems = self.agent.produceItem(ItemContainer(self.sellItemId, productionAmount))
+		self.logger.debug("Produced {}".format(producedItems))
+
+		#Update production average
+		alpha = 0.4
+		self.currentProductionRateAvg = ((1-alpha)*self.currentProductionRateAvg) + (alpha*productionAmount)
+
+
+	def updateItemListing(self):
+		self.itemListing = ItemListing(sellerId=self.agentId, itemId=self.sellItemId, unitPrice=self.sellPrice, maxQuantity=self.currentProductionRateAvg/3)
+		self.logger.info("Updating item listing | {}".format(self.itemListing))
+		listingUpdated = self.agent.updateItemListing(self.itemListing)
+
+	#########################
+	# Labor management
+	#########################
+	def evalJobApplication(self, laborContract):
+		self.logger.debug("Recieved job application {}".format(laborContract))
+		if (self.openSteps > 0):
+			self.applications = 0
+		self.openSteps = 0
+
+		self.applications += 1
+
+		#Hire them if we need the labor
+		if (self.requiredLabor > 0):
+			self.logger.info("Accepting job application {}".format(laborContract))
+			#Spawn money needed for this contract
+			totalWages = int((laborContract.wagePerTick * laborContract.ticksPerStep * laborContract.contractLength + 100)*10)
+			self.agent.receiveCurrency(totalWages)
+
+			#Decrease required labor
+			self.requiredLabor -= laborContract.ticksPerStep
+			if (self.requiredLabor < 0):
+				self.requiredLabor = 0
+
+			self.logger.debug("Accepted job application {}".format(laborContract))
+			return True
+		else:
+			#We don't need more labor. Reject this application
+			self.logger.debug("Rejected job application {}".format(laborContract))
+			return False
+
+
+	def adjustWorkerWage(self):
+		medianAlpha = 0.2
+		adjustmentAlpha = 0.1
+
+		newWage = self.workerWage
+		#Adjust wage  based on market rate
+		medianWage = self.workerWage
+		sampledListings = self.agent.sampleLaborListings(sampleSize=30)
+		sampledWages = SortedList()
+		if (len(sampledListings) > 0):
+			for listing in sampledListings:
+				sampledWages.add(listing.wagePerTick)
+			medianWage = sampledWages[int(len(sampledListings)/2)]
+		newWage = ((1-medianAlpha)*self.workerWage)+(medianAlpha*medianWage)
+
+		#Adjust wage based on worker deficit and application number
+		divisor = 1
+		if (self.workerDeficit < 0):
+			divisor = pow(abs(self.workerDeficit)*1.2, 1.2)
+		if (self.workerDeficit > 0) and (self.openSteps > 2):
+			divisor = 1/pow((self.workerDeficit), 0.2)
+		if (self.workerDeficit > 0):
+			if (abs(self.applications/self.workerDeficit)>1.5):
+				divisor = pow(abs(self.applications/self.workerDeficit), 1.5)
+
+		dividend = 1.0
+		if (self.openSteps > 3):
+			dividend = (pow(self.openSteps, 0.2))
+
+		#Adjust the wage for next time
+		adjustmentRatio = dividend/divisor
+		newWage = ((1-adjustmentAlpha)*newWage)+(adjustmentAlpha*adjustmentRatio*newWage)
+
+		return newWage
+
+
+	def manageLabor(self):
+		#Update worker deficit
+		if (self.requiredLabor > 0):
+			self.workerDeficit = math.ceil(self.requiredLabor/self.maxTicksPerStep)
+		elif (self.requiredLabor < 0):
+			self.workerDeficit = math.floor(self.requiredLabor/self.maxTicksPerStep)
+
+		#Adjust wages
+		self.logger.debug("Old wage = {}".format(self.workerWage))
+		self.workerWage = self.adjustWorkerWage()
+		self.logger.debug("New wage = {}".format(self.workerWage))
+
+		#Update job listing
+		if (self.requiredLabor > 0):
+			self.laborListing = LaborListing(employerId=self.agentId, ticksPerStep=self.maxTicksPerStep, wagePerTick=self.workerWage, minSkillLevel=self.laborSkillLevel, contractLength=self.contractLength, listingName="Employer_{}".format(self.agentId))
+			self.logger.info("Updating job listing | {}".format(self.laborListing))
+			listingUpdated = self.agent.updateLaborListing(self.laborListing)
+			if (self.listingActive):
+				self.openSteps += 1
+			self.listingActive = True
+		else:
+			#Remove listing
+			self.agent.removeLaborListing(self.laborListing)
+			self.listingActive = False
+			self.applications = 0
+			self.openSteps = 0
+
+		#Print stats
+		self.logger.debug("HR Stats: requiredLabor={}, workerDeficit={}, applications={}, openSteps={}, workerWage={}".format(self.requiredLabor, self.workerDeficit, self.applications, self.openSteps, self.workerWage))
+
+
+	#########################
+	# Misc functions
+	#########################
 	def getInfoDumpString(self):
 		infoString = "CONTROLLER_INFO_DUMP: "
 		infoString += "\ntargetProductionRate={}".format(self.targetProductionRate)

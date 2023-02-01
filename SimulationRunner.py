@@ -36,13 +36,13 @@ def launchSimulation(simManagerSeed, settingsDict):
 			print(traceback.format_exc())
 
 
-def launchAgents(launchDict, allAgentDict, procName, managerId, managementPipe, outputDir="OUTPUT"):
+def launchAgents(launchDict, allAgentDict, procName, managerId, managementPipe, outputDir="OUTPUT", logLevel="WARNING"):
 	'''
 	Instantiate all agents in launchDict, then wait for a kill message from Simulation Manager before exiting
 	'''
 	try:
 		outputDirPath = outputDir
-		logger = utils.getLogger("{}:{}".format(__name__, procName), console="INFO", outputdir=os.path.join(outputDirPath, "LOGS"))
+		logger = utils.getLogger("{}:{}".format(__name__, procName), console="INFO", outputdir=os.path.join(outputDirPath, "LOGS"), fileLevel=logLevel)
 
 		curr_proc = multiprocessing.current_process()
 		logger.info("{} started".format(procName))
@@ -69,6 +69,21 @@ def launchAgents(launchDict, allAgentDict, procName, managerId, managementPipe, 
 			managerPacket = NetworkPacket(senderId=procName, destinationId=managerId, msgType="PROC_READY")
 			networkPacket = NetworkPacket(senderId=procName, destinationId=managerId, msgType="CONTROLLER_MSG", payload=managerPacket)
 			managementPipe.sendPipe.send(networkPacket)
+
+			#Wait for manager to end us
+			while True:
+				logger.debug("Waiting for stop command or kill command")
+
+				incommingPacket = managementPipe.recvPipe.recv()
+				logger.debug("INBOUND {}".format(incommingPacket))
+				if ((incommingPacket.msgType == "PROC_STOP") or (incommingPacket.msgType == "KILL_ALL_BROADCAST")):
+					logger.info("Stoppinng process")
+
+					networkPacket = NetworkPacket(senderId=procName, msgType="KILL_PIPE_NETWORK")
+					logger.debug("OUTBOUND {}".format(networkPacket))
+					managementPipe.sendPipe.send(networkPacket)
+
+					break
 			
 		except Exception as e:
 			logger.error("Error while instantiating agents")
@@ -78,22 +93,6 @@ def launchAgents(launchDict, allAgentDict, procName, managerId, managementPipe, 
 			managerPacket = NetworkPacket(senderId=procName, destinationId=managerId, msgType="PROC_ERROR", payload=traceback.format_exc())
 			networkPacket = NetworkPacket(senderId=procName, destinationId=managerId, msgType="CONTROLLER_MSG", payload=managerPacket)
 			managementPipe.sendPipe.send(networkPacket)
-
-
-		#Wait for manager to end us
-		while True:
-			logger.debug("Waiting for stop command or kill command")
-
-			incommingPacket = managementPipe.recvPipe.recv()
-			logger.debug("INBOUND {}".format(incommingPacket))
-			if ((incommingPacket.msgType == "PROC_STOP") or (incommingPacket.msgType == "KILL_ALL_BROADCAST")):
-				logger.info("Stoppinng process")
-
-				networkPacket = NetworkPacket(senderId=procName, msgType="KILL_PIPE_NETWORK")
-				logger.debug("OUTBOUND {}".format(networkPacket))
-				managementPipe.sendPipe.send(networkPacket)
-
-				break
 
 		return
 	except KeyboardInterrupt:
@@ -228,12 +227,12 @@ def RunSimulation(settingsDict, logLevel="INFO", outputDir=None):
 		###########################
 		# Setup Simulation Manager
 		###########################
-		simManagerSeed = SimulationManagerSeed(managerId, allAgentDict, procDict, outputDir=outputDirPath)
+		simManagerSeed = SimulationManagerSeed(managerId, allAgentDict, procDict, outputDir=outputDirPath, logLevel=logLevel)
 
 		##########################
 		# Setup ConnectionNetwork
 		##########################
-		xactNetwork = ConnectionNetwork(itemDict=allItemsDict, simManagerId=managerId, simulationSettings=settingsDict, outputDir=outputDirPath)
+		xactNetwork = ConnectionNetwork(itemDict=allItemsDict, simManagerId=managerId, simulationSettings=settingsDict, outputDir=outputDirPath, logLevel=logLevel)
 		xactNetwork.addConnection(agentId=managerId, networkLink=simManagerSeed.networkLink)
 		for procNum in spawnDict:
 			for agentId in spawnDict[procNum]:
@@ -254,7 +253,7 @@ def RunSimulation(settingsDict, logLevel="INFO", outputDir=None):
 
 			xactNetwork.addConnection(agentId=procName, networkLink=networkLink)
 
-			proc = multiprocessing.Process(target=launchAgents, args=(spawnDict[procNum], allAgentDict, procName, managerId, managementLink, outputDirPath))
+			proc = multiprocessing.Process(target=launchAgents, args=(spawnDict[procNum], allAgentDict, procName, managerId, managementLink, outputDirPath, logLevel))
 			childProcesses.append(proc)
 			proc.start()
 

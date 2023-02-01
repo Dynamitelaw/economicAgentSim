@@ -1120,7 +1120,8 @@ class Agent:
 		self.logger.info("{} instantiated".format(self.info))
 
 		self.lockTimeout = 5
-		self.responsePollTime = 0.00001
+		self.responsePollTime = 0.0001
+		self.agentKillFlag = False
 
 		self.itemDict = itemDict
 
@@ -1303,6 +1304,12 @@ class Agent:
 				self.sendPacket(killPacket)
 				self.logger.info("Killing networkLink {}".format(self.networkLink))
 				self.agentKillFlag = True
+
+				#Foward packet to controller
+				if (self.controller):
+					self.logger.debug("Fowarding msg to controller {}".format(incommingPacket))
+					controllerThread =  threading.Thread(target=self.controller.receiveMsg, args=(incommingPacket, ))
+					controllerThread.start()
 				break
 
 			#Handle incoming acks
@@ -1450,6 +1457,7 @@ class Agent:
 				if (self.enableNutrition):
 					self.nutritionTracker.advanceStep()
 					if (self.autoEatFlag):
+						self.useTimeTicks(1)
 						self.eating = True
 						eatThread = threading.Thread(target=self.autoEat)
 						eatThread.start()
@@ -1482,6 +1490,9 @@ class Agent:
 
 
 	def sendPacket(self, packet):
+		if (self.agentKillFlag):
+			return
+
 		if (self.networkLink):
 			self.logger.debug("Waiting for networkSendLock to send {}".format(packet))
 			#acquired_networkSendLock = self.networkSendLock.acquire(timeout=self.lockTimeout)
@@ -1784,7 +1795,9 @@ class Agent:
 					#Wait for transaction response
 					while not (paymentId in self.responseBuffer):
 						time.sleep(self.responsePollTime)
-						pass
+						if (self.agentKillFlag):
+							return False
+						
 					responsePacket = self.responseBuffer[paymentId]
 
 					#Undo balance change if not successful
@@ -1921,7 +1934,9 @@ class Agent:
 					#Wait for transaction response
 					while not (transferId in self.responseBuffer):
 						time.sleep(self.responsePollTime)
-						pass
+						if (self.agentKillFlag):
+							return False
+						
 					responsePacket = self.responseBuffer[transferId]
 
 					#Undo inventory change if not successful
@@ -2254,7 +2269,9 @@ class Agent:
 				self.logger.debug("Waiting for counterparty to complete trade {}".format(request))
 				while (request.reqId in self.outstandingTrades):
 					time.sleep(self.responsePollTime)
-					pass
+					if (self.agentKillFlag):
+						return False
+					
 				self.logger.debug("Counterparty completed trade {}".format(request))
 
 			self.tradeRequestLock.release()  #<== release tradeRequestLock
@@ -2296,7 +2313,9 @@ class Agent:
 			#Wait for trade response
 			while not (tradeId in self.responseBuffer):
 				time.sleep(self.responsePollTime)
-				pass
+				if (self.agentKillFlag):
+					return False
+				
 			responsePacket = self.responseBuffer[tradeId]
 
 			#Execute trade if request accepted
@@ -2455,7 +2474,9 @@ class Agent:
 					#Wait for transaction response
 					while not (transferId in self.responseBuffer):
 						time.sleep(self.responsePollTime)
-						pass
+						if (self.agentKillFlag):
+							return False
+						
 					responsePacket = self.responseBuffer[transferId]
 
 					#Undo inventory change if not successful
@@ -2591,8 +2612,10 @@ class Agent:
 			if (offerAccepted):
 				self.logger.debug("Waiting for counterparty to complete trade {}".format(request))
 				while (request.reqId in self.outstandingTrades):
-					time.sleep()
-					pass
+					time.sleep(self.responsePollTime)
+					if (self.agentKillFlag):
+						return False
+					
 				self.logger.debug("Counterparty completed trade {}".format(request))
 
 			self.landTradeRequestLock.release()  #<== release landTradeRequestLock
@@ -2630,7 +2653,9 @@ class Agent:
 			#Wait for trade response
 			while not (tradeId in self.responseBuffer):
 				time.sleep(self.responsePollTime)
-				pass
+				if (self.agentKillFlag):
+					return False
+				
 			responsePacket = self.responseBuffer[tradeId]
 
 			#Execute trade if request accepted
@@ -2807,7 +2832,9 @@ class Agent:
 			#Wait for application response
 			while not (applicationId in self.responseBuffer):
 				time.sleep(self.responsePollTime)
-				pass
+				if (self.agentKillFlag):
+					return False
+				
 			responsePacket = self.responseBuffer[applicationId]
 
 			#Execute trade if request accepted
@@ -2934,7 +2961,9 @@ class Agent:
 		#Wait for response from itemMarket
 		while not (transactionId in self.responseBuffer):
 			time.sleep(self.responsePollTime)
-			pass
+			if (self.agentKillFlag):
+				return False
+			
 		responsePacket = self.responseBuffer[transactionId]
 		sampledListings = responsePacket.payload
 
@@ -3087,7 +3116,9 @@ class Agent:
 		#Wait for response from itemMarket
 		while not (transactionId in self.responseBuffer):
 			time.sleep(self.responsePollTime)
-			pass
+			if (self.agentKillFlag):
+				return []
+			
 		responsePacket = self.responseBuffer[transactionId]
 		sampledListings = responsePacket.payload
 
@@ -3175,7 +3206,9 @@ class Agent:
 		#Wait for response from itemMarket
 		while not (transactionId in self.responseBuffer):
 			time.sleep(self.responsePollTime)
-			pass
+			if (self.agentKillFlag):
+				return []
+			
 		responsePacket = self.responseBuffer[transactionId]
 		sampledListings = responsePacket.payload
 
@@ -3294,12 +3327,10 @@ class Agent:
 		self.logger.debug("{}.relinquishTimeTicks() waiting for time commitments to complete".format(self.agentId))
 		#Wait for labor contracts to be fullfilled
 		while not (self.fullfilledContracts):
-			time.sleep(0.05)
+			time.sleep(self.responsePollTime)
+			if (self.agentKillFlag):
+				return False
 
-		#Wait for agent to eat
-		if (self.autoEatFlag):
-			while (self.eating):
-				time.sleep(0.05)
 		self.logger.debug("{}.relinquishTimeTicks() time commitments completed".format(self.agentId))
 
 		#Use all remaining time ticks
@@ -3383,32 +3414,24 @@ class Agent:
 		Returns True if successful, False if not
 		'''
 		self.logger.debug("autoEat() start")
-		eatSuccess = True
 
-		ticksUsed = self.useTimeTicks(1)
-		if not (ticksUsed):
-			eatSuccess = False
+		mealPlan = self.nutritionTracker.getAutoMeal()
+		self.logger.debug("autoEat() mealPlan = {}".format(mealPlan))
 
-		if (ticksUsed):
-			mealPlan = self.nutritionTracker.getAutoMeal()
-			self.logger.debug("autoEat() mealPlan = {}".format(mealPlan))
+		#Acquire needed food
+		acquisitionSuccess = True
+		for foodId in mealPlan:
+			foodContainer = ItemContainer(foodId, mealPlan[foodId])
+			foodAcquired = self.acquireItem(foodContainer, sampleSize=5)
+			if (foodAcquired > 0):
+				self.consumeItem(ItemContainer(foodId, foodAcquired))
 
-			#Acquire needed food
-			acquisitionSuccess = True
-			for foodId in mealPlan:
-				foodContainer = ItemContainer(foodId, mealPlan[foodId])
-				foodAcquired = self.acquireItem(foodContainer, sampleSize=5)
-				if (foodAcquired > 0):
-					self.consumeItem(ItemContainer(foodId, foodAcquired))
-
-			if not (acquisitionSuccess):
-				self.logger.warning("autoEat() Could not acquire all ingredients for meal plan {}".format(mealPlan))
-		else:
-			self.logger.warning("autoEat() Could not autoEat. Not enough time ticks")
+		if not (acquisitionSuccess):
+			self.logger.warning("autoEat() Could not acquire all ingredients for meal plan {}".format(mealPlan))
 
 		self.eating = False
 
-		return eatSuccess
+		return acquisitionSuccess
 
 	#########################
 	# Misc functions
