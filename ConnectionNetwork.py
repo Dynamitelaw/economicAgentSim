@@ -157,99 +157,99 @@ class ConnectionNetwork:
 			destinationId = incommingPacket.destinationId
 
 			#Handle kill packets
-			if (incommingPacket.msgType == "KILL_PIPE_NETWORK"):
-					#We've received a kill command for this pipe. Remove destPipe from connections, then kill this monitor thread
-					self.logger.info("Killing pipe {} {}".format(agentId, agentLink))
-					try:
-						acquired_agentConnectionsLock = self.agentConnectionsLock.acquire(timeout=self.lockTimeout)  #<== acquire agentConnectionsLock
-						if (acquired_agentConnectionsLock):
-							del self.agentConnections[incommingPacket.senderId]
-							del self.sendLocks[incommingPacket.senderId]
-							self.agentConnectionsLock.release()  #<== release agentConnectionsLock
-							break
-						else:
-							self.logger.error("monitorLink() Lock \"agentConnectionsLock\" acquisition timeout")
-							break
-					except:
-						self.logger.critical(traceback.format_exc())
+			if (incommingPacket.msgType == PACKET_TYPE.KILL_PIPE_NETWORK):
+				#We've received a kill command for this pipe. Remove destPipe from connections, then kill this monitor thread
+				self.logger.info("Killing pipe {} {}".format(agentId, agentLink))
+				try:
+					acquired_agentConnectionsLock = self.agentConnectionsLock.acquire(timeout=self.lockTimeout)  #<== acquire agentConnectionsLock
+					if (acquired_agentConnectionsLock):
+						del self.agentConnections[incommingPacket.senderId]
+						del self.sendLocks[incommingPacket.senderId]
+						self.agentConnectionsLock.release()  #<== release agentConnectionsLock
 						break
+					else:
+						self.logger.error("monitorLink() Lock \"agentConnectionsLock\" acquisition timeout")
+						break
+				except:
+					self.logger.critical(traceback.format_exc())
+					break
 
 			#Handle broadcasts
-			elif ("_BROADCAST" in incommingPacket.msgType):
-					#Check if this is a KILL_ALL broadcast
-					if (incommingPacket.msgType == "KILL_ALL_BROADCAST"):
-						self.killAllLock.acquire()
-						if (self.killAllFlag):
-							#All agents were already killed by another thread. Skip this broadcast
-							self.logger.debug("killAllFlag has already been set. Ignoring {}".format(incommingPacket))
-							continue
+			elif ((incommingPacket.msgType == PACKET_TYPE.KILL_ALL_BROADCAST) or (incommingPacket.msgType == PACKET_TYPE.INFO_REQ_BROADCAST) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_START_BROADCAST) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST)):
+				#Check if this is a KILL_ALL broadcast
+				if (incommingPacket.msgType == PACKET_TYPE.KILL_ALL_BROADCAST):
+					self.killAllLock.acquire()
+					if (self.killAllFlag):
+						#All agents were already killed by another thread. Skip this broadcast
+						self.logger.debug("killAllFlag has already been set. Ignoring {}".format(incommingPacket))
+						continue
 
-					#Check if this is the start of the sim
-					if not (self.simStarted):
-						if (incommingPacket.msgType == "TICK_GRANT_BROADCAST"):
-							for agentId in self.timeTickBlockers:
-								self.timeTickBlockers[agentId] = False
-							self.simStarted = True
+				#Check if this is the start of the sim
+				if not (self.simStarted):
+					if (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST):
+						for agentId in self.timeTickBlockers:
+							self.timeTickBlockers[agentId] = False
+						self.simStarted = True
 
-					#We've received a broadcast message. Foward to all pipes
-					self.logger.debug("Fowarding broadcast")
-					acquired_agentConnectionsLock = self.agentConnectionsLock.acquire()  #<== acquire agentConnectionsLock
-					pipeIdList = list(self.agentConnections.keys())
-					self.agentConnectionsLock.release()  #<== release agentConnectionsLock
+				#We've received a broadcast message. Foward to all pipes
+				self.logger.debug("Fowarding broadcast")
+				acquired_agentConnectionsLock = self.agentConnectionsLock.acquire()  #<== acquire agentConnectionsLock
+				pipeIdList = list(self.agentConnections.keys())
+				self.agentConnectionsLock.release()  #<== release agentConnectionsLock
 
-					for pipeId in pipeIdList:
-						self.sendPacket(pipeId, incommingPacket)
+				for pipeId in pipeIdList:
+					self.sendPacket(pipeId, incommingPacket)
 
-					self.logger.debug("Ending broadcast")
+				self.logger.debug("Ending broadcast")
 
-					#CSet killAllFlag
-					if (incommingPacket.msgType == "KILL_ALL_BROADCAST"):
-						self.logger.debug("Setting killAllFlag")
-						self.killAllFlag = True
-						self.killAllLock.release()
+				#CSet killAllFlag
+				if (incommingPacket.msgType == PACKET_TYPE.KILL_ALL_BROADCAST):
+					self.logger.debug("Setting killAllFlag")
+					self.killAllFlag = True
+					self.killAllLock.release()
 
 			#Handle snoop requests
-			elif (incommingPacket.msgType == "SNOOP_START"):
-					#We've received a snoop start request. Add to snooping dict
-					self.setupSnoop(incommingPacket)
+			elif (incommingPacket.msgType == PACKET_TYPE.SNOOP_START):
+				#We've received a snoop start request. Add to snooping dict
+				self.setupSnoop(incommingPacket)
 
 			#Handle tick block subscriptions
-			elif (incommingPacket.msgType == "TICK_BLOCK_SUBSCRIBE"):
-					self.logger.info("{} has subscribed to tick blocking".format(incommingPacket.senderId))
-					self.timeTickBlockers_Lock.acquire()
-					self.timeTickBlockers[incommingPacket.senderId] = True
+			elif (incommingPacket.msgType == PACKET_TYPE.TICK_BLOCK_SUBSCRIBE):
+				self.logger.info("{} has subscribed to tick blocking".format(incommingPacket.senderId))
+				self.timeTickBlockers_Lock.acquire()
+				self.timeTickBlockers[incommingPacket.senderId] = True
 					
-					if not (self.tickBlocksMonitoring):
-						self.tickBlocksMonitoring = True
-						blockMonitorThread = threading.Thread(target=self.monitorTickBlockers)
-						blockMonitorThread.start()
+				if not (self.tickBlocksMonitoring):
+					self.tickBlocksMonitoring = True
+					blockMonitorThread = threading.Thread(target=self.monitorTickBlockers)
+					blockMonitorThread.start()
 
-					self.timeTickBlockers_Lock.release()
+				self.timeTickBlockers_Lock.release()
 
 			#Handle tick blocked packets
-			elif (incommingPacket.msgType == "TICK_BLOCKED"):
-					self.timeTickBlockers[incommingPacket.senderId] = True
+			elif (incommingPacket.msgType == PACKET_TYPE.TICK_BLOCKED):
+				self.timeTickBlockers[incommingPacket.senderId] = True
 
 			#Handle marketplace packets
-			elif ("ITEM_MARKET" in incommingPacket.msgType):
-					#We've received an item market packet
-					self.itemMarketplace.handlePacket(incommingPacket, self.agentConnections[incommingPacket.senderId], self.sendLocks[incommingPacket.senderId])
-			elif ("LABOR_MARKET" in incommingPacket.msgType):
-					#We've received an item market packet
-					self.laborMarketplace.handlePacket(incommingPacket, self.agentConnections[incommingPacket.senderId], self.sendLocks[incommingPacket.senderId])
-			elif ("LAND_MARKET" in incommingPacket.msgType):
-					#We've received an item market packet
-					self.landMarketplace.handlePacket(incommingPacket, self.agentConnections[incommingPacket.senderId], self.sendLocks[incommingPacket.senderId])
+			elif ((incommingPacket.msgType == PACKET_TYPE.ITEM_MARKET_UPDATE) or (incommingPacket.msgType == PACKET_TYPE.ITEM_MARKET_REMOVE) or (incommingPacket.msgType == PACKET_TYPE.ITEM_MARKET_SAMPLE) or (incommingPacket.msgType == PACKET_TYPE.ITEM_MARKET_SAMPLE_ACK)):
+				#We've received an item market packet
+				self.itemMarketplace.handlePacket(incommingPacket, self.agentConnections[incommingPacket.senderId], self.sendLocks[incommingPacket.senderId])
+			elif ((incommingPacket.msgType == PACKET_TYPE.LABOR_MARKET_UPDATE) or (incommingPacket.msgType == PACKET_TYPE.LABOR_MARKET_REMOVE) or (incommingPacket.msgType == PACKET_TYPE.LABOR_MARKET_SAMPLE) or (incommingPacket.msgType == PACKET_TYPE.LABOR_MARKET_SAMPLE_ACK)):
+				#We've received an item market packet
+				self.laborMarketplace.handlePacket(incommingPacket, self.agentConnections[incommingPacket.senderId], self.sendLocks[incommingPacket.senderId])
+			elif ((incommingPacket.msgType == PACKET_TYPE.LAND_MARKET_UPDATE) or (incommingPacket.msgType == PACKET_TYPE.LAND_MARKET_REMOVE) or (incommingPacket.msgType == PACKET_TYPE.LAND_MARKET_SAMPLE) or (incommingPacket.msgType == PACKET_TYPE.LAND_MARKET_SAMPLE_ACK)):
+				#We've received an item market packet
+				self.landMarketplace.handlePacket(incommingPacket, self.agentConnections[incommingPacket.senderId], self.sendLocks[incommingPacket.senderId])
 					
 			#Handle notification packets
-			elif ("_NOTIFICATION" in incommingPacket.msgType):
+			elif (incommingPacket.msgType == PACKET_TYPE.PRODUCTION_NOTIFICATION):
 				#Check for active snoops
 				if (incommingPacket.msgType in self.snoopDict):
 					snoopThread = threading.Thread(target=self.statsGatherer.handleSnoop, args=(incommingPacket,))
 					snoopThread.start()
 
 			#Handle info response packets
-			elif ("INFO_RESP" in incommingPacket.msgType):
+			elif (incommingPacket.msgType == PACKET_TYPE.INFO_RESP):
 				#Foward to statistics gatherer
 				infoRespThread = threading.Thread(target=self.statsGatherer.handleInfoResp, args=(incommingPacket,))
 				infoRespThread.start()
@@ -267,7 +267,7 @@ class ConnectionNetwork:
 			else:
 				#Invalid packet destination
 				errorMsg = "Destination \"{}\" not connected to network".format(destinationId)
-				responsePacket = NetworkPacket(senderId=self.id, destinationId=incommingPacket.senderId, msgType="ERROR", payload=errorMsg, transactionId=incommingPacket.transactionId)
+				responsePacket = NetworkPacket(senderId=self.id, destinationId=incommingPacket.senderId, msgType=PACKET_TYPE.ERROR, payload=errorMsg, transactionId=incommingPacket.transactionId)
 
 				sendThread = threading.Thread(target=self.sendPacket, args=(agentId, responsePacket))
 				sendThread.start()
@@ -318,8 +318,8 @@ class ConnectionNetwork:
 				for agentId in self.timeTickBlockers:
 					self.timeTickBlockers[agentId] = False
 
-				controllerMsg = NetworkPacket(senderId=self.id, destinationId=self.simManagerId, msgType="ADVANCE_STEP")
-				networkPacket = NetworkPacket(senderId=self.id, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=controllerMsg)
+				controllerMsg = NetworkPacket(senderId=self.id, destinationId=self.simManagerId, msgType=PACKET_TYPE.ADVANCE_STEP)
+				networkPacket = NetworkPacket(senderId=self.id, destinationId=self.simManagerId, msgType=PACKET_TYPE.CONTROLLER_MSG, payload=controllerMsg)
 				self.sendPacket(self.simManagerId, networkPacket)
 
 			time.sleep(0.001)

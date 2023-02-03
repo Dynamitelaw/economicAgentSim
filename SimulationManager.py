@@ -101,7 +101,7 @@ class SimulationManager:
 
 			#Start all agent controllers
 			self.logger.info("Starting all agent controllers")
-			controllerStartBroadcast = NetworkPacket(senderId=self.agentId, msgType="CONTROLLER_START_BROADCAST")
+			controllerStartBroadcast = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.CONTROLLER_START_BROADCAST)
 			self.agent.sendPacket(controllerStartBroadcast)
 			time.sleep(sleepTime)  #Sleep to give controllers time to start blocking protocols #TODO: calculate sleep time based on size of agentDict
 
@@ -126,7 +126,7 @@ class SimulationManager:
 					self.allAgentsReady = False
 
 					#Distribute ticks to agents
-					tickGrantPacket = NetworkPacket(senderId=self.agentId, msgType="TICK_GRANT_BROADCAST", payload=ticksPerStep)
+					tickGrantPacket = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.TICK_GRANT_BROADCAST, payload=ticksPerStep)
 					self.logger.debug("OUTBOUND {}".format(tickGrantPacket))
 					self.agent.sendPacket(tickGrantPacket)
 
@@ -164,8 +164,8 @@ class SimulationManager:
 		#Stop all trading
 		try:
 			self.logger.info("Stopping all trading activity")
-			controllerMsg = NetworkPacket(senderId=self.agentId, msgType="STOP_TRADING")
-			networkPacket = NetworkPacket(senderId=self.agentId, msgType="CONTROLLER_MSG_BROADCAST", payload=controllerMsg)
+			controllerMsg = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.STOP_TRADING)
+			networkPacket = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.CONTROLLER_MSG_BROADCAST, payload=controllerMsg)
 			self.agent.sendPacket(networkPacket)
 			time.sleep(sleepTime)
 		except Exception as e:
@@ -175,7 +175,7 @@ class SimulationManager:
 		#Broadcast kill command
 		try:
 			self.logger.info("Killing all network connections")
-			killPacket = NetworkPacket(senderId=self.agentId, msgType="KILL_ALL_BROADCAST")
+			killPacket = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.KILL_ALL_BROADCAST)
 			self.agent.sendPacket(killPacket)
 			time.sleep(sleepTime)
 		except Exception as e:
@@ -194,8 +194,8 @@ class SimulationManager:
 		#Stop all trading
 		try:
 			self.logger.critical("Stopping all trading activity")
-			controllerMsg = NetworkPacket(senderId=self.agentId, msgType="STOP_TRADING")
-			networkPacket = NetworkPacket(senderId=self.agentId, msgType="CONTROLLER_MSG_BROADCAST", payload=controllerMsg)
+			controllerMsg = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.STOP_TRADING)
+			networkPacket = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.CONTROLLER_MSG_BROADCAST, payload=controllerMsg)
 			self.logger.critical("OUTBOUND {}".format(networkPacket))
 			self.agent.sendPacket(networkPacket)
 			time.sleep(1)
@@ -206,7 +206,7 @@ class SimulationManager:
 		#Broadcast kill command
 		try:
 			self.logger.critical("Killing all network connections")
-			killPacket = NetworkPacket(senderId=self.agentId, msgType="KILL_ALL_BROADCAST")
+			killPacket = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.KILL_ALL_BROADCAST)
 			self.logger.critical("OUTBOUND {}".format(killPacket))
 			self.agent.sendPacket(killPacket)
 			time.sleep(1)
@@ -221,27 +221,27 @@ class SimulationManager:
 	def receiveMsg(self, incommingPacket):
 		self.logger.debug("INBOUND {}".format(incommingPacket))
 
-		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+		if ((incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST)):
 			controllerMsg = incommingPacket.payload
 			self.logger.debug("INBOUND {}".format(controllerMsg))
 
 			#Handle process messages
-			if (controllerMsg.msgType == "PROC_READY"):
+			if (controllerMsg.msgType == PACKET_TYPE.PROC_READY):
 				self.procReadyDictLock.acquire()
 				self.procReadyDict[controllerMsg.senderId] = True
 				self.procReadyDictLock.release()
-			if (controllerMsg.msgType == "PROC_ERROR"):
+			if (controllerMsg.msgType == PACKET_TYPE.PROC_ERROR):
 				self.procReadyDictLock.acquire()
 				self.procReadyDict[controllerMsg.senderId] = False
 				self.procErrors[controllerMsg.senderId] = controllerMsg.payload
 				self.procReadyDictLock.release()
 
 			#Handle time tick messages
-			if (controllerMsg.msgType == "ADVANCE_STEP"):
+			if (controllerMsg.msgType == PACKET_TYPE.ADVANCE_STEP):
 				self.allAgentsReady = True
 
 			#Handle error messages
-			if (controllerMsg.msgType == "TERMINATE_SIMULATION"):
+			if (controllerMsg.msgType == PACKET_TYPE.TERMINATE_SIMULATION):
 				self.terminate()
 
 	def evalTradeRequest(self, request):

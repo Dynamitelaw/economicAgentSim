@@ -10,6 +10,7 @@ import logging
 import time
 import sys
 import traceback
+import gc
 
 from EconAgent import *
 from NetworkClasses import *
@@ -33,7 +34,7 @@ def launchSimulation(simManagerSeed, settingsDict):
 			curr_proc.terminate()
 		except Exception as e:
 			print("### {} Error when terminating proc {}".format(e, curr_proc))
-			print(traceback.format_exc())
+			#print(traceback.format_exc())
 
 
 def launchAgents(launchDict, allAgentDict, procName, managerId, managementPipe, outputDir="OUTPUT", logLevel="WARNING"):
@@ -66,32 +67,42 @@ def launchAgents(launchDict, allAgentDict, procName, managerId, managementPipe, 
 			procAgentList = list(procAgentDict.keys())
 
 			#All agents instantiated. Notify manager
-			managerPacket = NetworkPacket(senderId=procName, destinationId=managerId, msgType="PROC_READY")
-			networkPacket = NetworkPacket(senderId=procName, destinationId=managerId, msgType="CONTROLLER_MSG", payload=managerPacket)
+			managerPacket = NetworkPacket(senderId=procName, destinationId=managerId, msgType=PACKET_TYPE.PROC_READY)
+			networkPacket = NetworkPacket(senderId=procName, destinationId=managerId, msgType=PACKET_TYPE.CONTROLLER_MSG, payload=managerPacket)
 			managementPipe.sendPipe.send(networkPacket)
 
 			#Wait for manager to end us
+			stepCounter = -1
+			garbageCollectionFrequency = 20
 			while True:
-				logger.debug("Waiting for stop command or kill command")
+				logger.debug("Monitoring network link")
 
 				incommingPacket = managementPipe.recvPipe.recv()
 				logger.debug("INBOUND {}".format(incommingPacket))
-				if ((incommingPacket.msgType == "PROC_STOP") or (incommingPacket.msgType == "KILL_ALL_BROADCAST")):
+				if ((incommingPacket.msgType == PACKET_TYPE.PROC_STOP) or (incommingPacket.msgType == PACKET_TYPE.KILL_ALL_BROADCAST)):
 					logger.info("Stoppinng process")
 
-					networkPacket = NetworkPacket(senderId=procName, msgType="KILL_PIPE_NETWORK")
+					networkPacket = NetworkPacket(senderId=procName, msgType=PACKET_TYPE.KILL_PIPE_NETWORK)
 					logger.debug("OUTBOUND {}".format(networkPacket))
 					managementPipe.sendPipe.send(networkPacket)
 
 					break
+				elif ((incommingPacket.msgType == PACKET_TYPE.TICK_GRANT) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST)):
+					#This is the start of a new step.
+					stepCounter += 1
+					if (stepCounter%garbageCollectionFrequency == 0):
+						#Manually call the garbage collector to prevent persistent memory leaks
+						logger.debug("Running garbage collector")
+						gc.collect()
+
 			
 		except Exception as e:
 			logger.error("Error while instantiating agents")
 			logger.error(traceback.format_exc())
 
 			#Notify manager of error
-			managerPacket = NetworkPacket(senderId=procName, destinationId=managerId, msgType="PROC_ERROR", payload=traceback.format_exc())
-			networkPacket = NetworkPacket(senderId=procName, destinationId=managerId, msgType="CONTROLLER_MSG", payload=managerPacket)
+			managerPacket = NetworkPacket(senderId=procName, destinationId=managerId, msgType=PACKET_TYPE.PROC_ERROR, payload=traceback.format_exc())
+			networkPacket = NetworkPacket(senderId=procName, destinationId=managerId, msgType=PACKET_TYPE.CONTROLLER_MSG, payload=managerPacket)
 			managementPipe.sendPipe.send(networkPacket)
 
 		return
@@ -99,16 +110,16 @@ def launchAgents(launchDict, allAgentDict, procName, managerId, managementPipe, 
 		curr_proc = multiprocessing.current_process()
 		print("###################### INTERUPT {} ######################".format(curr_proc))
 
-		controllerMsg = NetworkPacket(senderId=procName, msgType="STOP_TRADING")
-		networkPacket = NetworkPacket(senderId=procName, msgType="CONTROLLER_MSG_BROADCAST", payload=controllerMsg)
+		controllerMsg = NetworkPacket(senderId=procName, msgType=PACKET_TYPE.STOP_TRADING)
+		networkPacket = NetworkPacket(senderId=procName, msgType=PACKET_TYPE.CONTROLLER_MSG_BROADCAST, payload=controllerMsg)
 		logger.critical("OUTBOUND {}".format(networkPacket))
 		managementPipe.sendPipe.send(networkPacket)
 		time.sleep(1)
 
-		networkPacket = NetworkPacket(senderId=procName, msgType="KILL_ALL_BROADCAST")
+		networkPacket = NetworkPacket(senderId=procName, msgType=PACKET_TYPE.KILL_ALL_BROADCAST)
 		logger.critical("OUTBOUND {}".format(networkPacket))
 		managementPipe.sendPipe.send(networkPacket)
-		networkPacket = NetworkPacket(senderId=procName, msgType="KILL_PIPE_NETWORK")
+		networkPacket = NetworkPacket(senderId=procName, msgType=PACKET_TYPE.KILL_PIPE_NETWORK)
 		logger.critical("OUTBOUND {}".format(networkPacket))
 		managementPipe.sendPipe.send(networkPacket)
 		time.sleep(1)
@@ -117,7 +128,7 @@ def launchAgents(launchDict, allAgentDict, procName, managerId, managementPipe, 
 			curr_proc.terminate()
 		except Exception as e:
 			print("### {} Error when terminating proc {}".format(e, curr_proc))
-			print(traceback.format_exc())
+			#print(traceback.format_exc())
 
 
 def RunSimulation(settingsDict, logLevel="INFO", outputDir=None):

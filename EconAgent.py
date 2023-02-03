@@ -1298,9 +1298,9 @@ class Agent:
 		while True:
 			incommingPacket = self.networkLink.recvPipe.recv()
 			self.logger.info("INBOUND {}".format(incommingPacket))
-			if ((incommingPacket.msgType == "KILL_PIPE_AGENT") or (incommingPacket.msgType == "KILL_ALL_BROADCAST")):
+			if ((incommingPacket.msgType == PACKET_TYPE.KILL_PIPE_AGENT) or (incommingPacket.msgType == PACKET_TYPE.KILL_ALL_BROADCAST)):
 				#Kill the network pipe before exiting monitor
-				killPacket = NetworkPacket(senderId=self.agentId, destinationId=self.agentId, msgType="KILL_PIPE_NETWORK")
+				killPacket = NetworkPacket(senderId=self.agentId, destinationId=self.agentId, msgType=PACKET_TYPE.KILL_PIPE_NETWORK)
 				self.sendPacket(killPacket)
 				self.logger.info("Killing networkLink {}".format(self.networkLink))
 				self.agentKillFlag = True
@@ -1313,14 +1313,16 @@ class Agent:
 				break
 
 			#Handle incoming acks
-			elif ("_ACK" in incommingPacket.msgType):
+			elif ((incommingPacket.msgType == PACKET_TYPE.CURRENCY_TRANSFER_ACK) or (incommingPacket.msgType == PACKET_TYPE.ITEM_TRANSFER_ACK) or (incommingPacket.msgType == PACKET_TYPE.LAND_TRANSFER_ACK) or	
+				(incommingPacket.msgType == PACKET_TYPE.TRADE_REQ_ACK) or (incommingPacket.msgType == PACKET_TYPE.LAND_TRADE_REQ_ACK) or (incommingPacket.msgType == PACKET_TYPE.LABOR_APPLICATION_ACK) or 
+				(incommingPacket.msgType == PACKET_TYPE.ITEM_MARKET_SAMPLE_ACK) or (incommingPacket.msgType == PACKET_TYPE.LABOR_MARKET_SAMPLE_ACK) or (incommingPacket.msgType == PACKET_TYPE.LAND_MARKET_SAMPLE_ACK)):
 				#Determine whether to handle this ack
 				handleAck = True
-				if (incommingPacket.msgType == "CURRENCY_TRANSFER_ACK"):
+				if (incommingPacket.msgType == PACKET_TYPE.CURRENCY_TRANSFER_ACK):
 					handleAck = self.needCurrencyTransferAck
-				elif (incommingPacket.msgType == "ITEM_TRANSFER_ACK"):
+				elif (incommingPacket.msgType == PACKET_TYPE.ITEM_TRANSFER_ACK):
 					handleAck = self.needItemTransferAck
-				elif (incommingPacket.msgType == "LAND_TRANSFER_ACK"):
+				elif (incommingPacket.msgType == PACKET_TYPE.LAND_TRANSFER_ACK):
 					handleAck = self.needLandTransferAck
 		
 				if (handleAck):
@@ -1334,11 +1336,11 @@ class Agent:
 						break
 
 			#Handle errors
-			elif ("ERROR" in incommingPacket.msgType):
+			elif (incommingPacket.msgType == PACKET_TYPE.ERROR) or (incommingPacket.msgType == PACKET_TYPE.ERROR_CONTROLLER_START):
 				self.logger.error("{} {}".format(incommingPacket, incommingPacket.payload))
 
 			#Handle controller messages
-			elif ((incommingPacket.msgType == "CONTROLLER_START") or (incommingPacket.msgType == "CONTROLLER_START_BROADCAST")):
+			elif ((incommingPacket.msgType == PACKET_TYPE.CONTROLLER_START) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_START_BROADCAST)):
 				if (self.controller):
 					if (not self.controllerStart):
 						self.controllerStart = True
@@ -1347,10 +1349,10 @@ class Agent:
 				else:
 					warning = "Agent does not have controller to start"
 					self.logger.warning(warning)
-					responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType="ERROR_CONTROLLER_START", payload=warning)
+					responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType=PACKET_TYPE.ERROR_CONTROLLER_START, payload=warning)
 
 			
-			elif ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST") or (incommingPacket.msgType == "INFO_RESP")):
+			elif ((incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST)):
 				#Foward packet to controller
 				if (self.controller):
 					self.logger.debug("Fowarding msg to controller {}".format(incommingPacket))
@@ -1361,7 +1363,7 @@ class Agent:
 
 
 			#Handle incoming payments
-			elif (incommingPacket.msgType == "CURRENCY_TRANSFER"):
+			elif (incommingPacket.msgType == PACKET_TYPE.CURRENCY_TRANSFER):
 				amount = incommingPacket.payload["cents"]
 				self.receiveCurrency(amount, incommingPacket)
 				if (incommingPacket.transactionId in self.outstandingTrades):
@@ -1370,7 +1372,7 @@ class Agent:
 					self.outstandingTradesLock.release()
 
 			#Handle incoming items
-			elif (incommingPacket.msgType == "ITEM_TRANSFER"):
+			elif (incommingPacket.msgType == PACKET_TYPE.ITEM_TRANSFER):
 				itemPackage = incommingPacket.payload["item"]
 				self.receiveItem(itemPackage, incommingPacket)
 				if (incommingPacket.transactionId in self.outstandingTrades):
@@ -1379,7 +1381,7 @@ class Agent:
 					self.outstandingTradesLock.release()
 
 			#Handle incoming land
-			elif (incommingPacket.msgType == "LAND_TRANSFER"):
+			elif (incommingPacket.msgType == PACKET_TYPE.LAND_TRANSFER):
 				allocation = incommingPacket.payload["allocation"]
 				hectares = incommingPacket.payload["hectares"]
 				self.receiveLand(allocation, hectares, incommingPacket)
@@ -1389,28 +1391,28 @@ class Agent:
 					self.outstandingTradesLock.release()
 
 			#Handle incoming trade requests
-			elif (incommingPacket.msgType == "TRADE_REQ"):
+			elif (incommingPacket.msgType == PACKET_TYPE.TRADE_REQ):
 				tradeRequest = incommingPacket.payload
 				tradeReqThread =  threading.Thread(target=self.receiveTradeRequest, args=(tradeRequest, incommingPacket.senderId))
 				tradeReqThread.start()
 				#self.receiveTradeRequest(tradeRequest, incommingPacket.senderId)
 
 			#Handle incoming land trade requests
-			elif (incommingPacket.msgType == "LAND_TRADE_REQ"):
+			elif (incommingPacket.msgType == PACKET_TYPE.LAND_TRADE_REQ):
 				tradeRequest = incommingPacket.payload
 				landTradeThread =  threading.Thread(target=self.receiveLandTradeRequest, args=(tradeRequest, incommingPacket.senderId))
 				landTradeThread.start()
 				#self.receiveLandTradeRequest(tradeRequest, incommingPacket.senderId)
 
 			#Handle incoming job applications
-			elif (incommingPacket.msgType == "LABOR_APPLICATION"):
+			elif (incommingPacket.msgType == PACKET_TYPE.LABOR_APPLICATION):
 				applicationPayload = incommingPacket.payload
 				laborAppThread =  threading.Thread(target=self.receiveJobApplication, args=(applicationPayload, incommingPacket.senderId))
 				laborAppThread.start()
 				#self.receiveJobApplication(applicationPayload, incommingPacket.senderId)
 
 			#Handle incoming labor
-			elif (incommingPacket.msgType == "LABOR_TIME_SEND"):
+			elif (incommingPacket.msgType == PACKET_TYPE.LABOR_TIME_SEND):
 				laborTicks = incommingPacket.payload["ticks"]
 				skillLevel = incommingPacket.payload["skillLevel"]
 				self.nextLaborInventoryLock.acquire()
@@ -1421,14 +1423,14 @@ class Agent:
 				self.nextLaborInventoryLock.release()
 
 			#Handle incoming information requests
-			elif ((incommingPacket.msgType == "INFO_REQ") or (incommingPacket.msgType == "INFO_REQ_BROADCAST")):
+			elif ((incommingPacket.msgType == PACKET_TYPE.INFO_REQ) or (incommingPacket.msgType == PACKET_TYPE.INFO_REQ_BROADCAST)):
 				infoRequest = incommingPacket.payload
 				#infoThread =  threading.Thread(target=self.handleInfoRequest, args=(infoRequest, ))
 				#infoThread.start()
 				self.handleInfoRequest(infoRequest)
 
 			#Hanle incoming tick grants
-			elif ((incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST")):
+			elif ((incommingPacket.msgType == PACKET_TYPE.TICK_GRANT) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST)):
 				#This is the start of a new step
 				self.fullfilledContracts = False
 
@@ -1724,7 +1726,7 @@ class Agent:
 			if (self.needCurrencyTransferAck):
 				if (incommingPacket):
 					respPayload = {"paymentId": incommingPacket.payload["paymentId"], "transferSuccess": transferSuccess}
-					responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType="CURRENCY_TRANSFER_ACK", payload=respPayload, transactionId=incommingPacket.transactionId)
+					responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType=PACKET_TYPE.CURRENCY_TRANSFER_ACK, payload=respPayload, transactionId=incommingPacket.transactionId)
 					self.sendPacket(responsePacket)
 
 			#Update accounting
@@ -1788,7 +1790,7 @@ class Agent:
 				if (not transactionId):
 					paymentId = "{}_{}_{}".format(self.agentId, recipientId, cents)
 				transferPayload = {"paymentId": paymentId, "cents": cents}
-				transferPacket = NetworkPacket(senderId=self.agentId, destinationId=recipientId, msgType="CURRENCY_TRANSFER", payload=transferPayload, transactionId=paymentId)
+				transferPacket = NetworkPacket(senderId=self.agentId, destinationId=recipientId, msgType=PACKET_TYPE.CURRENCY_TRANSFER, payload=transferPayload, transactionId=paymentId)
 				self.sendPacket(transferPacket)
 
 				if (self.needCurrencyTransferAck):
@@ -1872,7 +1874,7 @@ class Agent:
 					#Send ITEM_TRANSFER_ACK
 					if (incommingPacket):
 						respPayload = {"transferId": incommingPacket.payload["transferId"], "transferSuccess": received}
-						responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType="ITEM_TRANSFER_ACK", payload=respPayload, transactionId=incommingPacket.transactionId)
+						responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType=PACKET_TYPE.ITEM_TRANSFER_ACK, payload=respPayload, transactionId=incommingPacket.transactionId)
 						self.sendPacket(responsePacket)
 			else:
 				self.logger.error("receiveItem() Lock \"inventoryLock\" acquisition timeout")
@@ -1927,7 +1929,7 @@ class Agent:
 
 				if (transferValid):
 					transferPayload = {"transferId": transferId, "item": itemPackage}
-					transferPacket = NetworkPacket(senderId=self.agentId, destinationId=recipientId, msgType="ITEM_TRANSFER", payload=transferPayload, transactionId=transferId)
+					transferPacket = NetworkPacket(senderId=self.agentId, destinationId=recipientId, msgType=PACKET_TYPE.ITEM_TRANSFER, payload=transferPayload, transactionId=transferId)
 					self.sendPacket(transferPacket)
 
 				if (self.needItemTransferAck):
@@ -2042,7 +2044,7 @@ class Agent:
 
 		#Send out production notification
 		if (producedItems):
-			productionNotification = NetworkPacket(senderId=self.agentId, msgType="PRODUCTION_NOTIFICATION", payload=producedItems)
+			productionNotification = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.PRODUCTION_NOTIFICATION, payload=producedItems)
 			self.sendPacket(productionNotification)
 
 		self.logger.debug("produceItem({}) end".format(itemContainer))
@@ -2261,7 +2263,7 @@ class Agent:
 
 			#Notify counter party of response
 			respPayload = {"tradeRequest": request, "accepted": offerAccepted}
-			responsePacket = NetworkPacket(senderId=self.agentId, destinationId=senderId, msgType="TRADE_REQ_ACK", payload=respPayload, transactionId=request.reqId)
+			responsePacket = NetworkPacket(senderId=self.agentId, destinationId=senderId, msgType=PACKET_TYPE.TRADE_REQ_ACK, payload=respPayload, transactionId=request.reqId)
 			self.sendPacket(responsePacket)
 
 			#Wait for counter party to fullfill their end of the trade
@@ -2307,7 +2309,7 @@ class Agent:
 
 			#Send trade offer
 			tradeId = request.reqId
-			tradePacket = NetworkPacket(senderId=self.agentId, destinationId=recipientId, msgType="TRADE_REQ", payload=request, transactionId=tradeId)
+			tradePacket = NetworkPacket(senderId=self.agentId, destinationId=recipientId, msgType=PACKET_TYPE.TRADE_REQ, payload=request, transactionId=tradeId)
 			self.sendPacket(tradePacket)
 			
 			#Wait for trade response
@@ -2413,7 +2415,7 @@ class Agent:
 					#Send ITEM_TRANSFER_ACK
 					if (incommingPacket):
 						respPayload = {"transferId": incommingPacket.payload["transferId"], "transferSuccess": received}
-						responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType="LAND_TRANSFER_ACK", payload=respPayload, transactionId=incommingPacket.transactionId)
+						responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType=PACKET_TYPE.LAND_TRANSFER_ACK, payload=respPayload, transactionId=incommingPacket.transactionId)
 						self.sendPacket(responsePacket)
 			else:
 				self.logger.error("receiveLand() Lock \"landHoldingsLock\" acquisition timeout")
@@ -2467,7 +2469,7 @@ class Agent:
 
 				if (transferValid):
 					transferPayload = {"transferId": transferId, "allocation": allocation, "hectares": hectares}
-					transferPacket = NetworkPacket(senderId=self.agentId, destinationId=recipientId, msgType="LAND_TRANSFER", payload=transferPayload, transactionId=transferId)
+					transferPacket = NetworkPacket(senderId=self.agentId, destinationId=recipientId, msgType=PACKET_TYPE.LAND_TRANSFER, payload=transferPayload, transactionId=transferId)
 					self.sendPacket(transferPacket)
 
 				if (self.needLandTransferAck):
@@ -2605,7 +2607,7 @@ class Agent:
 
 			#Notify counter party of response
 			respPayload = {"tradeRequest": request, "accepted": offerAccepted}
-			responsePacket = NetworkPacket(senderId=self.agentId, destinationId=senderId, msgType="LAND_TRADE_REQ_ACK", payload=respPayload, transactionId=request.reqId)
+			responsePacket = NetworkPacket(senderId=self.agentId, destinationId=senderId, msgType=PACKET_TYPE.LAND_TRADE_REQ_ACK, payload=respPayload, transactionId=request.reqId)
 			self.sendPacket(responsePacket)
 
 			#Wait for counter party to fullfill their end of the trade
@@ -2647,7 +2649,7 @@ class Agent:
 
 			#Send trade offer
 			tradeId = request.reqId
-			tradePacket = NetworkPacket(senderId=self.agentId, destinationId=recipientId, msgType="LAND_TRADE_REQ", payload=request, transactionId=tradeId)
+			tradePacket = NetworkPacket(senderId=self.agentId, destinationId=recipientId, msgType=PACKET_TYPE.LAND_TRADE_REQ, payload=request, transactionId=tradeId)
 			self.sendPacket(tradePacket)
 			
 			#Wait for trade response
@@ -2727,7 +2729,7 @@ class Agent:
 					ticksSpent = self.useTimeTicks(ticks)
 					if (ticksSpent):
 						payload = {"ticks": ticks, "skillLevel": self.skillLevel}
-						laborPacket = NetworkPacket(senderId=self.agentId, destinationId=laborContract.employerId, transactionId=laborId, payload=payload, msgType="LABOR_TIME_SEND")
+						laborPacket = NetworkPacket(senderId=self.agentId, destinationId=laborContract.employerId, transactionId=laborId, payload=payload, msgType=PACKET_TYPE.LABOR_TIME_SEND)
 						self.sendPacket(laborPacket)
 						contractFulfilled = True
 					else:
@@ -2784,7 +2786,7 @@ class Agent:
 
 			#Notify counter party of response
 			respPayload = {"laborContract": laborContract, "accepted": applicationAccepted}
-			responsePacket = NetworkPacket(senderId=self.agentId, destinationId=senderId, msgType="LABOR_APPLICATION_ACK", payload=respPayload, transactionId=applicationId)
+			responsePacket = NetworkPacket(senderId=self.agentId, destinationId=senderId, msgType=PACKET_TYPE.LABOR_APPLICATION_ACK, payload=respPayload, transactionId=applicationId)
 			self.sendPacket(responsePacket)
 
 			#If accepted, add to existing labor contracts
@@ -2826,7 +2828,7 @@ class Agent:
 			laborContract = laborListing.generateLaborContract(workerId=self.agentId, workerSkillLevel=self.skillLevel, startStep=self.stepNum+1)
 			applicationId = "LaborApplication_{}(contract={})".format(laborContract.hash, laborContract)
 			applicationPayload = {"laborContract": laborContract, "applicationId": applicationId}
-			applicationPacket = NetworkPacket(senderId=self.agentId, destinationId=laborListing.employerId, msgType="LABOR_APPLICATION", payload=applicationPayload, transactionId=applicationId)
+			applicationPacket = NetworkPacket(senderId=self.agentId, destinationId=laborListing.employerId, msgType=PACKET_TYPE.LABOR_APPLICATION, payload=applicationPayload, transactionId=applicationId)
 			self.sendPacket(applicationPacket)
 			
 			#Wait for application response
@@ -2904,7 +2906,7 @@ class Agent:
 		#If we're the seller, send out update to item market
 		if (itemListing.sellerId == self.agentId):
 			transactionId = itemListing.listingStr
-			updatePacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType="ITEM_MARKET_UPDATE", payload=itemListing)
+			updatePacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType=PACKET_TYPE.ITEM_MARKET_UPDATE, payload=itemListing)
 			self.sendPacket(updatePacket)
 			updateSuccess = True
 
@@ -2929,7 +2931,7 @@ class Agent:
 		#If we're the seller, send out update to item market
 		if (itemListing.sellerId == self.agentId):
 			transactionId = itemListing.listingStr
-			updatePacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType="ITEM_MARKET_REMOVE", payload=itemListing)
+			updatePacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType=PACKET_TYPE.ITEM_MARKET_REMOVE, payload=itemListing)
 			self.sendPacket(updatePacket)
 			updateSuccess = True
 
@@ -2955,7 +2957,7 @@ class Agent:
 		#Send request to itemMarketAgent
 		transactionId = "ITEM_MARKET_SAMPLE_{}_{}".format(itemContainer, time.time())
 		requestPayload = {"itemContainer": itemContainer, "sampleSize": sampleSize}
-		requestPacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType="ITEM_MARKET_SAMPLE", payload=requestPayload)
+		requestPacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType=PACKET_TYPE.ITEM_MARKET_SAMPLE, payload=requestPayload)
 		self.sendPacket(requestPacket)
 
 		#Wait for response from itemMarket
@@ -3057,7 +3059,7 @@ class Agent:
 		#If we're the employer, send out update to labor market
 		if (laborListing.employerId == self.agentId):
 			transactionId = laborListing.listingStr
-			updatePacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType="LABOR_MARKET_UPDATE", payload=laborListing)
+			updatePacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType=PACKET_TYPE.LABOR_MARKET_UPDATE, payload=laborListing)
 			self.sendPacket(updatePacket)
 			updateSuccess = True
 
@@ -3082,7 +3084,7 @@ class Agent:
 		#If we're the seller, send out update to item market
 		if (laborListing.employerId == self.agentId):
 			transactionId = laborListing.listingStr
-			updatePacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType="LABOR_MARKET_REMOVE", payload=laborListing)
+			updatePacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType=PACKET_TYPE.LABOR_MARKET_REMOVE, payload=laborListing)
 			self.sendPacket(updatePacket)
 			updateSuccess = True
 
@@ -3110,7 +3112,7 @@ class Agent:
 		#Send request to itemMarketAgent
 		transactionId = "LABOR_MARKET_SAMPLE_{}_{}".format(self.agentId, time.time())
 		requestPayload = {"maxSkillLevel": tempMaxSkillLevel, "minSkillLevel": minSkillLevel, "sampleSize": sampleSize}
-		requestPacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType="LABOR_MARKET_SAMPLE", payload=requestPayload)
+		requestPacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType=PACKET_TYPE.LABOR_MARKET_SAMPLE, payload=requestPayload)
 		self.sendPacket(requestPacket)
 
 		#Wait for response from itemMarket
@@ -3148,7 +3150,7 @@ class Agent:
 		#If we're the seller, send out update to land market
 		if (landListing.sellerId == self.agentId):
 			transactionId = landListing.listingStr
-			updatePacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType="LAND_MARKET_UPDATE", payload=landListing)
+			updatePacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType=PACKET_TYPE.LAND_MARKET_UPDATE, payload=landListing)
 			self.sendPacket(updatePacket)
 			updateSuccess = True
 
@@ -3173,7 +3175,7 @@ class Agent:
 		#If we're the seller, send out update to land market
 		if (landListing.sellerId == self.agentId):
 			transactionId = landListing.listingStr
-			updatePacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType="ITEM_MARKET_REMOVE", payload=landListing)
+			updatePacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType=PACKET_TYPE.ITEM_MARKET_REMOVE, payload=landListing)
 			self.sendPacket(updatePacket)
 			updateSuccess = True
 
@@ -3200,7 +3202,7 @@ class Agent:
 		#Send request to itemMarketAgent
 		transactionId = "LAND_MARKET_SAMPLE_{}_{}_{}".format(allocation, hectares, time.time())
 		requestPayload = {"allocation": allocation, "hectares": hectares, "sampleSize": sampleSize}
-		requestPacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType="LAND_MARKET_SAMPLE", payload=requestPayload)
+		requestPacket = NetworkPacket(senderId=self.agentId, transactionId=transactionId, msgType=PACKET_TYPE.LAND_MARKET_SAMPLE, payload=requestPayload)
 		self.sendPacket(requestPacket)
 
 		#Wait for response from itemMarket
@@ -3298,7 +3300,7 @@ class Agent:
 						#Send blocked signal to sim manager
 						self.logger.debug("We're tick blocked. Sending TICK_BLOCKED to simManager")
 
-						tickBlockPacket = NetworkPacket(senderId=self.agentId, msgType="TICK_BLOCKED")
+						tickBlockPacket = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.TICK_BLOCKED)
 						self.sendPacket(tickBlockPacket)
 				else:
 					#We do not have enought time ticks
@@ -3327,6 +3329,12 @@ class Agent:
 		self.logger.debug("{}.relinquishTimeTicks() waiting for time commitments to complete".format(self.agentId))
 		#Wait for labor contracts to be fullfilled
 		while not (self.fullfilledContracts):
+			time.sleep(self.responsePollTime)
+			if (self.agentKillFlag):
+				return False
+
+		#Wait for agent to finish eating
+		while (self.eating):
 			time.sleep(self.responsePollTime)
 			if (self.agentKillFlag):
 				return False
@@ -3372,7 +3380,7 @@ class Agent:
 					#Send blocked signal to sim manager
 					self.logger.debug("We're tick blocked. Sending TICK_BLOCKED to simManager")
 
-					tickBlockPacket = NetworkPacket(senderId=self.agentId, msgType="TICK_BLOCKED")
+					tickBlockPacket = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.TICK_BLOCKED)
 					self.sendPacket(tickBlockPacket)
 
 			else:
@@ -3390,7 +3398,7 @@ class Agent:
 		Subscribes this agent as a tick blocker with the sim manager
 		'''
 		self.logger.info("Subscribing as a tick blocker")
-		tickBlockPacket = NetworkPacket(senderId=self.agentId, msgType="TICK_BLOCK_SUBSCRIBE")
+		tickBlockPacket = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.TICK_BLOCK_SUBSCRIBE)
 		self.sendPacket(tickBlockPacket)
 
 
@@ -3448,7 +3456,7 @@ class Agent:
 			if (infoKey == "acountingStats"):
 				infoRequest.info = self.getAccountingStats()
 			
-			infoRespPacket = NetworkPacket(senderId=self.agentId, destinationId=infoRequest.requesterId, msgType="INFO_RESP", payload=infoRequest)
+			infoRespPacket = NetworkPacket(senderId=self.agentId, destinationId=infoRequest.requesterId, msgType=PACKET_TYPE.INFO_RESP, payload=infoRequest)
 			self.sendPacket(infoRespPacket)
 		else:
 			self.logger.warning("Received infoRequest for another agent {}".format(infoRequest))

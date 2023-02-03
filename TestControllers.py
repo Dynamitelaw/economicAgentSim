@@ -112,23 +112,20 @@ class TestSeller:
 		
 	def controllerStart(self, incommingPacket):
 		#Subscribe for tick blocking
-		tickBlockReq = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCK_SUBSCRIBE")
-		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlockReq)
-		self.logger.debug("OUTBOUND {}->{}".format(tickBlockReq, tickBlockPacket))
-		self.agent.sendPacket(tickBlockPacket)
+		self.agent.subcribeTickBlocking()
 
 
 	def receiveMsg(self, incommingPacket):
 		self.logger.info("INBOUND {}".format(incommingPacket))
-		if ((incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST")):
+		if ((incommingPacket.msgType == PACKET_TYPE.TICK_GRANT) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST)):
 			#Launch production function
 			self.produceItems()
 
-		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+		if ((incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST)):
 			controllerMsg = incommingPacket.payload
 			self.logger.info("INBOUND {}".format(controllerMsg))
 			
-			if (controllerMsg.msgType == "STOP_TRADING"):
+			if (controllerMsg.msgType == PACKET_TYPE.STOP_TRADING):
 				self.killThreads = True
 
 
@@ -238,23 +235,20 @@ class TestBuyer:
 
 	def controllerStart(self, incommingPacket):
 		#Subscribe for tick blocking
-		tickBlockReq = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCK_SUBSCRIBE")
-		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlockReq)
-		self.logger.debug("OUTBOUND {}->{}".format(tickBlockReq, tickBlockPacket))
-		self.agent.sendPacket(tickBlockPacket)
+		self.agent.subcribeTickBlocking()
 
 	def receiveMsg(self, incommingPacket):
 		self.logger.info("INBOUND {}".format(incommingPacket))
 
-		if (incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST"):
+		if (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST):
 			#Launch buying loop
 			self.shoppingSpree()
 
-		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+		if ((incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST)):
 			controllerMsg = incommingPacket.payload
 			self.logger.info("INBOUND {}".format(controllerMsg))
 			
-			if (controllerMsg.msgType == "STOP_TRADING"):
+			if (controllerMsg.msgType == PACKET_TYPE.STOP_TRADING):
 				self.killThreads = True
 
 		
@@ -348,12 +342,6 @@ class TestEmployer:
 
 
 	def controllerStart(self, incommingPacket):
-		#Subscribe for tick blocking
-		#tickBlockReq = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCK_SUBSCRIBE")
-		#tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlockReq)
-		#self.logger.debug("OUTBOUND {}->{}".format(tickBlockReq, tickBlockPacket))
-		#self.agent.sendPacket(tickBlockPacket)
-
 		#Post random job listings
 		self.postRandomListings(3)
 
@@ -368,14 +356,14 @@ class TestEmployer:
 	def receiveMsg(self, incommingPacket):
 		self.logger.info("INBOUND {}".format(incommingPacket))
 
-		if (incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST"):
+		if (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST):
 			pass
 
-		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+		if ((incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST)):
 			controllerMsg = incommingPacket.payload
 			self.logger.info("INBOUND {}".format(controllerMsg))
 			
-			if (controllerMsg.msgType == "STOP_TRADING"):
+			if (controllerMsg.msgType == PACKET_TYPE.STOP_TRADING):
 				self.killThreads = True
 
 	def postRandomListings(self, numListings):
@@ -412,23 +400,20 @@ class TestWorker:
 
 	def controllerStart(self, incommingPacket):
 		#Subscribe for tick blocking
-		tickBlockReq = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCK_SUBSCRIBE")
-		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlockReq)
-		self.logger.debug("OUTBOUND {}->{}".format(tickBlockReq, tickBlockPacket))
-		self.agent.sendPacket(tickBlockPacket)
+		self.agent.subcribeTickBlocking()
 
 
 	def receiveMsg(self, incommingPacket):
 		self.logger.info("INBOUND {}".format(incommingPacket))
 
-		if (incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST"):
+		if (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST):
 			self.searchJobs()
 
-		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+		if ((incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST)):
 			controllerMsg = incommingPacket.payload
 			self.logger.info("INBOUND {}".format(controllerMsg))
 			
-			if (controllerMsg.msgType == "STOP_TRADING"):
+			if (controllerMsg.msgType == PACKET_TYPE.STOP_TRADING):
 				self.killThreads = True
 
 	def searchJobs(self):
@@ -502,14 +487,14 @@ class TestLandSeller:
 
 	def receiveMsg(self, incommingPacket):
 		self.logger.info("INBOUND {}".format(incommingPacket))
-		if ((incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST")):
+		if ((incommingPacket.msgType == PACKET_TYPE.TICK_GRANT) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST)):
 			pass
 
-		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+		if ((incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST)):
 			controllerMsg = incommingPacket.payload
 			self.logger.info("INBOUND {}".format(controllerMsg))
 			
-			if (controllerMsg.msgType == "STOP_TRADING"):
+			if (controllerMsg.msgType == PACKET_TYPE.STOP_TRADING):
 				self.killThreads = True
 
 
@@ -584,24 +569,21 @@ class TestLandBuyer:
 
 	def controllerStart(self, incommingPacket):
 		#Subscribe for tick blocking
-		tickBlockReq = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCK_SUBSCRIBE")
-		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=tickBlockReq)
-		self.logger.debug("OUTBOUND {}->{}".format(tickBlockReq, tickBlockPacket))
-		self.agent.sendPacket(tickBlockPacket)
+		self.agent.subcribeTickBlocking()
 		self.agent.receiveCurrency(10000)
 
 	def receiveMsg(self, incommingPacket):
 		self.logger.info("INBOUND {}".format(incommingPacket))
 
-		if (incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST"):
+		if (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST):
 			#Launch buying loop
 			self.shoppingSpree()
 
-		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+		if ((incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST)):
 			controllerMsg = incommingPacket.payload
 			self.logger.info("INBOUND {}".format(controllerMsg))
 			
-			if (controllerMsg.msgType == "STOP_TRADING"):
+			if (controllerMsg.msgType == PACKET_TYPE.STOP_TRADING):
 				self.killThreads = True
 
 		
@@ -703,16 +685,16 @@ class TestEater:
 	def receiveMsg(self, incommingPacket):
 		self.logger.info("INBOUND {}".format(incommingPacket))
 
-		if (incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST"):
+		if (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST):
 			#Print a shit ton of money
 			self.agent.receiveCurrency(500000)
 			self.agent.relinquishTimeTicks()
 
-		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+		if ((incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST)):
 			controllerMsg = incommingPacket.payload
 			self.logger.info("INBOUND {}".format(controllerMsg))
 			
-			if (controllerMsg.msgType == "STOP_TRADING"):
+			if (controllerMsg.msgType == PACKET_TYPE.STOP_TRADING):
 				self.killThreads = True
 
 
@@ -775,16 +757,16 @@ class TestSpawner:
 
 	def receiveMsg(self, incommingPacket):
 		self.logger.info("INBOUND {}".format(incommingPacket))
-		if ((incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST")):
+		if ((incommingPacket.msgType == PACKET_TYPE.TICK_GRANT) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST)):
 			#Launch production function
 			self.produceItems()
 			self.previousSales = 0
 
-		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+		if ((incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST)):
 			controllerMsg = incommingPacket.payload
 			self.logger.info("INBOUND {}".format(controllerMsg))
 			
-			if (controllerMsg.msgType == "STOP_TRADING"):
+			if (controllerMsg.msgType == PACKET_TYPE.STOP_TRADING):
 				self.killThreads = True
 
 
@@ -956,7 +938,7 @@ class TestEmployerCompetetive:
 	def receiveMsg(self, incommingPacket):
 		self.logger.info("INBOUND {}".format(incommingPacket))
 
-		if (incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST"):
+		if (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST):
 			if (len(self.agent.laborContracts) == 0):
 				#We have not hired anyone yet
 				self.openSteps += 1
@@ -971,11 +953,11 @@ class TestEmployerCompetetive:
 			ticksRelinquished = self.agent.relinquishTimeTicks()
 			self.logger.info("Ticks relinquished. Waiting for tick grant")
 
-		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+		if ((incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST)):
 			controllerMsg = incommingPacket.payload
 			self.logger.info("INBOUND {}".format(controllerMsg))
 			
-			if (controllerMsg.msgType == "STOP_TRADING"):
+			if (controllerMsg.msgType == PACKET_TYPE.STOP_TRADING):
 				self.killThreads = True
 
 	def updateListing(self):
@@ -1024,7 +1006,7 @@ class TestFarmWorker:
 	def receiveMsg(self, incommingPacket):
 		self.logger.info("INBOUND {}".format(incommingPacket))
 
-		if (incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST"):
+		if (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST):
 			if (self.agent.stepNum == self.startStep):
 				self.logger.info("StepNum = {}, Starting controller functionality".format(self.agent.stepNum))
 				self.agent.enableHunger()
@@ -1036,11 +1018,11 @@ class TestFarmWorker:
 
 			self.agent.relinquishTimeTicks()
 
-		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+		if ((incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST)):
 			controllerMsg = incommingPacket.payload
 			self.logger.info("INBOUND {}".format(controllerMsg))
 			
-			if (controllerMsg.msgType == "STOP_TRADING"):
+			if (controllerMsg.msgType == PACKET_TYPE.STOP_TRADING):
 				self.killThreads = True
 
 	def searchJobs(self):
@@ -1383,7 +1365,7 @@ class TestFarmCompetetive:
 	def receiveMsg(self, incommingPacket):
 		self.logger.info("INBOUND {}".format(incommingPacket))
 
-		if (incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST"):
+		if (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST):
 			if (self.agent.stepNum == self.startStep):
 				self.logger.info("StepNum = {}, Starting controller functionality".format(self.agent.stepNum))
 
@@ -1416,11 +1398,11 @@ class TestFarmCompetetive:
 			ticksRelinquished = self.agent.relinquishTimeTicks()
 			self.logger.info("Ticks relinquished. Waiting for tick grant")
 
-		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+		if ((incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST)):
 			controllerMsg = incommingPacket.payload
 			self.logger.info("INBOUND {}".format(controllerMsg))
 			
-			if (controllerMsg.msgType == "STOP_TRADING"):
+			if (controllerMsg.msgType == PACKET_TYPE.STOP_TRADING):
 				self.killThreads = True
 
 
@@ -1442,7 +1424,7 @@ class TestFarmWorkerV2:
 		self.killThreads = False
 
 		#Spawn starting balance
-		self.agent.receiveCurrency(99999)
+		self.agent.receiveCurrency(999)
 
 		#Wage expectations
 		self.expectedWage = 0
@@ -1467,7 +1449,7 @@ class TestFarmWorkerV2:
 	def receiveMsg(self, incommingPacket):
 		self.logger.info("INBOUND {}".format(incommingPacket))
 
-		if (incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST"):
+		if (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST):
 			if (self.agent.stepNum == self.startStep):
 				self.logger.info("StepNum = {}, Starting controller functionality".format(self.agent.stepNum))
 				self.agent.enableHunger()
@@ -1479,11 +1461,11 @@ class TestFarmWorkerV2:
 
 			self.agent.relinquishTimeTicks()
 
-		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+		if ((incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST)):
 			controllerMsg = incommingPacket.payload
 			self.logger.info("INBOUND {}".format(controllerMsg))
 			
-			if (controllerMsg.msgType == "STOP_TRADING"):
+			if (controllerMsg.msgType == PACKET_TYPE.STOP_TRADING):
 				self.killThreads = True
 
 	def searchJobs(self):
@@ -1612,12 +1594,13 @@ class TestFarmCompetetiveV2:
 	def receiveMsg(self, incommingPacket):
 		self.logger.info("INBOUND {}".format(incommingPacket))
 
-		if (incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST"):
+		if (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST):
 			# A new step has started
 			if (self.agent.stepNum == self.startStep):
 				self.logger.info("StepNum = {}, Starting controller functionality".format(self.agent.stepNum))
 
 			if (self.agent.stepNum >= self.startStep):
+				self.logger.info("#### StepNum = {} ####".format(self.agent.stepNum))
 				#Update sales average
 				alpha = 0.2
 				self.currentSalesAvg = ((1-alpha)*self.currentSalesAvg) + (alpha*self.stepSales)
@@ -1647,6 +1630,7 @@ class TestFarmCompetetiveV2:
 						self.logger.critical("UNHANDLED ERROR DURING STEP")
 						self.logger.critical(traceback.format_exc())
 						self.logger.debug(self.getInfoDumpString())
+						print("\a")
 				else:
 					try:
 						#Produce items
@@ -1654,21 +1638,22 @@ class TestFarmCompetetiveV2:
 					except:
 						self.logger.critical("UNHANDLED ERROR DURING STEP")
 						self.logger.critical(traceback.format_exc())
-						self.logger.debug(self.getInfoDumpString())
+						self.logger.critical(self.getInfoDumpString())
+						print("\a")
 
 			#Relinquish time ticks
 			self.logger.info("Relinquishing time ticks")
 			ticksRelinquished = self.agent.relinquishTimeTicks()
 			self.logger.info("Ticks relinquished. Waiting for tick grant")
 
-		if (incommingPacket.msgType == "KILL_PIPE_AGENT") or (incommingPacket.msgType == "KILL_ALL_BROADCAST"):
+		if (incommingPacket.msgType == PACKET_TYPE.KILL_PIPE_AGENT) or (incommingPacket.msgType == PACKET_TYPE.KILL_ALL_BROADCAST):
 			self.killThreads = True
 
-		if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+		if ((incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST)):
 			controllerMsg = incommingPacket.payload
 			self.logger.info("INBOUND {}".format(controllerMsg))
 			
-			if (controllerMsg.msgType == "STOP_TRADING"):
+			if (controllerMsg.msgType == PACKET_TYPE.STOP_TRADING):
 				self.killThreads = True
 
 
@@ -1693,7 +1678,15 @@ class TestFarmCompetetiveV2:
 		#Adjust target production based on current profit margin and inventory ratio
 		prodAlpha = 0.2
 
-		productionAdjustmentRatio = pow((1+profitMargin), 0.5)*pow(self.targetInventoryDays*inventoryRatio, 1.4)
+		ratioList = []
+
+		profitAdjustmentRatio = pow((1+profitMargin), 0.5)
+		ratioList.append(profitAdjustmentRatio)
+
+		inventoryAdjustmentRatio = pow(self.targetInventoryDays*inventoryRatio, 1.2)
+		ratioList.append(inventoryAdjustmentRatio)
+
+		productionAdjustmentRatio = sum(ratioList)/len(ratioList)
 		self.logger.debug("Production adjustment ratio = {}".format(productionAdjustmentRatio))
 		targetProductionRate = ((1-prodAlpha)*self.targetProductionRate) + (prodAlpha*self.currentProductionRateAvg*productionAdjustmentRatio)
 
@@ -1701,23 +1694,51 @@ class TestFarmCompetetiveV2:
 
 
 	def adjustSalePrice(self, avgRevenue, avgExpenses, medianPrice, saleRatio):
+		ratioList = []
 		#Make sure sell price covers our costs
-		priceAdjustmentRatio = 1
-		if (avgRevenue < avgExpenses):
-			costAdjustmentRatio = pow(avgExpenses/avgRevenue, 0.2)
+		currentUnitCost = self.sellPrice
+		if (self.currentProductionRateAvg > 0):
+			currentUnitCost = avgExpenses/self.currentProductionRateAvg
+
+		if (self.sellPrice < currentUnitCost):
+			costAdjustmentRatio = pow(avgExpenses/self.sellPrice, 0.3)
+			ratioList.append(costAdjustmentRatio)
+			try:
+				x = float(costAdjustmentRatio)
+				y = int(costAdjustmentRatio)
+			except:
+				self.logger.warning("Invalid costAdjustmentRatio={}".format(costAdjustmentRatio))
 			self.logger.debug("Current price too low to cover costs. Cost adjustment ratio = {}".format(costAdjustmentRatio))
-			priceAdjustmentRatio = priceAdjustmentRatio*costAdjustmentRatio
 
 
 		#Adjust target price based on median price
-		priceAdjustmentRatio = priceAdjustmentRatio * pow(medianPrice/self.sellPrice, 1)
+		marketAdjustmentRatio = pow(medianPrice/self.sellPrice, 0.8)
+		ratioList.append(marketAdjustmentRatio)
+		try:
+			x = float(marketAdjustmentRatio)
+			y = int(marketAdjustmentRatio)
+		except:
+			self.logger.warning("Invalid marketAdjustmentRatio={}".format(marketAdjustmentRatio))
 
 		#Adjust price based on sale ratios
-		priceAdjustmentRatio = priceAdjustmentRatio * pow(saleRatio, 1.3)
+		saleAdjustmentRatio = pow(saleRatio, 1.2) 
+		ratioList.append(saleAdjustmentRatio)
+		try:
+			x = float(saleAdjustmentRatio)
+			y = int(saleAdjustmentRatio)
+		except:
+			self.logger.warning("Invalid saleAdjustmentRatio={}".format(saleAdjustmentRatio))
 
 		#Get final price
+		priceAdjustmentRatio = sum(ratioList)/len(ratioList)  #take average adjustment ratio
 		priceAlpha = 0.1
 		sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*self.sellPrice*priceAdjustmentRatio)
+		try:
+			x = float(sellPrice)
+			y = int(sellPrice)
+		except:
+			self.logger.critical("Invalid sellPrice={}".format(sellPrice))
+			self.logger.critical(self.getInfoDumpString())
 
 		return sellPrice
 

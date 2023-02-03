@@ -89,7 +89,7 @@ class ConsumptionTracker:
 	def handleSnoop(self, incommingPacket):
 		if (self.stepNum >= self.startStep):
 			#Handle incomming snooped packet
-			if (incommingPacket.msgType == "TRADE_REQ_ACK"):
+			if (incommingPacket.msgType == PACKET_TYPE.TRADE_REQ_ACK):
 				if (incommingPacket.payload["accepted"]):
 					#This item trade request was accepted
 					tradeRequest = incommingPacket.payload["tradeRequest"]
@@ -240,7 +240,7 @@ class ItemPriceTracker:
 
 			if (self.stepNum >= self.startStep):
 				#Handle incomming snooped packet
-				if (incommingPacket.msgType == "TRADE_REQ_ACK"):
+				if (incommingPacket.msgType == PACKET_TYPE.TRADE_REQ_ACK):
 					if (incommingPacket.payload["accepted"]):
 						#This item trade request was accepted
 						quantity = itemPackage.quantity
@@ -429,7 +429,7 @@ class LaborContractTracker:
 	def handleSnoop(self, incommingPacket):
 		if (self.stepNum >= self.startStep):
 			#Handle incomming snooped packet
-			if (incommingPacket.msgType == "LABOR_APPLICATION_ACK"):
+			if (incommingPacket.msgType == PACKET_TYPE.LABOR_APPLICATION_ACK):
 				if (incommingPacket.payload["accepted"]):
 					#This labor application was accepted
 					laborContract = incommingPacket.payload["laborContract"]
@@ -730,7 +730,7 @@ class AccountingTracker:
 	def handleInfoResp(self, incommingPacket):
 		if (self.stepNum >= self.startStep):
 			#Handle incomming info packet
-			if (incommingPacket.msgType == "INFO_RESP"):
+			if (incommingPacket.msgType == PACKET_TYPE.INFO_RESP):
 				infoReq = incommingPacket.payload
 				if (infoReq.infoKey == "acountingStats"):
 					if (infoReq.transactionId == self.name):
@@ -810,33 +810,33 @@ class StatisticsGatherer:
 		while True:
 			incommingPacket = self.networkLink.recvPipe.recv()
 			self.logger.info("INBOUND {}".format(incommingPacket))
-			if ((incommingPacket.msgType == "KILL_PIPE_AGENT") or (incommingPacket.msgType == "KILL_ALL_BROADCAST")):
+			if ((incommingPacket.msgType == PACKET_TYPE.KILL_PIPE_AGENT) or (incommingPacket.msgType == PACKET_TYPE.KILL_ALL_BROADCAST)):
 				#Kill the network pipe before exiting monitor
-				killPacket = NetworkPacket(senderId=self.agentId, destinationId=self.agentId, msgType="KILL_PIPE_NETWORK")
+				killPacket = NetworkPacket(senderId=self.agentId, destinationId=self.agentId, msgType=PACKET_TYPE.KILL_PIPE_NETWORK)
 				self.sendPacket(killPacket)
 				self.logger.info("Killing networkLink {}".format(self.networkLink))
 				break
 
 			#Simulation start
-			elif (incommingPacket.msgType == "CONTROLLER_START_BROADCAST"):
+			elif (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_START_BROADCAST):
 				self.startTrackers()
 
 			#Hanle incoming tick grants
-			elif ((incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST")):
+			elif ((incommingPacket.msgType == PACKET_TYPE.TICK_GRANT) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST)):
 				for trackerObj in self.trackers:
 					self.logger.info("Advancing step for {}".format(trackerObj))
 					trackerObj.advanceStep()
 
 			#Handle errors
-			elif ("ERROR" in incommingPacket.msgType):
+			elif (incommingPacket.msgType == PACKET_TYPE.ERROR) or (incommingPacket.msgType == PACKET_TYPE.ERROR_CONTROLLER_START):
 				self.logger.error("{} {}".format(incommingPacket, incommingPacket.payload))
 
 			#Handle controller messages
-			if ((incommingPacket.msgType == "CONTROLLER_MSG") or (incommingPacket.msgType == "CONTROLLER_MSG_BROADCAST")):
+			if ((incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST)):
 				controllerMsg = incommingPacket.payload
 				self.logger.debug("INBOUND {}".format(controllerMsg))
 
-				if (controllerMsg.msgType == "STOP_TRADING"):
+				if (controllerMsg.msgType == PACKET_TYPE.STOP_TRADING):
 					for trackerObj in self.trackers:
 						self.logger.info("Ending {}".format(trackerObj))
 						trackerObj.end()
@@ -871,7 +871,7 @@ class StatisticsGatherer:
 
 			#Send snoop request to ConnectionNetwork
 			snoopRequest = {str(msgType): True}
-			snoopStartPacket = NetworkPacket(senderId=self.agentId, msgType="SNOOP_START", payload=snoopRequest)
+			snoopStartPacket = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.SNOOP_START, payload=snoopRequest)
 
 			self.logger.debug("Sending snoop request {}".format(snoopRequest))
 			self.logger.debug("OUTBOUND {}".format(snoopStartPacket))
@@ -888,7 +888,7 @@ class StatisticsGatherer:
 		self.infoReqsLock.acquire()
 		self.infoReqs[infoReq.transactionId] = trackerObj
 		self.infoReqsLock.release()
-		infoReqPacket = NetworkPacket(senderId=self.agentId, msgType="INFO_REQ_BROADCAST", payload=infoReq)
+		infoReqPacket = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.INFO_REQ_BROADCAST, payload=infoReq)
 		self.sendPacket(infoReqPacket)
 
 

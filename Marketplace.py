@@ -41,8 +41,8 @@ class ItemMarketplace:
 				self.itemMarketLocks[itemName] = threading.Lock()
 		else:
 			self.logger.error("No item dict passed to {}. Ending simulation".format(self.agentId))
-			terminatePacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TERMINATE_SIMULATION")
-			networkPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="CONTROLLER_MSG", payload=terminatePacket)
+			terminatePacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType=PACKET_TYPE.TERMINATE_SIMULATION)
+			networkPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType=PACKET_TYPE.CONTROLLER_MSG, payload=terminatePacket)
 			self.sendPacket(networkPacket)	
 
 		#Keep track of time since last update
@@ -66,19 +66,19 @@ class ItemMarketplace:
 		while True:
 			incommingPacket = self.networkLink.recvPipe.recv()
 			self.logger.info("INBOUND {}".format(incommingPacket))
-			if ((incommingPacket.msgType == "KILL_PIPE_AGENT") or (incommingPacket.msgType == "KILL_ALL_BROADCAST")):
+			if ((incommingPacket.msgType == PACKET_TYPE.KILL_PIPE_AGENT) or (incommingPacket.msgType == PACKET_TYPE.KILL_ALL_BROADCAST)):
 				#Kill the network pipe before exiting monitor
-				killPacket = NetworkPacket(senderId=self.agentId, destinationId=self.agentId, msgType="KILL_PIPE_NETWORK")
+				killPacket = NetworkPacket(senderId=self.agentId, destinationId=self.agentId, msgType=PACKET_TYPE.KILL_PIPE_NETWORK)
 				self.sendPacket(killPacket)
 				self.logger.info("Killing networkLink {}".format(self.networkLink))
 				break
 
 			#Simulation start
-			elif (incommingPacket.msgType == "CONTROLLER_START_BROADCAST"):
+			elif (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_START_BROADCAST):
 				self.subcribeTickBlocking()
 
 			#Hanle incoming tick grants
-			elif ((incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST")):
+			elif ((incommingPacket.msgType == PACKET_TYPE.TICK_GRANT) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST)):
 				currentTime = time.time()
 				if (currentTime > self.latestHandleTime):
 					self.latestHandleTime = currentTime
@@ -88,11 +88,11 @@ class ItemMarketplace:
 				stallMonitor.start()
 
 			#Handle errors
-			elif ("ERROR" in incommingPacket.msgType):
+			elif (incommingPacket.msgType == PACKET_TYPE.ERROR):
 				self.logger.error("{} {}".format(incommingPacket, incommingPacket.payload))
 
 			#Handle incoming information requests
-			elif (incommingPacket.msgType == "INFO_REQ"):
+			elif (incommingPacket.msgType == PACKET_TYPE.INFO_REQ):
 				infoRequest = incommingPacket.payload
 				infoThread =  threading.Thread(target=self.handleInfoRequest, args=(infoRequest, ))
 				infoThread.start()
@@ -131,11 +131,11 @@ class ItemMarketplace:
 			self.latestHandleTime = currentTime
 
 		handled = False
-		if (incommingPacket.msgType == "ITEM_MARKET_UPDATE"):
+		if (incommingPacket.msgType == PACKET_TYPE.ITEM_MARKET_UPDATE):
 			handled = self.updateItemListing(incommingPacket)
-		elif (incommingPacket.msgType == "ITEM_MARKET_REMOVE"):
+		elif (incommingPacket.msgType == PACKET_TYPE.ITEM_MARKET_REMOVE):
 			handled = self.removeItemListing(incommingPacket)
-		elif (incommingPacket.msgType == "ITEM_MARKET_SAMPLE"):
+		elif (incommingPacket.msgType == PACKET_TYPE.ITEM_MARKET_SAMPLE):
 			handled = self.sampleItemListings(incommingPacket, agentLink, agentSendLock)
 
 		return handled
@@ -148,7 +148,7 @@ class ItemMarketplace:
 		Subscribes this agent as a tick blocker with the sim manager
 		'''
 		self.logger.info("Subscribing as a tick blocker")
-		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCK_SUBSCRIBE")
+		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType=PACKET_TYPE.TICK_BLOCK_SUBSCRIBE)
 		self.sendPacket(tickBlockPacket)
 
 
@@ -166,7 +166,7 @@ class ItemMarketplace:
 		self.logger.info("Stall of {} seconds detected. Sending TICK_BLOCKED".format(self.stallTime))
 
 		#Send tick blocked
-		tickBlockedPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCKED")
+		tickBlockedPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType=PACKET_TYPE.TICK_BLOCKED)
 		self.sendPacket(tickBlockedPacket)
 
 	#########################
@@ -253,7 +253,7 @@ class ItemMarketplace:
 
 		#Send out sampled listings if request came from network
 		if (incommingPacket):
-			responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, transactionId=incommingPacket.transactionId, msgType="ITEM_MARKET_SAMPLE_ACK", payload=sampledListings)
+			responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, transactionId=incommingPacket.transactionId, msgType=PACKET_TYPE.ITEM_MARKET_SAMPLE_ACK, payload=sampledListings)
 			self.sendPacket(responsePacket, agentLink, agentSendLock)
 
 
@@ -273,7 +273,7 @@ class ItemMarketplace:
 			else:
 				infoRequest.info = None
 			
-			infoRespPacket = NetworkPacket(senderId=self.agentId, destinationId=infoRequest.requesterId, msgType="INFO_RESP", payload=infoRequest)
+			infoRespPacket = NetworkPacket(senderId=self.agentId, destinationId=infoRequest.requesterId, msgType=PACKET_TYPE.INFO_RESP, payload=infoRequest)
 			self.sendPacket(infoRespPacket)
 		else:
 			self.logger.warning("Received infoRequest for another agent {}".format(infoRequest))
@@ -324,19 +324,19 @@ class LaborMarketplace:
 		while True:
 			incommingPacket = self.networkLink.recvPipe.recv()
 			self.logger.info("INBOUND {}".format(incommingPacket))
-			if ((incommingPacket.msgType == "KILL_PIPE_AGENT") or (incommingPacket.msgType == "KILL_ALL_BROADCAST")):
+			if ((incommingPacket.msgType == PACKET_TYPE.KILL_PIPE_AGENT) or (incommingPacket.msgType == PACKET_TYPE.KILL_ALL_BROADCAST)):
 				#Kill the network pipe before exiting monitor
-				killPacket = NetworkPacket(senderId=self.agentId, destinationId=self.agentId, msgType="KILL_PIPE_NETWORK")
+				killPacket = NetworkPacket(senderId=self.agentId, destinationId=self.agentId, msgType=PACKET_TYPE.KILL_PIPE_NETWORK)
 				self.sendPacket(killPacket)
 				self.logger.info("Killing networkLink {}".format(self.networkLink))
 				break
 
 			#Simulation start
-			elif (incommingPacket.msgType == "CONTROLLER_START_BROADCAST"):
+			elif (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_START_BROADCAST):
 				self.subcribeTickBlocking()
 
 			#Hanle incoming tick grants
-			elif ((incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST")):
+			elif ((incommingPacket.msgType == PACKET_TYPE.TICK_GRANT) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST)):
 				currentTime = time.time()
 				if (currentTime > self.latestHandleTime):
 					self.latestHandleTime = currentTime
@@ -346,11 +346,11 @@ class LaborMarketplace:
 				stallMonitor.start()
 
 			#Handle errors
-			elif ("ERROR" in incommingPacket.msgType):
+			elif (incommingPacket.msgType == PACKET_TYPE.ERROR):
 				self.logger.error("{} {}".format(incommingPacket, incommingPacket.payload))
 
 			#Handle incoming information requests
-			elif (incommingPacket.msgType == "INFO_REQ"):
+			elif (incommingPacket.msgType == PACKET_TYPE.INFO_REQ):
 				infoRequest = incommingPacket.payload
 				infoThread =  threading.Thread(target=self.handleInfoRequest, args=(infoRequest, ))
 				infoThread.start()
@@ -389,11 +389,11 @@ class LaborMarketplace:
 			self.latestHandleTime = currentTime
 
 		handled = False
-		if (incommingPacket.msgType == "LABOR_MARKET_UPDATE"):
+		if (incommingPacket.msgType == PACKET_TYPE.LABOR_MARKET_UPDATE):
 			handled = self.updateLaborListing(incommingPacket)
-		elif (incommingPacket.msgType == "LABOR_MARKET_REMOVE"):
+		elif (incommingPacket.msgType == PACKET_TYPE.LABOR_MARKET_REMOVE):
 			handled = self.removeLaborListing(incommingPacket)
-		elif (incommingPacket.msgType == "LABOR_MARKET_SAMPLE"):
+		elif (incommingPacket.msgType == PACKET_TYPE.LABOR_MARKET_SAMPLE):
 			handled = self.sampleLaborListings(incommingPacket, agentLink, agentSendLock)
 
 		return handled
@@ -406,7 +406,7 @@ class LaborMarketplace:
 		Subscribes this agent as a tick blocker with the sim manager
 		'''
 		self.logger.info("Subscribing as a tick blocker")
-		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCK_SUBSCRIBE")
+		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType=PACKET_TYPE.TICK_BLOCK_SUBSCRIBE)
 		self.sendPacket(tickBlockPacket)
 
 
@@ -424,7 +424,7 @@ class LaborMarketplace:
 		self.logger.info("Stall of {} seconds detected. Sending TICK_BLOCKED".format(self.stallTime))
 
 		#Send tick blocked
-		tickBlockedPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCKED")
+		tickBlockedPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType=PACKET_TYPE.TICK_BLOCKED)
 		self.sendPacket(tickBlockedPacket)
 
 	#########################
@@ -553,7 +553,7 @@ class LaborMarketplace:
 
 		#Send out sampled listings if request came from network
 		if (incommingPacket):
-			responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, transactionId=incommingPacket.transactionId, msgType="LABOR_MARKET_SAMPLE_ACK", payload=sampledListings)
+			responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, transactionId=incommingPacket.transactionId, msgType=PACKET_TYPE.LABOR_MARKET_SAMPLE_ACK, payload=sampledListings)
 			self.sendPacket(responsePacket, agentLink, agentSendLock)
 
 
@@ -573,7 +573,7 @@ class LaborMarketplace:
 			else:
 				infoRequest.info = None
 			
-			infoRespPacket = NetworkPacket(senderId=self.agentId, destinationId=infoRequest.requesterId, msgType="INFO_RESP", payload=infoRequest)
+			infoRespPacket = NetworkPacket(senderId=self.agentId, destinationId=infoRequest.requesterId, msgType=PACKET_TYPE.INFO_RESP, payload=infoRequest)
 			self.sendPacket(infoRespPacket)
 		else:
 			self.logger.warning("Received infoRequest for another agent {}".format(infoRequest))
@@ -624,19 +624,19 @@ class LandMarketplace:
 		while True:
 			incommingPacket = self.networkLink.recvPipe.recv()
 			self.logger.info("INBOUND {}".format(incommingPacket))
-			if ((incommingPacket.msgType == "KILL_PIPE_AGENT") or (incommingPacket.msgType == "KILL_ALL_BROADCAST")):
+			if ((incommingPacket.msgType == PACKET_TYPE.KILL_PIPE_AGENT) or (incommingPacket.msgType == PACKET_TYPE.KILL_ALL_BROADCAST)):
 				#Kill the network pipe before exiting monitor
-				killPacket = NetworkPacket(senderId=self.agentId, destinationId=self.agentId, msgType="KILL_PIPE_NETWORK")
+				killPacket = NetworkPacket(senderId=self.agentId, destinationId=self.agentId, msgType=PACKET_TYPE.KILL_PIPE_NETWORK)
 				self.sendPacket(killPacket)
 				self.logger.info("Killing networkLink {}".format(self.networkLink))
 				break
 
 			#Simulation start
-			elif (incommingPacket.msgType == "CONTROLLER_START_BROADCAST"):
+			elif (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_START_BROADCAST):
 				self.subcribeTickBlocking()
 
 			#Hanle incoming tick grants
-			elif ((incommingPacket.msgType == "TICK_GRANT") or (incommingPacket.msgType == "TICK_GRANT_BROADCAST")):
+			elif ((incommingPacket.msgType == PACKET_TYPE.TICK_GRANT) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST)):
 				currentTime = time.time()
 				if (currentTime > self.latestHandleTime):
 					self.latestHandleTime = currentTime
@@ -646,11 +646,11 @@ class LandMarketplace:
 				stallMonitor.start()
 
 			#Handle errors
-			elif ("ERROR" in incommingPacket.msgType):
+			elif (incommingPacket.msgType == PACKET_TYPE.ERROR):
 				self.logger.error("{} {}".format(incommingPacket, incommingPacket.payload))
 
 			#Handle incoming information requests
-			elif (incommingPacket.msgType == "INFO_REQ"):
+			elif (incommingPacket.msgType == PACKET_TYPE.INFO_REQ):
 				infoRequest = incommingPacket.payload
 				infoThread =  threading.Thread(target=self.handleInfoRequest, args=(infoRequest, ))
 				infoThread.start()
@@ -689,11 +689,11 @@ class LandMarketplace:
 			self.latestHandleTime = currentTime
 			
 		handled = False
-		if (incommingPacket.msgType == "LAND_MARKET_UPDATE"):
+		if (incommingPacket.msgType == PACKET_TYPE.LAND_MARKET_UPDATE):
 			handled = self.updateLandListing(incommingPacket)
-		elif (incommingPacket.msgType == "LAND_MARKET_REMOVE"):
+		elif (incommingPacket.msgType == PACKET_TYPE.LAND_MARKET_REMOVE):
 			handled = self.removeLandListing(incommingPacket)
-		elif (incommingPacket.msgType == "LAND_MARKET_SAMPLE"):
+		elif (incommingPacket.msgType == PACKET_TYPE.LAND_MARKET_SAMPLE):
 			handled = self.sampleLandListings(incommingPacket, agentLink, agentSendLock)
 
 		return handled
@@ -706,7 +706,7 @@ class LandMarketplace:
 		Subscribes this agent as a tick blocker with the sim manager
 		'''
 		self.logger.info("Subscribing as a tick blocker")
-		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCK_SUBSCRIBE")
+		tickBlockPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType=PACKET_TYPE.TICK_BLOCK_SUBSCRIBE)
 		self.sendPacket(tickBlockPacket)
 
 
@@ -725,7 +725,7 @@ class LandMarketplace:
 		self.logger.info("Stall of {} seconds detected. Sending TICK_BLOCKED".format(self.stallTime))
 
 		#Send tick blocked
-		tickBlockedPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType="TICK_BLOCKED")
+		tickBlockedPacket = NetworkPacket(senderId=self.agentId, destinationId=self.simManagerId, msgType=PACKET_TYPE.TICK_BLOCKED)
 		self.sendPacket(tickBlockedPacket)
 
 	#########################
@@ -833,7 +833,7 @@ class LandMarketplace:
 
 		#Send out sampled listings if request came from network
 		if (incommingPacket):
-			responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, transactionId=incommingPacket.transactionId, msgType="LAND_MARKET_SAMPLE_ACK", payload=sampledListings)
+			responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, transactionId=incommingPacket.transactionId, msgType=PACKET_TYPE.LAND_MARKET_SAMPLE_ACK, payload=sampledListings)
 			self.sendPacket(responsePacket, agentLink, agentSendLock)
 
 
@@ -853,7 +853,7 @@ class LandMarketplace:
 			else:
 				infoRequest.info = None
 			
-			infoRespPacket = NetworkPacket(senderId=self.agentId, destinationId=infoRequest.requesterId, msgType="INFO_RESP", payload=infoRequest)
+			infoRespPacket = NetworkPacket(senderId=self.agentId, destinationId=infoRequest.requesterId, msgType=PACKET_TYPE.INFO_RESP, payload=infoRequest)
 			self.sendPacket(infoRespPacket)
 		else:
 			self.logger.warning("Received infoRequest for another agent {}".format(infoRequest))
