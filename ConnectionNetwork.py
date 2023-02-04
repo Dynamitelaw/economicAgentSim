@@ -18,6 +18,7 @@ import threading
 import hashlib
 import time
 import traceback
+import gc
 
 import utils
 from NetworkClasses import *
@@ -280,10 +281,14 @@ class ConnectionNetwork:
 		prevStartTime = time.time()
 		averageLoopTime = 0
 		warningSent = False
+
+		stepCounter = -1
+		garbageCollectionFrequency = 20
 		while True:
 			if (self.killAllFlag):
 				break
 
+			#Check if all agents are tick blocked
 			allAgentsBlocked = True
 			try:
 				if (self.simStarted):
@@ -295,8 +300,8 @@ class ConnectionNetwork:
 							if not (warningSent):
 								if (averageLoopTime > 0):
 									currentWaitTime = time.time() - prevStartTime
-									if (currentWaitTime > (5*averageLoopTime)):
-										self.logger.warning("Still waiting for {} to be tick blocked. Current step time {} seconds is 5x the average step time {} seconds. {} is probably stuck.".format(agentId, currentWaitTime, averageLoopTime, agentId))
+									if (currentWaitTime > (20*averageLoopTime)):
+										self.logger.warning("Still waiting for {} to be tick blocked. Current step time {} seconds is 20x the average step time {} seconds. {} is probably stuck.".format(agentId, currentWaitTime, averageLoopTime, agentId))
 										warningSent = True
 										
 							allAgentsBlocked = False
@@ -306,6 +311,13 @@ class ConnectionNetwork:
 				pass
 
 			if (allAgentsBlocked and self.simStarted):
+				#Run garbage collector
+				stepCounter += 1
+				if (stepCounter%garbageCollectionFrequency == 0):
+					self.logger.debug("Running garbage collector")
+					gc.collect()
+
+				#Calculate step time
 				warningSent = False
 				endTime = time.time()
 				if (averageLoopTime == 0):
@@ -314,10 +326,12 @@ class ConnectionNetwork:
 				averageLoopTime = ((1-alpha)*averageLoopTime) + (alpha*(endTime-prevStartTime))
 				prevStartTime = time.time()
 
+				#Reset tick block flags
 				self.logger.info("All agents are tick blocked. Reseting blocks and notifying simulation manager")
 				for agentId in self.timeTickBlockers:
 					self.timeTickBlockers[agentId] = False
 
+				#Notify sim manager to start the next step
 				controllerMsg = NetworkPacket(senderId=self.id, destinationId=self.simManagerId, msgType=PACKET_TYPE.ADVANCE_STEP)
 				networkPacket = NetworkPacket(senderId=self.id, destinationId=self.simManagerId, msgType=PACKET_TYPE.CONTROLLER_MSG, payload=controllerMsg)
 				self.sendPacket(self.simManagerId, networkPacket)

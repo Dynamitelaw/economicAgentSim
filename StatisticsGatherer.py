@@ -58,7 +58,7 @@ class ConsumptionTracker:
 
 	def start(self):
 		#Submit snoop requests
-		self.gathererParent.startSnoop(self, "TRADE_REQ_ACK")
+		self.gathererParent.startSnoop(self, PACKET_TYPE.TRADE_REQ_ACK)
 
 	def end(self):
 		csvLine = "{},{}\n".format(self.stepNum, self.netConsumption)
@@ -166,7 +166,7 @@ class ItemPriceTracker:
 
 	def start(self):
 		#Submit snoop requests
-		self.gathererParent.startSnoop(self, "TRADE_REQ_ACK")
+		self.gathererParent.startSnoop(self, PACKET_TYPE.TRADE_REQ_ACK)
 
 	def end(self):
 		#Get datapoints
@@ -349,7 +349,7 @@ class LaborContractTracker:
 
 	def start(self):
 		#Submit snoop requests
-		self.gathererParent.startSnoop(self, "LABOR_APPLICATION_ACK")
+		self.gathererParent.startSnoop(self, PACKET_TYPE.LABOR_APPLICATION_ACK)
 
 	def end(self):
 		rowData = [self.stepNum,
@@ -542,7 +542,7 @@ class ProductionTracker:
 
 	def start(self):
 		#Submit snoop requests
-		self.gathererParent.startSnoop(self, "PRODUCTION_NOTIFICATION")
+		self.gathererParent.startSnoop(self, PACKET_TYPE.PRODUCTION_NOTIFICATION)
 
 	def end(self):
 		#Output data to csv
@@ -870,7 +870,7 @@ class StatisticsGatherer:
 			self.snoopersLock.release()
 
 			#Send snoop request to ConnectionNetwork
-			snoopRequest = {str(msgType): True}
+			snoopRequest = {msgType: True}
 			snoopStartPacket = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.SNOOP_START, payload=snoopRequest)
 
 			self.logger.debug("Sending snoop request {}".format(snoopRequest))

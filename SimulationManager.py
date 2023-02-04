@@ -139,7 +139,7 @@ class SimulationManager:
 						pollCntr += 1
 						if (pollCntr >= 1000):
 							currentStepTime = time.time() - stepStart
-							if ((currentStepTime > (5*avgStepTime)) and (avgStepTime > 0)):
+							if ((currentStepTime > (20*avgStepTime)) and (avgStepTime > 0)):
 								self.logger.debug("Still waiting for agents to be unblocked")
 							if ((currentStepTime > 120) and (not warningSent) and (avgStepTime == 0)):
 								self.logger.warning("Still waiting for agents to be unblocked")
