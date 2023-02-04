@@ -2329,6 +2329,15 @@ class Agent:
 				self.logger.info("{} was rejected".format(request))
 				tradeCompleted = offerAccepted
 
+			#Remove transaction from response buffer
+			acquired_responseBufferLock = self.responseBufferLock.acquire(timeout=self.lockTimeout)  #<== acquire responseBufferLock
+			if (acquired_responseBufferLock):
+				del self.responseBuffer[tradeId]
+				self.responseBufferLock.release()  #<== release responseBufferLock
+			else:
+				self.logger.error("sendTradeRequest({}) Lock \"responseBufferLock\" acquisition timeout".format(request))
+				transferSuccess = False
+
 			self.tradeRequestLock.release()  #<== release tradeRequestLock
 			self.logger.debug("{}.sendTradeRequest({}, {}) return {}".format(self.agentId, request, recipientId, tradeCompleted))
 			return tradeCompleted
@@ -2669,6 +2678,15 @@ class Agent:
 				self.logger.info("{} was rejected".format(request))
 				tradeCompleted = offerAccepted
 
+			#Remove transaction from response buffer
+			acquired_responseBufferLock = self.responseBufferLock.acquire(timeout=self.lockTimeout)  #<== acquire responseBufferLock
+			if (acquired_responseBufferLock):
+				del self.responseBuffer[tradeId]
+				self.responseBufferLock.release()  #<== release responseBufferLock
+			else:
+				self.logger.error("sendLandTradeRequest({}) Lock \"responseBufferLock\" acquisition timeout".format(request))
+				transferSuccess = False
+
 			self.landTradeRequestLock.release()  #<== release landTradeRequestLock
 			self.logger.debug("{}.sendLandTradeRequest({}, {}) return {}".format(self.agentId, request, recipientId, tradeCompleted))
 			return tradeCompleted
@@ -2860,6 +2878,15 @@ class Agent:
 			else:
 				self.logger.info("{} was rejected".format(applicationId))
 				applicationAccepted = False
+
+			#Remove transaction from response buffer
+			acquired_responseBufferLock = self.responseBufferLock.acquire(timeout=self.lockTimeout)  #<== acquire responseBufferLock
+			if (acquired_responseBufferLock):
+				del self.responseBuffer[applicationId]
+				self.responseBufferLock.release()  #<== release responseBufferLock
+			else:
+				self.logger.error("sendJobApplication({}) Lock \"responseBufferLock\" acquisition timeout".format(request))
+				transferSuccess = False
 
 			self.logger.debug("{}.sendJobApplication({}) return {}".format(self.agentId, laborListing, applicationAccepted))
 			return applicationAccepted

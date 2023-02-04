@@ -11,6 +11,7 @@ import time
 import sys
 import traceback
 import gc
+#import tracemalloc
 
 from EconAgent import *
 from NetworkClasses import *
@@ -71,6 +72,10 @@ def launchAgents(launchDict, allAgentDict, procName, managerId, managementPipe, 
 			networkPacket = NetworkPacket(senderId=procName, destinationId=managerId, msgType=PACKET_TYPE.CONTROLLER_MSG, payload=managerPacket)
 			managementPipe.sendPipe.send(networkPacket)
 
+			#Memory leak finder
+			# tracemalloc.start(10)
+			# warmupSnapshot = None
+
 			#Wait for manager to end us
 			stepCounter = -1
 			garbageCollectionFrequency = 20
@@ -94,6 +99,23 @@ def launchAgents(launchDict, allAgentDict, procName, managerId, managementPipe, 
 						#Manually call the garbage collector to prevent persistent memory leaks
 						logger.debug("Running garbage collector")
 						gc.collect()
+
+					#Memory leak finder
+					# warmupStep = 50
+					# snapshotStep = 500
+					# if (stepCounter == warmupStep):
+					# 	gc.collect()
+					# 	warmupSnapshot = tracemalloc.take_snapshot()
+					# 	logger.debug("Allocation snapshot taken")
+					# elif (stepCounter == snapshotStep):
+					# 	gc.collect()
+					# 	top_stats = tracemalloc.take_snapshot().compare_to(warmupSnapshot, 'lineno')
+					# 	logger.debug("Allocation snapshot taken")
+					# 	allocatingLines = []
+					# 	statNumber = 50
+					# 	for stat in top_stats[:statNumber]:
+					# 		allocatingLines.append(str(stat))
+					# 	logger.debug("Top {} new memory allocations\n{}".format(statNumber, "\n".join(allocatingLines)))
 
 			
 		except Exception as e:

@@ -1,24 +1,14 @@
 {
-	"name": "TestSimulation",
+	"name": "MemLeakFind",
 	"description": "Test simulation with competetive farms. Used for testing and debug.",
 	"settings": {
-		"AgentNumProcesses": 6,
-		"SimulationSteps": 1250,
+		"AgentNumProcesses": 2,
+		"SimulationSteps": 550,
 		"TicksPerStep": 16,
 		"AgentSpawns":{
 			"AppleFarm": {
 				"TestFarmCompetetiveV2":{
-					"quantity": 8,
-					"settings": {
-						"itemId": "apple",
-						"startingProductionRate": 20,
-						"StartSkew": 9
-					}
-				}
-			},
-			"AppleFarmAccounting": {
-				"TestFarmCompetetiveV2":{
-					"quantity": 1,
+					"quantity": 3,
 					"settings": {
 						"itemId": "apple",
 						"startingProductionRate": 20,
@@ -28,7 +18,7 @@
 			},
 			"ButterFarm": {
 				"TestFarmCompetetiveV2":{
-					"quantity": 9,
+					"quantity": 3,
 					"settings": {
 						"itemId": "butter",
 						"startingProductionRate":6.68,
@@ -38,17 +28,7 @@
 			},
 			"PeaFarm": {
 				"TestFarmCompetetiveV2":{
-					"quantity": 8,
-					"settings": {
-						"itemId": "chickpea",
-						"startingProductionRate": 6.68,
-						"StartSkew": 9
-					}
-				}
-			},
-			"PeaFarmAccounting": {
-				"TestFarmCompetetiveV2":{
-					"quantity": 1,
+					"quantity": 3,
 					"settings": {
 						"itemId": "chickpea",
 						"startingProductionRate": 6.68,
@@ -58,7 +38,7 @@
 			},
 			"EggFarm": {
 				"TestFarmCompetetiveV2":{
-					"quantity": 9,
+					"quantity": 3,
 					"settings": {
 						"itemId": "egg",
 						"startingProductionRate": 15.04,
@@ -68,7 +48,7 @@
 			},
 			"SpudFarm": {
 				"TestFarmCompetetiveV2":{
-					"quantity": 9,
+					"quantity": 3,
 					"settings": {
 						"itemId": "potato",
 						"startingProductionRate": 23.32,
@@ -87,7 +67,7 @@
 			},
 			"FarmWorker": {
 				"TestFarmWorkerV2":{
-					"quantity": 480,
+					"quantity": 160,
 					"settings": {
 						"StartSkew": 9
 					}
