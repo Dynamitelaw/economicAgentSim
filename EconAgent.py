@@ -1281,6 +1281,9 @@ class Agent:
 				self.logger.warning("No controller was instantiated. \"{}\" is not a valid controller type".format(self.agentType))
 		self.controllerStart = False
 
+		#Keep track of spawned threads
+		self.spawnedThreads = []
+
 		#Launch network link monitor
 		if (self.networkLink):
 			linkMonitor = threading.Thread(target=self.monitorNetworkLink)
@@ -1310,6 +1313,7 @@ class Agent:
 					self.logger.debug("Fowarding msg to controller {}".format(incommingPacket))
 					controllerThread =  threading.Thread(target=self.controller.receiveMsg, args=(incommingPacket, ))
 					controllerThread.start()
+					self.spawnedThreads.append(controllerThread)
 				break
 
 			#Handle incoming acks
@@ -1346,6 +1350,7 @@ class Agent:
 						self.controllerStart = True
 						controllerThread =  threading.Thread(target=self.controller.controllerStart, args=(incommingPacket, ))
 						controllerThread.start()
+						self.spawnedThreads.append(controllerThread)
 				else:
 					warning = "Agent does not have controller to start"
 					self.logger.warning(warning)
@@ -1358,6 +1363,7 @@ class Agent:
 					self.logger.debug("Fowarding msg to controller {}".format(incommingPacket))
 					controllerThread =  threading.Thread(target=self.controller.receiveMsg, args=(incommingPacket, ))
 					controllerThread.start()
+					self.spawnedThreads.append(controllerThread)
 				else:
 					self.logger.error("Agent {} does not have a controller. Ignoring {}".format(self.agentId, incommingPacket))
 
@@ -1395,6 +1401,7 @@ class Agent:
 				tradeRequest = incommingPacket.payload
 				tradeReqThread =  threading.Thread(target=self.receiveTradeRequest, args=(tradeRequest, incommingPacket.senderId))
 				tradeReqThread.start()
+				self.spawnedThreads.append(tradeReqThread)
 				#self.receiveTradeRequest(tradeRequest, incommingPacket.senderId)
 
 			#Handle incoming land trade requests
@@ -1402,6 +1409,7 @@ class Agent:
 				tradeRequest = incommingPacket.payload
 				landTradeThread =  threading.Thread(target=self.receiveLandTradeRequest, args=(tradeRequest, incommingPacket.senderId))
 				landTradeThread.start()
+				self.spawnedThreads.append(landTradeThread)
 				#self.receiveLandTradeRequest(tradeRequest, incommingPacket.senderId)
 
 			#Handle incoming job applications
@@ -1409,6 +1417,7 @@ class Agent:
 				applicationPayload = incommingPacket.payload
 				laborAppThread =  threading.Thread(target=self.receiveJobApplication, args=(applicationPayload, incommingPacket.senderId))
 				laborAppThread.start()
+				self.spawnedThreads.append(laborAppThread)
 				#self.receiveJobApplication(applicationPayload, incommingPacket.senderId)
 
 			#Handle incoming labor
@@ -1431,6 +1440,12 @@ class Agent:
 
 			#Hanle incoming tick grants
 			elif ((incommingPacket.msgType == PACKET_TYPE.TICK_GRANT) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST)):
+				#Mark all previously spawned threads as elgible for garbage collection
+				self.logger.debug("Joining spawned threads")
+				for thread in self.spawnedThreads:
+					thread.join()
+				self.spawnedThreads.clear()
+
 				#This is the start of a new step
 				self.fullfilledContracts = False
 
@@ -1463,6 +1478,7 @@ class Agent:
 						self.eating = True
 						eatThread = threading.Thread(target=self.autoEat)
 						eatThread.start()
+						self.spawnedThreads.append(eatThread)
 
 				#Update time tick commitments
 				self.commitedTicks_nextStepLock.acquire()
@@ -1475,11 +1491,13 @@ class Agent:
 				#Fulfill labor contracts
 				contractThread = threading.Thread(target=self.fulfillAllLaborContracts)
 				contractThread.start()
+				self.spawnedThreads.append(contractThread)
 
 				#Foward tick grant to controller
 				if (self.controller):
 					controllerGrantThread = threading.Thread(target=self.controller.receiveMsg, args=(incommingPacket, ))
 					controllerGrantThread.start()
+					self.spawnedThreads.append(controllerGrantThread)
 				else:
 					#We don't have a controller. Relinquish all time ticks
 					self.relinquishTimeTicks()

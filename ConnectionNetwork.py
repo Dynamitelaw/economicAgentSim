@@ -19,6 +19,7 @@ import hashlib
 import time
 import traceback
 import gc
+#import tracemalloc
 
 import utils
 from NetworkClasses import *
@@ -59,6 +60,9 @@ class ConnectionNetwork:
 		self.tickBlocksMonitoring = False
 		self.timeTickBlockers = {}
 		self.timeTickBlockers_Lock = threading.Lock()
+
+		#Keep track of spawned threads
+		self.spawnedThreads = []
 
 	def addConnection(self, agentId, networkLink):
 		self.logger.info("Adding connection to {}".format(agentId))
@@ -248,12 +252,14 @@ class ConnectionNetwork:
 				if (incommingPacket.msgType in self.snoopDict):
 					snoopThread = threading.Thread(target=self.statsGatherer.handleSnoop, args=(incommingPacket,))
 					snoopThread.start()
+					self.spawnedThreads.append(snoopThread)
 
 			#Handle info response packets
 			elif (incommingPacket.msgType == PACKET_TYPE.INFO_RESP):
 				#Foward to statistics gatherer
 				infoRespThread = threading.Thread(target=self.statsGatherer.handleInfoResp, args=(incommingPacket,))
 				infoRespThread.start()
+				self.spawnedThreads.append(infoRespThread)
 
 			#Route all over packets
 			elif (destinationId in self.agentConnections):
@@ -264,18 +270,22 @@ class ConnectionNetwork:
 				if (incommingPacket.msgType in self.snoopDict):
 					snoopThread = threading.Thread(target=self.statsGatherer.handleSnoop, args=(incommingPacket,))
 					snoopThread.start()
+					self.spawnedThreads.append(snoopThread)
 
 			else:
 				#Invalid packet destination
 				errorMsg = "Destination \"{}\" not connected to network".format(destinationId)
 				responsePacket = NetworkPacket(senderId=self.id, destinationId=incommingPacket.senderId, msgType=PACKET_TYPE.ERROR, payload=errorMsg, transactionId=incommingPacket.transactionId)
 
-				sendThread = threading.Thread(target=self.sendPacket, args=(agentId, responsePacket))
-				sendThread.start()
+				self.sendPacket(agentId, responsePacket)
 
 
 	def monitorTickBlockers(self):
 		self.logger.info("monitorTickBlockers() start")
+
+		#Memory leak finder
+		# tracemalloc.start(10)
+		# warmupSnapshot = None
 
 		prevBlockerAgent = None
 		prevStartTime = time.time()
@@ -311,11 +321,41 @@ class ConnectionNetwork:
 				pass
 
 			if (allAgentsBlocked and self.simStarted):
+				#Mark all spawned threads as elgible for garbage collection
+				self.logger.debug("Joining spawned threads")
+				for thread in self.spawnedThreads:
+					thread.join()
+				self.spawnedThreads.clear()
+
 				#Run garbage collector
 				stepCounter += 1
 				if (stepCounter%garbageCollectionFrequency == 0):
 					self.logger.debug("Running garbage collector")
 					gc.collect()
+
+				#Memory leak finder
+				# warmupStep = 50
+				# snapshotStep = 500
+				# if (stepCounter == warmupStep):
+				# 	gc.collect()
+				# 	warmupSnapshot = tracemalloc.take_snapshot()
+				# 	self.logger.info("Allocation snapshot taken")
+				# elif (stepCounter == snapshotStep):
+				# 	gc.collect()
+				# 	#top_stats = tracemalloc.take_snapshot().compare_to(warmupSnapshot, 'lineno')
+				# 	top_stats = tracemalloc.take_snapshot().compare_to(warmupSnapshot, 'traceback')
+				# 	self.logger.debug("Allocation snapshot taken")
+				# 	allocatingLines = []
+				# 	statNumber = 10
+				# 	self.logger.info("### Top {} new memory allocations\n".format(statNumber))
+				# 	statCounter = 0
+				# 	for stat in top_stats[:statNumber]:
+				# 		allocatingLines.append(str(stat))
+				# 		statString = "## {} ##\n{}".format(statCounter, stat)
+				# 		for line in stat.traceback.format():
+				# 			statString = statString + "\n{}".format(line)
+				# 		self.logger.info(statString)
+				# 		statCounter += 1
 
 				#Calculate step time
 				warningSent = False

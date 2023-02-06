@@ -1675,62 +1675,66 @@ class TestFarmCompetetiveV2:
 	#########################
 
 	def adjustProductionTarget(self, inventoryRatio, profitMargin):
+		self.logger.debug("adjustProductionTarget(inventoryRatio={}, profitMargin={}) start".format(inventoryRatio, profitMargin))
 		#Adjust target production based on current profit margin and inventory ratio
 		prodAlpha = 0.2
 
 		ratioList = []
 
-		profitAdjustmentRatio = pow((1+profitMargin), 0.5)
-		ratioList.append(profitAdjustmentRatio)
+		if (profitMargin > 0.05):
+			profitAdjustmentRatio = pow((1+profitMargin), 0.2)
+			ratioList.append(profitAdjustmentRatio)
+			self.logger.debug("adjustProductionTarget() Profit adjustment ratio = {}".format(profitAdjustmentRatio))
+		elif (profitMargin < 0):
+			profitAdjustmentRatio = pow((1+profitMargin), 1.2)
+			ratioList.append(profitAdjustmentRatio)
+			self.logger.debug("adjustProductionTarget() Profit adjustment ratio = {}".format(profitAdjustmentRatio))
 
-		inventoryAdjustmentRatio = pow(self.targetInventoryDays*inventoryRatio, 1.2)
+		inventoryAdjustmentRatio = pow(self.targetInventoryDays*inventoryRatio, 1.6)
+		self.logger.debug("adjustProductionTarget() Inventory adjustment ratio = {}".format(inventoryAdjustmentRatio))
 		ratioList.append(inventoryAdjustmentRatio)
 
 		productionAdjustmentRatio = sum(ratioList)/len(ratioList)
-		self.logger.debug("Production adjustment ratio = {}".format(productionAdjustmentRatio))
+		self.logger.debug("adjustProductionTarget() Production adjustment ratio = {}".format(productionAdjustmentRatio))
 		targetProductionRate = ((1-prodAlpha)*self.targetProductionRate) + (prodAlpha*self.currentProductionRateAvg*productionAdjustmentRatio)
 
 		return targetProductionRate
 
 
 	def adjustSalePrice(self, avgRevenue, avgExpenses, medianPrice, saleRatio):
+		self.logger.debug("adjustProductionTarget(avgRevenue={}, avgExpenses={}, medianPrice={}, saleRatio={}) start".format(avgRevenue, avgExpenses, medianPrice, saleRatio))
 		ratioList = []
 		#Make sure sell price covers our costs
 		currentUnitCost = self.sellPrice
 		if (self.currentProductionRateAvg > 0):
 			currentUnitCost = avgExpenses/self.currentProductionRateAvg
+			self.logger.debug("adjustSalePrice() currentUnitCost = {}".format(currentUnitCost))
 
 		if (self.sellPrice < currentUnitCost):
-			costAdjustmentRatio = pow(avgExpenses/self.sellPrice, 0.3)
+			costAdjustmentRatio = pow(currentUnitCost/self.sellPrice, 0.4)
 			ratioList.append(costAdjustmentRatio)
-			try:
-				x = float(costAdjustmentRatio)
-				y = int(costAdjustmentRatio)
-			except:
-				self.logger.warning("Invalid costAdjustmentRatio={}".format(costAdjustmentRatio))
-			self.logger.debug("Current price too low to cover costs. Cost adjustment ratio = {}".format(costAdjustmentRatio))
+			self.logger.debug("adjustSalePrice() Current price too low to cover costs. Cost adjustment ratio = {}".format(costAdjustmentRatio))
 
 
 		#Adjust target price based on median price
 		marketAdjustmentRatio = pow(medianPrice/self.sellPrice, 0.8)
+		self.logger.debug("adjustSalePrice() marketAdjustmentRatio = {}".format(marketAdjustmentRatio))
 		ratioList.append(marketAdjustmentRatio)
-		try:
-			x = float(marketAdjustmentRatio)
-			y = int(marketAdjustmentRatio)
-		except:
-			self.logger.warning("Invalid marketAdjustmentRatio={}".format(marketAdjustmentRatio))
 
 		#Adjust price based on sale ratios
-		saleAdjustmentRatio = pow(saleRatio, 1.2) 
-		ratioList.append(saleAdjustmentRatio)
-		try:
-			x = float(saleAdjustmentRatio)
-			y = int(saleAdjustmentRatio)
-		except:
-			self.logger.warning("Invalid saleAdjustmentRatio={}".format(saleAdjustmentRatio))
+		if (saleRatio < 1):
+			saleAdjustmentRatio = pow(saleRatio, 1.4) 
+			self.logger.debug("adjustSalePrice() saleAdjustmentRatio = {}".format(saleAdjustmentRatio))
+			ratioList.append(saleAdjustmentRatio)
+		elif (saleRatio > 1):
+			saleAdjustmentRatio = pow(saleRatio, 0.5) 
+			self.logger.debug("adjustSalePrice() saleAdjustmentRatio = {}".format(saleAdjustmentRatio))
+			ratioList.append(saleAdjustmentRatio)
+		
 
 		#Get final price
 		priceAdjustmentRatio = sum(ratioList)/len(ratioList)  #take average adjustment ratio
+		self.logger.debug("adjustSalePrice() priceAdjustmentRatio = {}".format(priceAdjustmentRatio))
 		priceAlpha = 0.1
 		sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*self.sellPrice*priceAdjustmentRatio)
 		try:
@@ -1764,6 +1768,7 @@ class TestFarmCompetetiveV2:
 		self.logger.debug("Inventory ratio = {}".format(inventoryRatio))
 
 		#Get current sales
+		self.logger.debug("Sales average = {}".format(currentSalesAvg))
 		saleRatio = (self.currentSalesAvg+1)/(self.currentProductionRateAvg+1)
 		self.logger.debug("Sale ratio = {}".format(saleRatio))
 
@@ -1898,10 +1903,8 @@ class TestFarmCompetetiveV2:
 
 
 	def adjustWorkerWage(self):
-		medianAlpha = 0.2
-		adjustmentAlpha = 0.1
-
-		newWage = self.workerWage
+		ratioList = []
+		
 		#Adjust wage  based on market rate
 		medianWage = self.workerWage
 		sampledListings = self.agent.sampleLaborListings(sampleSize=30)
@@ -1910,25 +1913,30 @@ class TestFarmCompetetiveV2:
 			for listing in sampledListings:
 				sampledWages.add(listing.wagePerTick)
 			medianWage = sampledWages[int(len(sampledListings)/2)]
-		newWage = ((1-medianAlpha)*self.workerWage)+(medianAlpha*medianWage)
+		medianRatio = medianWage/self.workerWage
+		ratioList.append(medianRatio)
 
 		#Adjust wage based on worker deficit and application number
 		divisor = 1
 		if (self.workerDeficit < 0):
-			divisor = pow(abs(self.workerDeficit)*1.2, 1.2)
+			divisor = pow(abs(self.workerDeficit)*1.2, 1)
 		if (self.workerDeficit > 0) and (self.openSteps > 2):
 			divisor = 1/pow((self.workerDeficit), 0.2)
 		if (self.workerDeficit > 0):
 			if (abs(self.applications/self.workerDeficit)>1.5):
-				divisor = pow(abs(self.applications/self.workerDeficit), 1.5)
+				divisor = pow(abs(self.applications/self.workerDeficit), 1.3)
 
 		dividend = 1.0
 		if (self.openSteps > 3):
 			dividend = (pow(self.openSteps, 0.2))
 
+		deficitRatio = pow(dividend/divisor, 0.9)
+		ratioList.append(deficitRatio)
+
 		#Adjust the wage for next time
-		adjustmentRatio = dividend/divisor
-		newWage = ((1-adjustmentAlpha)*newWage)+(adjustmentAlpha*adjustmentRatio*newWage)
+		adjustmentAlpha = 0.1
+		adjustmentRatio = sum(ratioList)/len(ratioList)
+		newWage = ((1-adjustmentAlpha)*self.workerWage)+(adjustmentAlpha*adjustmentRatio*self.workerWage)
 
 		return newWage
 

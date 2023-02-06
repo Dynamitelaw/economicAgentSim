@@ -100,7 +100,7 @@ def launchAgents(launchDict, allAgentDict, procName, managerId, managementPipe, 
 						logger.debug("Running garbage collector")
 						gc.collect()
 
-					#Memory leak finder
+					# #Memory leak finder
 					# warmupStep = 50
 					# snapshotStep = 500
 					# if (stepCounter == warmupStep):
@@ -109,13 +109,20 @@ def launchAgents(launchDict, allAgentDict, procName, managerId, managementPipe, 
 					# 	logger.debug("Allocation snapshot taken")
 					# elif (stepCounter == snapshotStep):
 					# 	gc.collect()
-					# 	top_stats = tracemalloc.take_snapshot().compare_to(warmupSnapshot, 'lineno')
+					# 	#top_stats = tracemalloc.take_snapshot().compare_to(warmupSnapshot, 'lineno')
+					# 	top_stats = tracemalloc.take_snapshot().compare_to(warmupSnapshot, 'traceback')
 					# 	logger.debug("Allocation snapshot taken")
 					# 	allocatingLines = []
 					# 	statNumber = 50
+					# 	logger.debug("### Top {} new memory allocations\n".format(statNumber))
+					# 	statCounter = 0
 					# 	for stat in top_stats[:statNumber]:
 					# 		allocatingLines.append(str(stat))
-					# 	logger.debug("Top {} new memory allocations\n{}".format(statNumber, "\n".join(allocatingLines)))
+					# 		statString = "## {} ##\n{}".format(statCounter, stat)
+					# 		for line in stat.traceback.format():
+					# 			statString = statString + "\n{}".format(line)
+					# 		logger.debug(statString)
+					# 		statCounter += 1
 
 			
 		except Exception as e:

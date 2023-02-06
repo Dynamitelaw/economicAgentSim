@@ -49,6 +49,10 @@ class ItemMarketplace:
 		self.stallTime = 0.5
 		self.latestHandleTime = time.time()
 
+		#Keep track of spawned threads
+		self.spawnedThreads = []
+		self.prevStallMonitor = None
+
 		#Start monitoring network link
 		if (self.networkLink):
 			linkMonitor = threading.Thread(target=self.monitorNetworkLink)
@@ -84,7 +88,11 @@ class ItemMarketplace:
 					self.latestHandleTime = currentTime
 
 				#Wait until we're not busy to send TICK_BLOCK
+				if (self.prevStallMonitor):
+					self.prevStallMonitor.join()
+
 				stallMonitor = threading.Thread(target=self.waitForStall)
+				self.prevStallMonitor = stallMonitor
 				stallMonitor.start()
 
 			#Handle errors
@@ -96,6 +104,7 @@ class ItemMarketplace:
 				infoRequest = incommingPacket.payload
 				infoThread =  threading.Thread(target=self.handleInfoRequest, args=(infoRequest, ))
 				infoThread.start()
+				self.spawnedThreads.append(infoThread)
 
 		self.logger.info("Ending networkLink monitor".format(self.networkLink))
 
@@ -162,6 +171,12 @@ class ItemMarketplace:
 			timeDiff = time.time() - self.latestHandleTime
 			if (timeDiff > self.stallTime):
 				break
+
+		#Mark all spawned threads as elgible for garbage collection
+		self.logger.debug("Joining spawned threads")
+		for thread in self.spawnedThreads:
+			thread.join()
+		self.spawnedThreads.clear()
 
 		self.logger.info("Stall of {} seconds detected. Sending TICK_BLOCKED".format(self.stallTime))
 
@@ -307,6 +322,10 @@ class LaborMarketplace:
 		self.stallTime = 0.5
 		self.latestHandleTime = time.time()
 
+		#Keep track of spawned threads
+		self.spawnedThreads = []
+		self.prevStallMonitor = None
+
 		#Start monitoring network link
 		if (self.networkLink):
 			linkMonitor = threading.Thread(target=self.monitorNetworkLink)
@@ -342,7 +361,11 @@ class LaborMarketplace:
 					self.latestHandleTime = currentTime
 
 				#Wait until we're not busy to send TICK_BLOCK
+				if (self.prevStallMonitor):
+					self.prevStallMonitor.join()
+
 				stallMonitor = threading.Thread(target=self.waitForStall)
+				self.prevStallMonitor = stallMonitor
 				stallMonitor.start()
 
 			#Handle errors
@@ -354,6 +377,7 @@ class LaborMarketplace:
 				infoRequest = incommingPacket.payload
 				infoThread =  threading.Thread(target=self.handleInfoRequest, args=(infoRequest, ))
 				infoThread.start()
+				self.spawnedThreads.append(infoThread)
 
 		self.logger.info("Ending networkLink monitor".format(self.networkLink))
 
@@ -420,6 +444,12 @@ class LaborMarketplace:
 			timeDiff = time.time() - self.latestHandleTime
 			if (timeDiff > self.stallTime):
 				break
+
+		#Mark all spawned threads as elgible for garbage collection
+		self.logger.debug("Joining spawned threads")
+		for thread in self.spawnedThreads:
+			thread.join()
+		self.spawnedThreads.clear()
 
 		self.logger.info("Stall of {} seconds detected. Sending TICK_BLOCKED".format(self.stallTime))
 
@@ -607,6 +637,10 @@ class LandMarketplace:
 		self.stallTime = 0.5
 		self.latestHandleTime = time.time()
 
+		#Keep track of spawned threads
+		self.spawnedThreads = []
+		self.prevStallMonitor = None
+
 		#Start monitoring network link
 		if (self.networkLink):
 			linkMonitor = threading.Thread(target=self.monitorNetworkLink)
@@ -642,7 +676,11 @@ class LandMarketplace:
 					self.latestHandleTime = currentTime
 
 				#Wait until we're not busy to send TICK_BLOCK
+				if (self.prevStallMonitor):
+					self.prevStallMonitor.join()
+
 				stallMonitor = threading.Thread(target=self.waitForStall)
+				self.prevStallMonitor = stallMonitor
 				stallMonitor.start()
 
 			#Handle errors
@@ -654,6 +692,7 @@ class LandMarketplace:
 				infoRequest = incommingPacket.payload
 				infoThread =  threading.Thread(target=self.handleInfoRequest, args=(infoRequest, ))
 				infoThread.start()
+				self.spawnedThreads.append(infoThread)
 
 		self.logger.info("Ending networkLink monitor".format(self.networkLink))
 
@@ -721,6 +760,12 @@ class LandMarketplace:
 			timeDiff = time.time() - self.latestHandleTime
 			if (timeDiff > self.stallTime):
 				break
+
+		#Mark all spawned threads as elgible for garbage collection
+		self.logger.debug("Joining spawned threads")
+		for thread in self.spawnedThreads:
+			thread.join()
+		self.spawnedThreads.clear()
 
 		self.logger.info("Stall of {} seconds detected. Sending TICK_BLOCKED".format(self.stallTime))
 
