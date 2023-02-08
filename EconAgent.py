@@ -37,6 +37,7 @@ import multiprocessing
 import copy
 import queue
 import numpy as np
+from sortedcontainers import SortedList
 
 from NetworkClasses import *
 from TestControllers import *
@@ -769,13 +770,14 @@ class NutritionTracker:
 			sampleSize = 5
 			itemContainer = ItemContainer(foodId, 1)
 			sampledListings = self.agent.sampleItemListings(itemContainer, sampleSize=sampleSize)
-			sumPrice = 0
-			if (len(sampledListings) > 0):
+			sampledPrices = SortedList()
+			sampleSize = len(sampledListings)
+			if (sampleSize > 0):
 				for listing in sampledListings:
-					sumPrice += listing.unitPrice
-				avgUnitPrice = sumPrice/len(sampledListings)
+					sampledPrices.add(listing.unitPrice)
+				medianUnitPrice = sampledPrices[int(sampleSize/2)]
 
-				foodUnitPrices[foodId] = avgUnitPrice
+				foodUnitPrices[foodId] = medianUnitPrice
 
 		#Calculate current and historical nutritional defecits
 		currentDeficit = np.array([self.targetCalories-self.currentCalories, self.targetCarbs-self.currentCarbs, self.targetProtein-self.currentProtein, self.targetFat-self.currentFat])
@@ -822,9 +824,10 @@ class NutritionTracker:
 				foodReqAverages[foodId] = reqAverage
 
 				#Get net utility of this food
-				netUtil = marginalUtility-avgUnitPrice
+				unitPrice = foodUnitPrices[foodId]
+				netUtil = marginalUtility-unitPrice
 				if (netUtil <= 0):
-					netUtil = (marginalUtility/avgUnitPrice)
+					netUtil = (marginalUtility/unitPrice)
 				foodNetUtils[foodId] = netUtil
 
 			#Scale required amounts by net utility distribution
@@ -1137,6 +1140,7 @@ class Agent:
 		self.needCurrencyTransferAck = False
 		self.needItemTransferAck = False
 		self.needLandTransferAck = False
+		self.needLaborCancellationAck = False
 
 		#Keep track of other agents
 		self.allAgentDict = allAgentDict
@@ -1167,6 +1171,7 @@ class Agent:
 		self.skillLevel = random.betavariate(alpha, beta)
 
 		self.laborContracts = {}
+		self.laborContractsTotal = 0
 		self.laborContractsLock = threading.Lock()
 		self.fullfilledContracts = False
 		self.laborInventory = {}  #Keep track of all the labor available to a firm for this step
@@ -1318,7 +1323,7 @@ class Agent:
 
 			#Handle incoming acks
 			elif ((incommingPacket.msgType == PACKET_TYPE.CURRENCY_TRANSFER_ACK) or (incommingPacket.msgType == PACKET_TYPE.ITEM_TRANSFER_ACK) or (incommingPacket.msgType == PACKET_TYPE.LAND_TRANSFER_ACK) or	
-				(incommingPacket.msgType == PACKET_TYPE.TRADE_REQ_ACK) or (incommingPacket.msgType == PACKET_TYPE.LAND_TRADE_REQ_ACK) or (incommingPacket.msgType == PACKET_TYPE.LABOR_APPLICATION_ACK) or 
+				(incommingPacket.msgType == PACKET_TYPE.TRADE_REQ_ACK) or (incommingPacket.msgType == PACKET_TYPE.LAND_TRADE_REQ_ACK) or (incommingPacket.msgType == PACKET_TYPE.LABOR_APPLICATION_ACK) or (incommingPacket.msgType == PACKET_TYPE.LABOR_CONTRACT_CANCEL_ACK) or
 				(incommingPacket.msgType == PACKET_TYPE.ITEM_MARKET_SAMPLE_ACK) or (incommingPacket.msgType == PACKET_TYPE.LABOR_MARKET_SAMPLE_ACK) or (incommingPacket.msgType == PACKET_TYPE.LAND_MARKET_SAMPLE_ACK)):
 				#Determine whether to handle this ack
 				handleAck = True
@@ -1328,6 +1333,8 @@ class Agent:
 					handleAck = self.needItemTransferAck
 				elif (incommingPacket.msgType == PACKET_TYPE.LAND_TRANSFER_ACK):
 					handleAck = self.needLandTransferAck
+				elif (incommingPacket.msgType == PACKET_TYPE.LABOR_CONTRACT_CANCEL_ACK):
+					handleAck = self.needLaborCancellationAck
 		
 				if (handleAck):
 					#Place incoming acks into the response buffer
@@ -1431,6 +1438,11 @@ class Agent:
 				self.logger.debug("nextLaborInventory[{}] += {}".format(skillLevel, laborTicks))
 				self.nextLaborInventoryLock.release()
 
+			#Handle incoming labor contract cancellations
+			elif (incommingPacket.msgType == PACKET_TYPE.LABOR_CONTRACT_CANCEL):
+				laborContract = incommingPacket.payload
+				self.removeLaborContract(laborContract, incommingPacket)
+
 			#Handle incoming information requests
 			elif ((incommingPacket.msgType == PACKET_TYPE.INFO_REQ) or (incommingPacket.msgType == PACKET_TYPE.INFO_REQ_BROADCAST)):
 				infoRequest = incommingPacket.payload
@@ -1483,8 +1495,7 @@ class Agent:
 				#Update time tick commitments
 				self.commitedTicks_nextStepLock.acquire()
 				self.commitedTicksLock.acquire()
-				self.commitedTicks += self.commitedTicks_nextStep
-				self.commitedTicks_nextStep = 0
+				self.commitedTicks = self.commitedTicks_nextStep
 				self.commitedTicksLock.release()
 				self.commitedTicks_nextStepLock.release()
 
@@ -2728,12 +2739,13 @@ class Agent:
 			if (self.stepNum > endStep):
 				self.logger.debug("Removing all contracts that expire on step {}".format(endStep))
 
-				self.commitedTicksLock.acquire()
+				self.commitedTicks_nextStepLock.acquire()
 				for laborContractHash in laborContractsTemp[endStep]:
-					self.commitedTicks -= laborContractsTemp[endStep][laborContractHash].ticksPerStep
-				self.commitedTicksLock.release()
+					self.commitedTicks_nextStep -= laborContractsTemp[endStep][laborContractHash].ticksPerStep
+				self.commitedTicks_nextStepLock.release()
 
 				self.laborContractsLock.acquire()
+				self.laborContractsTotal -= len(laborContractsTemp[endStep])
 				del self.laborContracts[endStep]
 				self.laborContractsLock.release()
 			else:
@@ -2833,6 +2845,7 @@ class Agent:
 				if not (laborContract.endStep in self.laborContracts):
 					self.laborContracts[laborContract.endStep] = {}
 				self.laborContracts[laborContract.endStep][laborContract.hash] = laborContract
+				self.laborContractsTotal += 1
 
 				self.laborContractsLock.release()
 			else:
@@ -2885,6 +2898,7 @@ class Agent:
 				if not (laborContract.endStep in self.laborContracts):
 					self.laborContracts[laborContract.endStep] = {}
 				self.laborContracts[laborContract.endStep][laborContract.hash] = laborContract
+				self.laborContractsTotal += 1
 				applicationAccepted = True
 
 				self.laborContractsLock.release()
@@ -2915,9 +2929,116 @@ class Agent:
 			raise ValueError("sendJobApplication() Exception")
 
 
+	def removeLaborContract(self, laborContract, incommingPacket=None):
+		'''
+		Remove an existing labor contract
+		'''
+		self.logger.debug("removeLaborContract({}, incommingPacket={}) start".format(laborContract, incommingPacket))
+		
+		removalSuccess = True
+
+		endStep = laborContract.endStep
+		if (endStep > self.stepNum):
+			if (endStep in self.laborContracts):
+				if (laborContract.hash in self.laborContracts[endStep]):
+					#Remove contract from contract dict
+					self.laborContractsLock.acquire()
+					del self.laborContracts[laborContract.endStep][laborContract.hash]
+					self.laborContractsTotal -= 1
+
+					self.commitedTicks_nextStepLock.acquire()
+					self.commitedTicks_nextStep -= laborContract.ticksPerStep
+					self.commitedTicks_nextStepLock.release()
+
+					self.laborContractsLock.release()
+
+					removalSuccess = True
+				else:
+					self.logger.error("removeLaborContract() {} not found".format(laborContract))
+					removalSuccess = False
+			else:
+				self.logger.error("removeLaborContract() {} not found".format(laborContract))
+				removalSuccess = True
+
+
+		if (incommingPacket):
+			if (self.needLaborCancellationAck):
+				ackPayload = {"cancellationSuccess": removalSuccess, "laborContract": laborContract}
+				cancellationAckPacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType=PACKET_TYPE.LABOR_CONTRACT_CANCEL_ACK, payload=ackPayload, transactionId=incommingPacket.transactionId)
+				self.sendPacket(cancellationAckPacket)
+
+		self.logger.debug("removeLaborContract({}) returned {}".format(laborContract, removalSuccess))
+		return removalSuccess
+
+
+	def cancelLaborContract(self, laborContract):
+		'''
+		Cancels an existing labor contract. Returns True if successful, false if not
+		'''
+		self.logger.debug("cancelLaborContract({}) start".format(laborContract))
+
+		endStep = laborContract.endStep
+		if (endStep > self.stepNum):
+			if (endStep in self.laborContracts):
+				if (laborContract.hash in self.laborContracts[endStep]):
+					counterParty = None
+					if (laborContract.employerId == self.agentId):
+						#We are the employer
+						counterParty = laborContract.workerId
+					elif (laborContract.workerId == self.agentId):
+						#We are the employee
+						counterParty = laborContract.employerId
+					else:
+						self.logger.error("cancelLaborContract({}) We are a third party to this contract. We cannot cancel it".format(laborContract))
+						return False
+
+					if (counterParty):
+						transactionId = "CANCEL_{}".format(laborContract.hash)
+						cancelPacket = NetworkPacket(senderId=self.agentId, destinationId=counterParty, msgType=PACKET_TYPE.LABOR_CONTRACT_CANCEL, payload=laborContract, transactionId=transactionId)
+						self.sendPacket(cancelPacket)
+
+						cancellationSuccess = True
+						if (self.needLaborCancellationAck):
+							#Wait for transaction response
+							while not (transactionId in self.responseBuffer):
+								time.sleep(self.responsePollTime)
+								if (self.agentKillFlag):
+									return False
+								
+							responsePacket = self.responseBuffer[transactionId]
+							cancellationSuccess = bool(responsePacket.payload["cancellationSuccess"])
+
+							#Remove transaction from response buffer
+							acquired_responseBufferLock = self.responseBufferLock.acquire(timeout=self.lockTimeout)  #<== acquire responseBufferLock
+							if (acquired_responseBufferLock):
+								del self.responseBuffer[transactionId]
+								self.responseBufferLock.release()  #<== release responseBufferLock
+							else:
+								self.logger.error("cancelLaborContract({}) Lock \"responseBufferLock\" acquisition timeout".format(laborContract))
+								
+						if (cancellationSuccess):
+							self.removeLaborContract(laborContract)
+						else:
+							self.logger.error("cancelLaborContract({}) Ack from counterpart returned False".format(laborContract))
+							return False
+
+					else:
+						self.logger.error("cancelLaborContract() Could not determine counterParty of {}".format(laborContract))
+						return False
+				else:
+					self.logger.error("cancelLaborContract() {} not found".format(laborContract))
+					return False
+			else:
+				self.logger.error("cancelLaborContract() {} not found".format(laborContract))
+				return False
+
+
+		self.logger.debug("cancelLaborContract({}) completed".format(laborContract))
+		return True
+
 	def getNetContractedEmployeeLabor(self):
 		'''
-		Returns a dictionary of all current labor contracts in which this agent is the employer
+		Returns a dictionary of all current labor contracts in which this agent is the employer, organized by skill level
 		'''
 		self.laborContractsLock.acquire()
 		tempLaborContracts = copy.deepcopy(self.laborContracts)
@@ -2935,6 +3056,20 @@ class Agent:
 				employeeLaborInventory[contract.workerSkillLevel] += contract.ticksPerStep
 
 		return employeeLaborInventory
+
+	def getAllLaborContracts(self):
+		'''
+		Returns a list of all labor contracts
+		'''
+		self.laborContractsLock.acquire()
+		tempLaborContracts = copy.deepcopy(self.laborContracts)
+		self.laborContractsLock.release()
+		laborContractsList =  []
+		for endStep in tempLaborContracts:
+			for contractHash in tempLaborContracts[endStep]:
+				laborContractsList.append(tempLaborContracts[endStep][contractHash])
+
+		return laborContractsList
 
 	#########################
 	# Item Market functions
