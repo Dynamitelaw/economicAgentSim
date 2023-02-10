@@ -1434,7 +1434,7 @@ class TestFarmWorkerV2:
 			self.startStep = int(random.random()/(1.0/self.skewRate))
 
 		#Spawn starting balance
-		self.initialIncome = 400
+		self.initialIncome = 400000
 		self.agent.receiveCurrency(self.initialIncome)
 		self.initialIncomeSkewCntr = 2*self.skewRate
 
@@ -1568,6 +1568,7 @@ class TestFarmCompetetiveV2:
 		self.itemListing = ItemListing(sellerId=self.agentId, itemId=self.sellItemId, unitPrice=self.sellPrice, maxQuantity=self.currentProductionRateAvg/3)
 
 		#Keep track of wages and hiring stats
+		self.laborLock = threading.Lock()
 		self.requiredLabor = 0
 
 		self.laborSkillLevel = 0
@@ -1697,11 +1698,16 @@ class TestFarmCompetetiveV2:
 
 		profitAdjustmentRatio = 1
 		if (profitMargin > 0.05):
-			profitAdjustmentRatio = pow((1+profitMargin), 0.2)
+			profitAdjustmentRatio = pow((1+profitMargin), 0.6)
 			ratioList.append(profitAdjustmentRatio)
+			#productionAdjustmentRatio = profitAdjustmentRatio
 			self.logger.debug("adjustProductionTarget() Profit adjustment ratio = {}".format(profitAdjustmentRatio))
+			#self.logger.debug("adjustProductionTarget() Production adjustment ratio = {}".format(productionAdjustmentRatio))
+			#targetProductionRate = ((1-prodAlpha)*((self.targetProductionRate+self.currentProductionRateAvg)/2)) + (prodAlpha*self.currentProductionRateAvg*productionAdjustmentRatio)
+
+			#return round(targetProductionRate, g_ItemQuantityPercision)
 		elif (profitMargin < 0):
-			profitAdjustmentRatio = pow((1+profitMargin), 1)
+			profitAdjustmentRatio = pow((1+profitMargin), 1.6)
 			productionAdjustmentRatio = profitAdjustmentRatio
 			self.logger.debug("adjustProductionTarget() Profit adjustment ratio = {}".format(profitAdjustmentRatio))
 			self.logger.debug("adjustProductionTarget() Production adjustment ratio = {}".format(productionAdjustmentRatio))
@@ -1709,7 +1715,7 @@ class TestFarmCompetetiveV2:
 
 			return round(targetProductionRate, g_ItemQuantityPercision)
 
-		inventoryAdjustmentRatio = pow(self.targetInventoryDays*inventoryRatio, 0.5)
+		inventoryAdjustmentRatio = pow(self.targetInventoryDays*inventoryRatio, 0.7)
 		self.logger.debug("adjustProductionTarget() Inventory adjustment ratio = {}".format(inventoryAdjustmentRatio))
 		ratioList.append(inventoryAdjustmentRatio)
 
@@ -1721,8 +1727,8 @@ class TestFarmCompetetiveV2:
 		return round(targetProductionRate, g_ItemQuantityPercision)
 
 
-	def adjustSalePrice(self, avgRevenue, avgExpenses, medianPrice, saleRatio):
-		self.logger.debug("adjustProductionTarget(avgRevenue={}, avgExpenses={}, medianPrice={}, saleRatio={}) start".format(avgRevenue, avgExpenses, medianPrice, saleRatio))
+	def adjustSalePrice(self, avgRevenue, avgExpenses, meanPrice, saleRatio):
+		self.logger.debug("adjustProductionTarget(avgRevenue={}, avgExpenses={}, meanPrice={}, saleRatio={}) start".format(avgRevenue, avgExpenses, meanPrice, saleRatio))
 		ratioList = []
 
 		#Make sure sell price covers our costs
@@ -1737,12 +1743,15 @@ class TestFarmCompetetiveV2:
 				self.logger.debug("adjustSalePrice() Current price too low to cover costs. Cost adjustment ratio = {}".format(costAdjustmentRatio))
 				#ratioList.append(costAdjustmentRatio)
 
-				priceAlpha = 0.4
+				priceAlpha = 0.5
 				sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*self.sellPrice*costAdjustmentRatio)
+				if (sellPrice > 1.3*meanPrice):
+					sellPrice = 1.3*meanPrice
+
 				return sellPrice
 
 		#Adjust target price based on median price
-		marketAdjustmentRatio = pow(medianPrice/self.sellPrice, 0.8)
+		marketAdjustmentRatio = pow(meanPrice/self.sellPrice, 0.7)
 		self.logger.debug("adjustSalePrice() marketAdjustmentRatio = {}".format(marketAdjustmentRatio))
 		ratioList.append(marketAdjustmentRatio)
 
@@ -1752,7 +1761,7 @@ class TestFarmCompetetiveV2:
 			self.logger.debug("adjustSalePrice() saleAdjustmentRatio = {}".format(saleAdjustmentRatio))
 			ratioList.append(saleAdjustmentRatio)
 		elif (saleRatio > 1):
-			saleAdjustmentRatio = pow(saleRatio, 0.5) 
+			saleAdjustmentRatio = pow(saleRatio, 0.4) 
 			self.logger.debug("adjustSalePrice() saleAdjustmentRatio = {}".format(saleAdjustmentRatio))
 			ratioList.append(saleAdjustmentRatio)
 		
@@ -1762,12 +1771,6 @@ class TestFarmCompetetiveV2:
 		self.logger.debug("adjustSalePrice() priceAdjustmentRatio = {}".format(priceAdjustmentRatio))
 		priceAlpha = 0.1
 		sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*self.sellPrice*priceAdjustmentRatio)
-		try:
-			x = float(sellPrice)
-			y = int(sellPrice)
-		except:
-			self.logger.critical("Invalid sellPrice={}".format(sellPrice))
-			self.logger.critical(self.getInfoDumpString())
 
 		return sellPrice
 
@@ -1799,14 +1802,25 @@ class TestFarmCompetetiveV2:
 		self.logger.debug("Sale ratio = {}".format(saleRatio))
 
 		#Get median market price
-		medianPrice = self.sellPrice
+		# medianPrice = self.sellPrice
 		sampledListings = self.agent.sampleItemListings(ItemContainer(self.sellItemId, 0.01), sampleSize=30)
-		sampledPrices = SortedList()
+		# sampledPrices = SortedList()
+		# if (len(sampledListings) > 0):
+		# 	for listing in sampledListings:
+		# 		sampledPrices.add(listing.unitPrice)
+		# 	medianPrice = sampledPrices[int(len(sampledListings)/2)]
+		# self.logger.info("Median market price = {}".format(medianPrice))
+
+		#Get volume-adjusted mean market price
+		meanPrice = self.sellPrice
+		totalQuantity = 0
+		totalPrice = 0
 		if (len(sampledListings) > 0):
 			for listing in sampledListings:
-				sampledPrices.add(listing.unitPrice)
-			medianPrice = sampledPrices[int(len(sampledListings)/2)]
-		self.logger.info("Median market price = {}".format(medianPrice))
+				totalPrice += listing.unitPrice*listing.maxQuantity
+				totalQuantity += listing.maxQuantity
+			meanPrice = totalPrice/totalQuantity
+		self.logger.info("volume-adjusted average market price = {}".format(meanPrice))
 		
 
 		########
@@ -1820,7 +1834,7 @@ class TestFarmCompetetiveV2:
 
 		#Adjust sale price 
 		self.logger.info("Old sale price = {}".format(self.sellPrice))
-		self.sellPrice = self.adjustSalePrice(avgRevenue, avgExpenses, medianPrice, saleRatio)
+		self.sellPrice = self.adjustSalePrice(avgRevenue, avgExpenses, meanPrice, saleRatio)
 		self.logger.info("New sale price = {}".format(self.sellPrice))
 
 
@@ -1839,11 +1853,15 @@ class TestFarmCompetetiveV2:
 			self.agent.receiveItem(deficits["FixedItemDeficit"][itemId])
 
 		#Adjust labor requirements
+		self.laborLock.acquire()
 		for skillLevel in deficits["LaborDeficit"]:
 			self.requiredLabor = deficits["LaborDeficit"][skillLevel]
+			self.workerDeficit = round(self.requiredLabor/self.maxTicksPerStep, 0)
+		self.laborLock.release()
 
 		#Spawn variable item inputs
 		for itemId in deficits["VariableItemDeficit"]:
+			self.agent.receiveItem(deficits["VariableItemDeficit"][itemId])
 			self.agent.receiveItem(deficits["VariableItemDeficit"][itemId])
 
 
@@ -1858,8 +1876,11 @@ class TestFarmCompetetiveV2:
 			self.liquidateItem(surplusInputs["FixedItemSurplus"][itemId])
 
 		#Adjust labor requirements
+		self.laborLock.acquire()
 		for skillLevel in surplusInputs["LaborSurplus"]:
 			self.requiredLabor = -1*surplusInputs["LaborSurplus"][skillLevel]
+			self.workerDeficit = round(self.requiredLabor/self.maxTicksPerStep, 0)
+		self.laborLock.release()
 
 		#Liquidate variable item inputs
 		for itemId in surplusInputs["VariableItemSurplus"]:
@@ -1880,9 +1901,11 @@ class TestFarmCompetetiveV2:
 		#Produce items
 		maxProductionPossible = self.agent.getMaxProduction(self.sellItemId)
 
-		productionAmount = self.targetProductionRate
-		if (productionAmount > maxProductionPossible):
-			productionAmount = maxProductionPossible
+		# productionAmount = self.targetProductionRate
+		# if (productionAmount > maxProductionPossible):
+		# 	productionAmount = maxProductionPossible
+		productionAmount = maxProductionPossible
+		self.logger.debug("targetProductionRate={}, productionAmount={}".format(self.targetProductionRate, productionAmount))
 
 		producedItems = self.agent.produceItem(ItemContainer(self.sellItemId, productionAmount))
 		self.logger.debug("Produced {}".format(producedItems))
@@ -1909,22 +1932,28 @@ class TestFarmCompetetiveV2:
 		self.applications += 1
 
 		#Hire them if we need the labor
-		if (self.requiredLabor > 0):
-			self.logger.info("Accepting job application {}".format(laborContract))
-			#Spawn money needed for this contract
-			totalWages = int((laborContract.wagePerTick * laborContract.ticksPerStep * laborContract.contractLength + 100)*10)
-			self.agent.receiveCurrency(totalWages)
+		acquired_laborLock = self.laborLock.acquire(timeout=5)
+		if (acquired_laborLock):
+			if (self.requiredLabor > 0):
+				self.logger.info("Accepting job application {}".format(laborContract))
 
-			#Decrease required labor
-			self.requiredLabor -= laborContract.ticksPerStep
-			if (self.requiredLabor < 0):
-				self.requiredLabor = 0
+				#Decrease required labor
+				self.requiredLabor -= laborContract.ticksPerStep
+				self.laborLock.release()
 
-			self.logger.debug("Accepted job application {}".format(laborContract))
-			return True
+				#Spawn money needed for this contract
+				totalWages = int((laborContract.wagePerTick * laborContract.ticksPerStep * laborContract.contractLength + 100)*10)
+				self.agent.receiveCurrency(totalWages)
+
+				self.logger.debug("Accepted job application {}".format(laborContract))
+				return True
+			else:
+				self.laborLock.release()
+				#We don't need more labor. Reject this application
+				self.logger.debug("Rejected job application {}".format(laborContract))
+				return False
 		else:
-			#We don't need more labor. Reject this application
-			self.logger.debug("Rejected job application {}".format(laborContract))
+			self.logger.error("evalJobApplication({}) laborLock acquisition timeout".format(laborContract))
 			return False
 
 
@@ -1968,12 +1997,6 @@ class TestFarmCompetetiveV2:
 
 
 	def manageLabor(self):
-		#Update worker deficit
-		if (self.requiredLabor > 0):
-			self.workerDeficit = math.ceil(self.requiredLabor/self.maxTicksPerStep)
-		elif (self.requiredLabor < 0):
-			self.workerDeficit = math.floor(self.requiredLabor/self.maxTicksPerStep)
-
 		#Lay off employees if required
 		if (self.workerDeficit < 0):
 			laborContracts = self.agent.getAllLaborContracts()

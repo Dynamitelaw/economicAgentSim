@@ -3639,7 +3639,7 @@ class Agent:
 			infoRespPacket = NetworkPacket(senderId=self.agentId, destinationId=infoRequest.requesterId, msgType=PACKET_TYPE.INFO_RESP, payload=infoRequest)
 			self.sendPacket(infoRespPacket)
 		else:
-			self.logger.warning("Received infoRequest for another agent {}".format(infoRequest))
+			self.logger.warning("Received infoRequest for another agent {}. Ignoring it".format(infoRequest))
 
 	def __str__(self):
 		return str(self.agentInfo)
