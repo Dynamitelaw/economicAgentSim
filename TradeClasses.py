@@ -147,10 +147,9 @@ class LaborContract:
 
 		tempContractStr = "LaborContract(employerId={}, workerId={}, ticksPerStep={}, wagePerTick={}, workerSkillLevel={}, contractLength={}, startStep={}, endStep={}, contractName={})".format(employerId, workerId, ticksPerStep, self.wagePerTick, workerSkillLevel, contractLength, startStep, endStep, contractName)
 		self.hash = hashlib.sha256(tempContractStr.encode('utf-8')).hexdigest()[:8 ]
-		self.contractStr = "LaborContract_{}(employerId={}, workerId={}, ticksPerStep={}, wagePerTick={}, workerSkillLevel={}, contractLength={}, startStep={}, endStep={}, contractName={})".format(self.hash, employerId, workerId, ticksPerStep, self.wagePerTick, workerSkillLevel, contractLength, startStep, endStep, contractName)
 
 	def __str__(self):
-		return self.contractStr
+		return "LaborContract_{}(employerId={}, workerId={}, ticksPerStep={}, wagePerTick={}, workerSkillLevel={}, contractLength={}, startStep={}, endStep={}, contractName={})".format(self.hash, self.employerId, self.workerId, self.ticksPerStep, self.wagePerTick, self.workerSkillLevel, self.contractLength, self.startStep, self.endStep, self.contractName)
 
 
 class TradeRequest:

@@ -180,7 +180,9 @@ class ConnectionNetwork:
 					break
 
 			#Handle broadcasts
-			elif ((incommingPacket.msgType == PACKET_TYPE.KILL_ALL_BROADCAST) or (incommingPacket.msgType == PACKET_TYPE.INFO_REQ_BROADCAST) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_START_BROADCAST) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST)):
+			elif ((incommingPacket.msgType == PACKET_TYPE.KILL_ALL_BROADCAST) or (incommingPacket.msgType == PACKET_TYPE.INFO_REQ_BROADCAST) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_START_BROADCAST) or 
+				(incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST) or (incommingPacket.msgType == PACKET_TYPE.SAVE_CHECKPOINT_BROADCAST) or
+				(incommingPacket.msgType == PACKET_TYPE.LOAD_CHECKPOINT_BROADCAST)):
 				#Check if this is a KILL_ALL broadcast
 				if (incommingPacket.msgType == PACKET_TYPE.KILL_ALL_BROADCAST):
 					self.killAllLock.acquire()

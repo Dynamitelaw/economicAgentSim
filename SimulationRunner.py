@@ -267,7 +267,21 @@ def RunSimulation(settingsDict, logLevel="INFO", outputDir=None):
 		###########################
 		# Setup Simulation Manager
 		###########################
-		simManagerSeed = SimulationManagerSeed(managerId, allAgentDict, procDict, outputDir=outputDirPath, logLevel=logLevel)
+		checkpointFrequency = None
+		if ("CheckpointFrequency" in settingsDict):
+			try:
+				checkpointFrequency = int(settingsDict["CheckpointFrequency"])
+			except:
+				raise ValueError("Invalid CheckpointFrequency \"{}\"\n{}".format(settingsDict["CheckpointFrequency"], traceback.format_exc()))
+
+		initialCheckpoint = None
+		if ("InitialCheckpoint" in settingsDict):
+			try:
+				initialCheckpoint = os.path.normpath(settingsDict["InitialCheckpoint"])
+			except:
+				raise ValueError("Invalid InitialCheckpoint \"{}\"\n{}".format(settingsDict["InitialCheckpoint"], traceback.format_exc()))
+
+		simManagerSeed = SimulationManagerSeed(managerId, allAgentDict, procDict, outputDir=outputDirPath, logLevel=logLevel, checkpointFrequency=checkpointFrequency, initialCheckpoint=initialCheckpoint)
 
 		##########################
 		# Setup ConnectionNetwork

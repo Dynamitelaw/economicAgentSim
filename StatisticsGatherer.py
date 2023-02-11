@@ -116,6 +116,9 @@ class ConsumptionTracker:
 						else:
 							self.logger.error("{}.handleSnoop() Lock netConsumptionLock acquisition timout".format(self.name))
 
+	def loadCheckpoint(self):
+		pass
+
 
 class ItemPriceTracker:
 	'''
@@ -257,6 +260,9 @@ class ItemPriceTracker:
 							else:
 								self.logger.error("{}.handleSnoop() Lock priceTrackingLock acquisition timout B".format(self.name))
 
+	def loadCheckpoint(self):
+		pass
+
 
 class LaborContractTracker:
 	'''
@@ -277,6 +283,9 @@ class LaborContractTracker:
 		self.stepNumLock = threading.Lock()
 		
 		#Keep track of contracts
+		self.loadedLaborContracts = {}
+		self.loadedLaborContractsLock = threading.Lock()
+
 		self.hourWageListSorted = SortedList()
 		self.hourWageTotal = 0
 
@@ -426,6 +435,74 @@ class LaborContractTracker:
 		else:
 			self.logger.error("{}.advanceStep() Lock stepNumLock acquisition timout".format(self.name))
 
+	def processLaborContract(self, laborContract):
+		#Skip this contract if we're loading from checkpoint and have already processed it
+
+		skillLevel = laborContract.workerSkillLevel
+		if ((skillLevel >= self.minSkill) and (skillLevel < self.maxSkill)):  #Skill level is within range
+			#Make sure this employee is valid
+			if (self.workerClassSet):  #Employee class has been specified
+				contractWorkerId = laborContract.workerId
+				workerValid = False
+				for workerType in self.workerClasses:
+					if (workerType in contractWorkerId):
+						workerValid = True
+						break
+
+				if not (workerValid):
+					#This worker type is not valid. Skip this contract
+					return
+
+			#Make sure this employer is valid
+			if (self.employerClassSet):  #Employer class has been specified
+				contractEmployerId = laborContract.employerId
+				employerValid = False
+				for employerType in self.employerClasses:
+					if (employerType in contractEmployerId):
+						employerValid = True
+						break
+
+				if not (employerValid):
+					#This employer type is not valid. Skip this contract
+					return
+
+			#This contract passes all our filters. Add it to our metrics
+			acquired_wageMetricsLock = self.wageMetricsLock.acquire(timeout=self.lockTimout)
+			if (acquired_wageMetricsLock):
+				#Get contract metrics
+				hourlyWage = laborContract.wagePerTick
+				hours = laborContract.ticksPerStep
+				dailyWage = laborContract.wagePerTick * laborContract.ticksPerStep
+
+				#Add metrics to endStep dict
+				endStep = laborContract.endStep  #TODO: Handle startStep
+				if not (endStep in self.endTimes):
+					self.endTimes[endStep] = {}
+					self.endTimes[endStep]["hourWage"] = []
+					self.endTimes[endStep]["hours"] = []
+					self.endTimes[endStep]["dayWage"] = []
+
+				self.endTimes[endStep]["hourWage"].append(hourlyWage)
+				self.endTimes[endStep]["hours"].append(hours)
+				self.endTimes[endStep]["dayWage"].append(dailyWage)
+
+				#Add metrics to sorted lists
+				self.hourWageListSorted.add(hourlyWage)
+				self.hoursListSorted.add(hours)
+				self.dayWageListSorted.add(dailyWage)
+
+				#Increment running totals
+				self.hourWageTotal += hourlyWage
+				self.hoursTotal += hours
+				self.dayWageTotal += dailyWage
+
+				self.listLen += 1
+
+				self.wageMetricsLock.release()
+			else:
+				self.logger.error("{}.processLaborContract() Lock wageMetricsLock acquisition timout".format(self.name))
+
+
 	def handleSnoop(self, incommingPacket):
 		if (self.stepNum >= self.startStep):
 			#Handle incomming snooped packet
@@ -433,69 +510,42 @@ class LaborContractTracker:
 				if (incommingPacket.payload["accepted"]):
 					#This labor application was accepted
 					laborContract = incommingPacket.payload["laborContract"]
-					skillLevel = laborContract.workerSkillLevel
-					if ((skillLevel >= self.minSkill) and (skillLevel < self.maxSkill)):  #Skill level is within range
-						#Make sure this employee is valid
-						if (self.workerClassSet):  #Employee class has been specified
-							contractWorkerId = laborContract.workerId
-							workerValid = False
-							for workerType in self.workerClasses:
-								if (workerType in contractWorkerId):
-									workerValid = True
-									break
+					self.processLaborContract(laborContract)
 
-							if not (workerValid):
-								#This worker type is not valid. Skip this contract
-								return
 
-						#Make sure this employer is valid
-						if (self.employerClassSet):  #Employer class has been specified
-							contractEmployerId = laborContract.employerId
-							employerValid = False
-							for employerType in self.employerClasses:
-								if (employerType in contractEmployerId):
-									employerValid = True
-									break
+	def handleInfoResp(self, incommingPacket):
+		#Handle incomming info packet
+		if (incommingPacket.msgType == PACKET_TYPE.INFO_RESP):
+			infoReq = incommingPacket.payload
+			if (infoReq.infoKey == "laborContracts"):
+				if (infoReq.transactionId == self.name):
+					#This is a list of requested labor contracts
+					contractDict = infoReq.info
+					for endStep in contractDict:
+						for contractHash in contractDict[endStep]:
+							#Skip this contract if we're loading from checkpoint and have already processed it
+							if (contractHash in self.loadedLaborContracts):
+								continue
 
-							if not (employerValid):
-								#This employer type is not valid. Skip this contract
-								return
+							self.loadedLaborContractsLock.acquire()
+							if (contractHash in self.loadedLaborContracts):
+								continue
+							else:
+								self.loadedLaborContracts[contractHash] = True
+							self.loadedLaborContractsLock.release()
 
-						#This contract passes all our filters. Add it to our metrics
-						acquired_wageMetricsLock = self.wageMetricsLock.acquire(timeout=self.lockTimout)
-						if (acquired_wageMetricsLock):
-							#Get contract metrics
-							hourlyWage = laborContract.wagePerTick
-							hours = laborContract.ticksPerStep
-							dailyWage = laborContract.wagePerTick * laborContract.ticksPerStep
+							#If we get here, this is the first time we've loaded this contract
+							laborContract = contractDict[endStep][contractHash]
+							self.logger.info("Processing {}".format(laborContract))
+							self.processLaborContract(laborContract)
 
-							#Add metrics to endStep dict
-							endStep = laborContract.endStep  #TODO: Handle startStep
-							if not (endStep in self.endTimes):
-								self.endTimes[endStep] = {}
-								self.endTimes[endStep]["hourWage"] = []
-								self.endTimes[endStep]["hours"] = []
-								self.endTimes[endStep]["dayWage"] = []
 
-							self.endTimes[endStep]["hourWage"].append(hourlyWage)
-							self.endTimes[endStep]["hours"].append(hours)
-							self.endTimes[endStep]["dayWage"].append(dailyWage)
-
-							#Add metrics to sorted lists
-							self.hourWageListSorted.add(hourlyWage)
-							self.hoursListSorted.add(hours)
-							self.dayWageListSorted.add(dailyWage)
-
-							#Increment running totals
-							self.hourWageTotal += hourlyWage
-							self.hoursTotal += hours
-							self.dayWageTotal += dailyWage
-
-							self.listLen += 1
-
-							self.wageMetricsLock.release()
-						else:
-							self.logger.error("{}.handleSnoop() Lock wageMetricsLock acquisition timout".format(self.name))
+	def loadCheckpoint(self):
+		'''
+		Poll all labor contracts to recalculate running stats
+		'''
+		infoReq = InfoRequest(requesterId=self.gathererParent.agentId, transactionId=self.name, infoKey="laborContracts")
+		self.gathererParent.sendInfoReqBroadcast(self, infoReq)
 
 
 class ProductionTracker:
@@ -591,6 +641,9 @@ class ProductionTracker:
 					self.quantityProducedLock.release()
 				else:
 					self.logger.error("{}.handleSnoop() Lock quantityProducedLock acquisition timout B".format(self.name))
+
+	def loadCheckpoint(self):
+		pass
 
 
 class AccountingTracker:
@@ -736,6 +789,9 @@ class AccountingTracker:
 					if (infoReq.transactionId == self.name):
 						self.addInfo(infoReq)
 
+	def loadCheckpoint(self):
+		pass
+
 
 #######################
 # StatisticsGatherer
@@ -830,6 +886,13 @@ class StatisticsGatherer:
 			#Handle errors
 			elif (incommingPacket.msgType == PACKET_TYPE.ERROR) or (incommingPacket.msgType == PACKET_TYPE.ERROR_CONTROLLER_START):
 				self.logger.error("{} {}".format(incommingPacket, incommingPacket.payload))
+
+			#Handle checkpoint loads
+			elif (incommingPacket.msgType == PACKET_TYPE.LOAD_CHECKPOINT) or (incommingPacket.msgType == PACKET_TYPE.LOAD_CHECKPOINT_BROADCAST):
+				time.sleep(3)  #Give all the agents time to load their own checkpoints
+				for trackerObj in self.trackers:
+					self.logger.info("Loading checkpoint for {}".format(trackerObj))
+					trackerObj.loadCheckpoint()
 
 			#Handle controller messages
 			if ((incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST)):

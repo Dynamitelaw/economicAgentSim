@@ -83,6 +83,11 @@ class PACKET_TYPE(Enum):
 	TERMINATE_SIMULATION = 511
 	PROC_STOP = 512
 
+	SAVE_CHECKPOINT = 521
+	SAVE_CHECKPOINT_BROADCAST = 522
+	LOAD_CHECKPOINT = 523
+	LOAD_CHECKPOINT_BROADCAST = 524
+
 	#########################
 	# Controller messages
 	#########################

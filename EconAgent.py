@@ -700,9 +700,6 @@ class NutritionTracker:
 		self.avgWater = self.targetWater
 
 		#Keep track of previous food intake
-		self.historyWindow = 7  #number of steps
-		#self.consumptionHistory = queue.Queue(self.historyWindow)
-		#self.consumptionTotal = {}
 		self.consumptionAvg = {}
 		self.stepConsumption = {}
 
@@ -1142,7 +1139,11 @@ class AgentCheckpoint:
 
 		#Keep track of agent nutrition
 		self.enableNutrition = agentObj.enableNutrition
-		self.nutritionTracker = agentObj.nutritionTracker
+		self.nutritionTracker__consumptionAvg = None
+		self.nutritionTracker__stepConsumption = None
+		if (agentObj.nutritionTracker):
+			self.nutritionTracker__consumptionAvg = agentObj.nutritionTracker.consumptionAvg
+			self.nutritionTracker__stepConsumption = agentObj.nutritionTracker.stepConsumption
 
 		#####
 		# Keep track of accounting stats
@@ -1228,7 +1229,19 @@ class AgentCheckpoint:
 		#Keep track of labor stuff
 		agentObj.skillLevel = self.skillLevel
 
-		agentObj.laborContracts = self.laborContracts
+		shiftedLaborContracts = {}  #Shift labor contract start and end times by checkpoint step time
+		for endStep in self.laborContracts:
+			shiftedEndStep = endStep - self.stepNum
+			shiftedLaborContracts[shiftedEndStep] = {}
+			for contractHash in self.laborContracts[endStep]:
+				laborContract = self.laborContracts[endStep][contractHash]
+				laborContract.startStep = laborContract.startStep - self.stepNum
+				laborContract.endStep = laborContract.endStep - self.stepNum
+
+				shiftedLaborContracts[shiftedEndStep][contractHash] = laborContract
+
+		agentObj.laborContracts = shiftedLaborContracts
+
 		agentObj.laborContractsTotal = self.laborContractsTotal
 		agentObj.laborInventory = self.laborInventory
 		agentObj.nextLaborInventory = self.nextLaborInventory
@@ -1238,7 +1251,6 @@ class AgentCheckpoint:
 		#Keep track of time ticks
 		agentObj.timeTicks = self.timeTicks
 		agentObj.tickBlockFlag = self.tickBlockFlag
-		agentObj.stepNum = self.stepNum
 		agentObj.ticksPerStep = self.ticksPerStep
 		
 		#Instantiate agent preferences (utility functions)
@@ -1249,7 +1261,11 @@ class AgentCheckpoint:
 
 		#Keep track of agent nutrition
 		agentObj.enableNutrition = self.enableNutrition
-		agentObj.nutritionTracker = self.nutritionTracker
+		if (self.nutritionTracker__consumptionAvg):
+			agentNutritionTracker = NutritionTracker(agentObj)
+			agentNutritionTracker.consumptionAvg = self.nutritionTracker__consumptionAvg
+			agentNutritionTracker.stepConsumption = self.nutritionTracker__stepConsumption
+			agentObj.nutritionTracker = agentNutritionTracker
 
 		#####
 		# Keep track of accounting stats
@@ -1678,6 +1694,27 @@ class Agent:
 				#infoThread =  threading.Thread(target=self.handleInfoRequest, args=(infoRequest, ))
 				#infoThread.start()
 				self.handleInfoRequest(infoRequest)
+
+			#Handle incoming save checkpoint commands
+			elif ((incommingPacket.msgType == PACKET_TYPE.SAVE_CHECKPOINT) or (incommingPacket.msgType == PACKET_TYPE.SAVE_CHECKPOINT_BROADCAST)):
+				#Save agent checkpoint
+				self.saveCheckpoint()
+				#Foward to controller
+				if (self.controller):
+					controllerThread =  threading.Thread(target=self.controller.receiveMsg, args=(incommingPacket, ))
+					controllerThread.start()
+				self.spawnedThreads.append(controllerThread)
+
+			#Handle incoming load checkpoint commands
+			elif ((incommingPacket.msgType == PACKET_TYPE.LOAD_CHECKPOINT) or (incommingPacket.msgType == PACKET_TYPE.LOAD_CHECKPOINT_BROADCAST)):
+				#Load agent checkpoint
+				filePath = incommingPacket.payload
+				self.loadCheckpoint(filePath=filePath)
+				#Foward to controller
+				if (self.controller):
+					controllerThread =  threading.Thread(target=self.controller.receiveMsg, args=(incommingPacket, ))
+					controllerThread.start()
+				self.spawnedThreads.append(controllerThread)
 
 			#Hanle incoming tick grants
 			elif ((incommingPacket.msgType == PACKET_TYPE.TICK_GRANT) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST)):
@@ -2493,8 +2530,12 @@ class Agent:
 				offerAccepted = False
 			else:
 				#Offer is valid. Evaluate offer
-				self.logger.debug("Fowarding {} to controller {}".format(request, self.controller.name))
-				offerAccepted = self.controller.evalTradeRequest(request)
+				if (self.controller):
+					self.logger.debug("Fowarding {} to controller {}".format(request, self.controller.name))
+					offerAccepted = self.controller.evalTradeRequest(request)
+				else:
+					self.logger.debug("{} does not have a controller. Rejecting {}".format(self.agentId, request))
+					offerAccepted = False
 
 			#Add this trade offer to the outstanding trade dict
 			if (offerAccepted):
@@ -2846,8 +2887,12 @@ class Agent:
 				offerAccepted = False
 			else:
 				#Offer is valid. Evaluate offer
-				self.logger.debug("Fowarding {} to controller {}".format(request, self.controller.name))
-				offerAccepted = self.controller.evalLandTradeRequest(request)
+				if (self.controller):
+					self.logger.debug("Fowarding {} to controller {}".format(request, self.controller.name))
+					offerAccepted = self.controller.evalLandTradeRequest(request)
+				else:
+					self.logger.debug("{} does not have a controller. Rejecting {}".format(self.agentId, request))
+					offerAccepted = False
 
 			#Add this trade offer to the outstanding trade dict
 			if (offerAccepted):
@@ -3058,8 +3103,12 @@ class Agent:
 				applicationAccepted = False
 			else:
 				#Offer is valid. Evaluate offer
-				self.logger.debug("Fowarding {} to controller {}".format(laborContract, self.controller.name))
-				applicationAccepted = self.controller.evalJobApplication(laborContract)
+				if (self.controller):
+					self.logger.debug("Fowarding {} to controller {}".format(laborContract, self.controller.name))
+					applicationAccepted = self.controller.evalJobApplication(laborContract)
+				else:
+					self.logger.debug("{} does not have a controller. Rejecting {}".format(self.agentId, laborContract))
+					applicationAccepted = False
 
 			#Notify counter party of response
 			respPayload = {"laborContract": laborContract, "accepted": applicationAccepted}
@@ -3886,6 +3935,8 @@ class Agent:
 				infoRequest.info = self.debtBalance
 			if (infoKey == "acountingStats"):
 				infoRequest.info = self.getAccountingStats()
+			if (infoKey == "laborContracts"):
+				infoRequest.info = self.laborContracts
 			
 			infoRespPacket = NetworkPacket(senderId=self.agentId, destinationId=infoRequest.requesterId, msgType=PACKET_TYPE.INFO_RESP, payload=infoRequest)
 			self.sendPacket(infoRespPacket)
@@ -3920,7 +3971,10 @@ class Agent:
 		checkpointFileName = "{}.{}.checkpoint.pickle".format(self.agentId, self.agentType)
 		checkpointFilePath = os.path.join(self.outputDir, "CHECKPOINT", checkpointFileName)
 		if (filePath):
-			checkpointFilePath = filePath
+			if (os.path.isdir(filePath)):
+				checkpointFilePath = os.path.join(filePath, checkpointFileName)
+			else:
+				checkpointFilePath = filePath
 
 		if (not os.path.exists(checkpointFilePath)):
 			self.logger.error("Could not load checkpoint. \"{}\" does not exist".format(checkpointFilePath))

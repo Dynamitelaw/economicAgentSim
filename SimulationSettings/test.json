@@ -1,10 +1,12 @@
 {
-	"name": "TestSimulation",
+	"name": "TestSimulationLoaded",
 	"description": "Test simulation with competetive farms. Used for testing and debug.",
 	"settings": {
 		"AgentNumProcesses": 6,
-		"SimulationSteps": 2400,
+		"SimulationSteps": 50,
 		"TicksPerStep": 16,
+		"CheckpointFrequency": 20,
+		"InitialCheckpoint": "OUTPUT\\TestSimulation\\CHECKPOINT",
 		"AgentSpawns":{
 			"AppleFarm": {
 				"TestFarmCompetetiveV2":{
@@ -174,10 +176,6 @@
 				"ProductionTracker":{
 					"id": "apple",
 					"OuputPath": "FoodMarket/apple/AppleProduction.csv"
-				},
-				"AccountingTracker":{
-					"AgentFilters": ["AppleFarmAccounting"],
-					"OuputPath": "FoodMarket/apple/AppleFarmAccounting.csv"
 				}
 			},
 			"ButterMarket":{

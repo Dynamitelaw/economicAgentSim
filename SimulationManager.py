@@ -9,6 +9,7 @@ import traceback
 import threading
 from datetime import timedelta
 from tqdm import tqdm
+import math
 
 from EconAgent import *
 from NetworkClasses import *
@@ -20,13 +21,15 @@ class SimulationManagerSeed:
 	'''
 	Used to spawn a simulation manager
 	'''
-	def __init__(self, managerId, allAgentDict, allProcDict, logFile=True, logLevel="INFO", outputDir="OUTPUT"):
+	def __init__(self, managerId, allAgentDict, allProcDict, logFile=True, logLevel="INFO", outputDir="OUTPUT", checkpointFrequency=None, initialCheckpoint=None):
 		self.managerId = managerId
 		self.agentType = "SimulationManager"
 		self.agentInfo = AgentInfo(self.managerId, self.agentType)
 		self.logFile = logFile
 		self.outputDir = outputDir
 		self.logLevel = logLevel
+		self.checkpointFrequency = checkpointFrequency
+		self.initialCheckpoint = initialCheckpoint
 
 		self.allAgentDict = allAgentDict
 		self.allProcDict = allProcDict
@@ -38,14 +41,14 @@ class SimulationManagerSeed:
 		self.agentLink = Link(sendPipe=agentPipeSend, recvPipe=agentPipeRecv)
 
 	def spawnManager(self):
-		return SimulationManager(self.agentInfo, allAgentDict=self.allAgentDict, allProcDict=self.allProcDict, networkLink=self.agentLink, logFile=self.logFile, logLevel=self.logLevel, outputDir=self.outputDir)
+		return SimulationManager(self.agentInfo, allAgentDict=self.allAgentDict, allProcDict=self.allProcDict, networkLink=self.agentLink, logFile=self.logFile, logLevel=self.logLevel, outputDir=self.outputDir, checkpointFrequency=self.checkpointFrequency, initialCheckpoint=self.initialCheckpoint)
 
 
 class SimulationManager:
 	'''
 	The master object that controls and manages the simulation using network commands
 	'''
-	def __init__(self, agentInfo, allAgentDict, allProcDict, networkLink=None, logFile=True, logLevel="INFO", outputDir="OUTPUT", controller=None):
+	def __init__(self, agentInfo, allAgentDict, allProcDict, networkLink=None, logFile=True, logLevel="INFO", outputDir="OUTPUT", controller=None, checkpointFrequency=None, initialCheckpoint=None):
 		self.info = agentInfo
 		self.agentId = agentInfo.agentId
 		self.agentType = agentInfo.agentType
@@ -61,6 +64,8 @@ class SimulationManager:
 		self.procErrors = {}
 
 		self.allAgentsReady = False
+		self.checkpointFrequency = checkpointFrequency
+		self.initialCheckpoint = initialCheckpoint
 
 		#Spawn agent
 		self.agent = Agent(self.info, networkLink=networkLink, logFile=logFile, controller=self, outputDir=outputDir)
@@ -95,7 +100,13 @@ class SimulationManager:
 			agentsInstantiated = False
 
 
-		sleepTime = 3
+		#Determine initial startup wait time
+		sleepTime = 2
+		if (len(self.agentDict) > 0):
+			sleepTime = math.ceil(pow(len(self.agentDict)/len(self.procDict), 0.25))
+			if (sleepTime < 2):
+				sleepTime = 2
+
 		if (agentsInstantiated):
 			self.logger.info("All agents are instantiated")
 
@@ -104,6 +115,16 @@ class SimulationManager:
 			controllerStartBroadcast = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.CONTROLLER_START_BROADCAST)
 			self.agent.sendPacket(controllerStartBroadcast)
 			time.sleep(sleepTime)  #Sleep to give controllers time to start blocking protocols #TODO: calculate sleep time based on size of agentDict
+
+			#Load initial checkpoint if specified
+			if (self.initialCheckpoint):
+				if (os.path.exists(self.initialCheckpoint)):
+					self.logger.info("Loading initial state from checkpoint \"{}\"".format(self.initialCheckpoint))
+					loadCheckpointBroadcast = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.LOAD_CHECKPOINT_BROADCAST, payload=self.initialCheckpoint)
+					self.agent.sendPacket(loadCheckpointBroadcast)
+					time.sleep(sleepTime*3)
+				else:
+					self.logger.warning("Initial checkpoint path \"{}\" not found. Ignoring checkpoint load".format(self.initialCheckpoint))
 
 			#Run simulation for specified time
 			startTime = time.time()
@@ -141,8 +162,9 @@ class SimulationManager:
 							currentStepTime = time.time() - stepStart
 							if ((currentStepTime > (20*avgStepTime)) and (avgStepTime > 0)):
 								self.logger.debug("Still waiting for agents to be unblocked")
-							if ((currentStepTime > 120) and (not warningSent) and (avgStepTime == 0)):
+							if ((currentStepTime > sleepTime*60) and (not warningSent) and (avgStepTime == 0)):
 								self.logger.warning("Still waiting for agents to be unblocked")
+								warningSent = True
 							pollCntr = 0
 
 					#End simulation day
@@ -151,6 +173,13 @@ class SimulationManager:
 					stepTime = stepEnd - stepStart
 					alpha = 0.3
 					avgStepTime = ((1-alpha)*avgStepTime) + (alpha*stepTime)
+
+					#Save checkpoint
+					if (self.checkpointFrequency):
+						if ((stepNum > 0) and (stepNum%self.checkpointFrequency == 0)):
+							self.logger.info("Saving simulation checkpoint")
+							checkpointPacket = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.SAVE_CHECKPOINT_BROADCAST, payload=ticksPerStep)
+							self.agent.sendPacket(checkpointPacket)
 
 			#Calculate runtime
 			print("\n")
