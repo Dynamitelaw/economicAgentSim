@@ -38,6 +38,8 @@ import copy
 import queue
 import numpy as np
 from sortedcontainers import SortedList
+import pickle
+import traceback
 
 from NetworkClasses import *
 from TestControllers import *
@@ -1090,6 +1092,227 @@ class AgentSeed:
 		return "AgentSeed({})".format(self.agentInfo)
 
 
+class AgentCheckpoint:
+	'''
+	This class stores information on current agent state for saving to and loading from simulation checkpoints.
+	All class variables must be pickle-safe (that means no thread locks).
+	'''
+	def __init__(self, agentObj):
+		'''
+		Stores the class variables of agentObj in this checkpoint obj
+		'''
+		self.info = agentObj.info
+		self.agentId = agentObj.agentId
+		self.agentType = agentObj.agentType
+		
+		self.simManagerId = agentObj.simManagerId
+		self.outputDir = agentObj.outputDir
+
+		#Keep track of other agents
+		self.allAgentDict = agentObj.allAgentDict
+
+		#Keep track of agent assets
+		self.currencyBalance = agentObj.currencyBalance
+		self.inventory = agentObj.inventory
+		self.debtBalance = agentObj.debtBalance
+		self.landHoldings = agentObj.landHoldings
+		self.landAllocationQueue__quueu = agentObj.landAllocationQueue.queue
+
+		#Keep track of labor stuff
+		self.skillLevel = agentObj.skillLevel
+
+		self.laborContracts = agentObj.laborContracts
+		self.laborContractsTotal = agentObj.laborContractsTotal
+		self.laborInventory = agentObj.laborInventory
+		self.nextLaborInventory = agentObj.nextLaborInventory
+		self.commitedTicks = agentObj.commitedTicks
+		self.commitedTicks_nextStep = agentObj.commitedTicks_nextStep
+
+		#Keep track of time ticks
+		self.timeTicks = agentObj.timeTicks
+		self.tickBlockFlag = agentObj.tickBlockFlag
+		self.stepNum = agentObj.stepNum
+		self.ticksPerStep = agentObj.ticksPerStep
+		
+		#Instantiate agent preferences (utility functions)
+		self.nutritionalDict = agentObj.nutritionalDict
+		self.utilityFunctions = agentObj.utilityFunctions
+		self.eating = agentObj.eating
+		self.autoEatFlag = agentObj.autoEatFlag
+
+		#Keep track of agent nutrition
+		self.enableNutrition = agentObj.enableNutrition
+		self.nutritionTracker = agentObj.nutritionTracker
+
+		#####
+		# Keep track of accounting stats
+		#####
+		#Labor income
+		self.laborIncomeTracking = agentObj.laborIncomeTracking
+		self.totalLaborIncome = agentObj.totalLaborIncome
+		self.prevTotalLaborIncome = agentObj.prevTotalLaborIncome
+		self.avgLaborIncome = agentObj.avgLaborIncome
+		self.stepLaborIncome = agentObj.stepLaborIncome
+		self.prevStepLaborIncome = agentObj.prevStepLaborIncome
+		#Labor expenses
+		self.laborExpenseTracking = agentObj.laborExpenseTracking
+		self.totalLaborExpense = agentObj.totalLandExpenses
+		self.prevTotalLaborExpense = agentObj.prevTotalLaborExpense
+		self.avgLaborExpense = agentObj.avgLaborExpense
+		self.stepLaborExpense = agentObj.stepLaborExpense
+		self.prevStepLaborExpense = agentObj.prevStepLaborExpense
+		#Trading revenue
+		self.tradeRevenueTracking = agentObj.tradeRevenueTracking
+		self.totalTradeRevenue = agentObj.totalTradeRevenue
+		self.prevTotalTradeRevenue = agentObj.prevTotalTradeRevenue
+		self.avgTradeRevenue = agentObj.avgTradeRevenue
+		self.stepTradeRevenue = agentObj.stepTradeRevenue
+		self.prevStepTradeRevenue = agentObj.prevStepTradeRevenue
+		#Item expenses
+		self.itemExpensesTracking = agentObj.itemExpensesTracking
+		self.totalItemExpenses = agentObj.totalItemExpenses
+		self.prevTotalItemExpenses = agentObj.prevTotalItemExpenses
+		self.avgItemExpenses = agentObj.avgItemExpenses
+		self.stepItemExpenses = agentObj.stepItemExpenses
+		self.prevStepItemExpenses = agentObj.prevStepItemExpenses
+		#Land revenue
+		self.landRevenueTracking = agentObj.landRevenueTracking
+		self.totalLandRevenue = agentObj.totalLandRevenue
+		self.prevTotalLandRevenue = agentObj.prevTotalLandRevenue
+		#Land expenses
+		self.landExpensesTracking = agentObj.landExpensesTracking
+		self.totalLandExpenses = agentObj.totalLandExpenses
+		self.prevTotalLandExpenses = agentObj.prevTotalLandExpenses
+		#Currency inflows
+		self.currencyInflowTracking = agentObj.currencyInflowTracking
+		self.totalCurrencyInflow = agentObj.totalCurrencyInflow
+		self.prevTotalCurrencyInflow = agentObj.prevTotalCurrencyInflow
+		self.avgCurrencyInflow = agentObj.avgCurrencyInflow
+		self.stepCurrencyInflow = agentObj.stepCurrencyInflow
+		self.prevStepCurrencyInflow = agentObj.prevStepCurrencyInflow
+		#Currency outflows
+		self.currencyOutflowTracking = agentObj.currencyOutflowTracking
+		self.totalCurrencyOutflow = agentObj.totalCurrencyOutflow
+		self.prevTotalCurrencyOutflow = agentObj.prevTotalCurrencyOutflow
+		self.avgCurrencyOutflow = agentObj.avgCurrencyOutflow
+		self.stepCurrencyOutflow = agentObj.stepCurrencyOutflow
+		self.prevStepCurrencyOutflow = agentObj.prevStepCurrencyOutflow
+		#Production functions
+		self.productionFunctions = agentObj.productionFunctions
+
+
+	def loadCheckpoint(self, agentObj):
+		'''
+		Overwrites the class variables of agentObj with the values stored in this checkpoint obj
+		'''
+		agentObj.info = self.info
+		agentObj.agentId = self.agentId
+		agentObj.agentType = self.agentType
+		
+		agentObj.simManagerId = self.simManagerId
+		agentObj.outputDir = self.outputDir
+
+		#Keep track of other agents
+		agentObj.allAgentDict = self.allAgentDict
+
+		#Keep track of agent assets
+		agentObj.currencyBalance = self.currencyBalance
+		agentObj.inventory = self.inventory
+		agentObj.debtBalance = self.debtBalance
+		agentObj.landHoldings = self.landHoldings
+
+		agentLandAllocationQueue = LandAllocationQueue(agentObj)
+		agentLandAllocationQueue.queue = self.landAllocationQueue__quueu
+		agentObj.landAllocationQueue = agentLandAllocationQueue
+
+		#Keep track of labor stuff
+		agentObj.skillLevel = self.skillLevel
+
+		agentObj.laborContracts = self.laborContracts
+		agentObj.laborContractsTotal = self.laborContractsTotal
+		agentObj.laborInventory = self.laborInventory
+		agentObj.nextLaborInventory = self.nextLaborInventory
+		agentObj.commitedTicks = self.commitedTicks
+		agentObj.commitedTicks_nextStep = self.commitedTicks_nextStep
+
+		#Keep track of time ticks
+		agentObj.timeTicks = self.timeTicks
+		agentObj.tickBlockFlag = self.tickBlockFlag
+		agentObj.stepNum = self.stepNum
+		agentObj.ticksPerStep = self.ticksPerStep
+		
+		#Instantiate agent preferences (utility functions)
+		agentObj.nutritionalDict = self.nutritionalDict
+		agentObj.utilityFunctions = self.utilityFunctions
+		agentObj.eating = self.eating
+		agentObj.autoEatFlag = self.autoEatFlag
+
+		#Keep track of agent nutrition
+		agentObj.enableNutrition = self.enableNutrition
+		agentObj.nutritionTracker = self.nutritionTracker
+
+		#####
+		# Keep track of accounting stats
+		#####
+		#Labor income
+		agentObj.laborIncomeTracking = self.laborIncomeTracking
+		agentObj.totalLaborIncome = self.totalLaborIncome
+		agentObj.prevTotalLaborIncome = self.prevTotalLaborIncome
+		agentObj.avgLaborIncome = self.avgLaborIncome
+		agentObj.stepLaborIncome = self.stepLaborIncome
+		agentObj.prevStepLaborIncome = self.prevStepLaborIncome
+		#Labor expenses
+		agentObj.laborExpenseTracking = self.laborExpenseTracking
+		agentObj.totalLaborExpense = self.totalLandExpenses
+		agentObj.prevTotalLaborExpense = self.prevTotalLaborExpense
+		agentObj.avgLaborExpense = self.avgLaborExpense
+		agentObj.stepLaborExpense = self.stepLaborExpense
+		agentObj.prevStepLaborExpense = self.prevStepLaborExpense
+		#Trading revenue
+		agentObj.tradeRevenueTracking = self.tradeRevenueTracking
+		agentObj.totalTradeRevenue = self.totalTradeRevenue
+		agentObj.prevTotalTradeRevenue = self.prevTotalTradeRevenue
+		agentObj.avgTradeRevenue = self.avgTradeRevenue
+		agentObj.stepTradeRevenue = self.stepTradeRevenue
+		agentObj.prevStepTradeRevenue = self.prevStepTradeRevenue
+		#Item expenses
+		agentObj.itemExpensesTracking = self.itemExpensesTracking
+		agentObj.totalItemExpenses = self.totalItemExpenses
+		agentObj.prevTotalItemExpenses = self.prevTotalItemExpenses
+		agentObj.avgItemExpenses = self.avgItemExpenses
+		agentObj.stepItemExpenses = self.stepItemExpenses
+		agentObj.prevStepItemExpenses = self.prevStepItemExpenses
+		#Land revenue
+		agentObj.landRevenueTracking = self.landRevenueTracking
+		agentObj.totalLandRevenue = self.totalLandRevenue
+		agentObj.prevTotalLandRevenue = self.prevTotalLandRevenue
+		#Land expenses
+		agentObj.landExpensesTracking = self.landExpensesTracking
+		agentObj.totalLandExpenses = self.totalLandExpenses
+		agentObj.prevTotalLandExpenses = self.prevTotalLandExpenses
+		#Currency inflows
+		agentObj.currencyInflowTracking = self.currencyInflowTracking
+		agentObj.totalCurrencyInflow = self.totalCurrencyInflow
+		agentObj.prevTotalCurrencyInflow = self.prevTotalCurrencyInflow
+		agentObj.avgCurrencyInflow = self.avgCurrencyInflow
+		agentObj.stepCurrencyInflow = self.stepCurrencyInflow
+		agentObj.prevStepCurrencyInflow = self.prevStepCurrencyInflow
+		#Currency outflows
+		agentObj.currencyOutflowTracking = self.currencyOutflowTracking
+		agentObj.totalCurrencyOutflow = self.totalCurrencyOutflow
+		agentObj.prevTotalCurrencyOutflow = self.prevTotalCurrencyOutflow
+		agentObj.avgCurrencyOutflow = self.avgCurrencyOutflow
+		agentObj.stepCurrencyOutflow = self.stepCurrencyOutflow
+		agentObj.prevStepCurrencyOutflow = self.prevStepCurrencyOutflow
+		#Production functions
+		agentObj.productionFunctions = self.productionFunctions
+
+
+	def __str__(self):
+		return "AgentCheckpoint({})".format(self.info)
+
+
+
 class Agent:
 	'''
 	The Agent class is a generic class used by all agents running in a simulation.
@@ -1118,6 +1341,7 @@ class Agent:
 		self.agentType = agentInfo.agentType
 		
 		self.simManagerId = simManagerId
+		self.outputDir = outputDir
 
 		self.logger = utils.getLogger("{}:{}".format(__name__, self.agentId), console="ERROR", logFile=logFile, outputdir=os.path.join(outputDir, "LOGS", "Agent_Logs"), fileLevel=fileLevel)
 		self.logger.info("{} instantiated".format(self.info))
@@ -3668,8 +3892,63 @@ class Agent:
 		else:
 			self.logger.warning("Received infoRequest for another agent {}. Ignoring it".format(infoRequest))
 
+	def saveCheckpoint(self, filePath=None):
+		'''
+		Saves current agent state into a checkpoint file. Will determine it's own filepath if filePath is not defined
+		'''
+		self.logger.info("saveCheckpoint() start")
+		checkpointObj = AgentCheckpoint(self)
+
+		checkpointFileName = "{}.{}.checkpoint.pickle".format(self.agentId, self.agentType)
+		outputPath = os.path.join(self.outputDir, "CHECKPOINT", checkpointFileName)
+		if (filePath):
+			outputPath = filePath
+		utils.createFolderPath(outputPath)
+
+		self.logger.info("saveCheckpoint() Saving checkpoint to \"{}\"".format(outputPath))
+		with open(outputPath, "wb") as pickleFile:
+			pickle.dump(checkpointObj, pickleFile)
+
+	def loadCheckpoint(self, filePath=None):
+		'''
+		Attempts to load agent state from checkpoint file. Returns true if successful, False if not
+		Will try to find the checkpoint file if filePath is not specified.
+		'''
+		self.logger.info("loadCheckpoint(filePath={}) start".format(filePath))
+
+		#Determine checkpoint file path
+		checkpointFileName = "{}.{}.checkpoint.pickle".format(self.agentId, self.agentType)
+		checkpointFilePath = os.path.join(self.outputDir, "CHECKPOINT", checkpointFileName)
+		if (filePath):
+			checkpointFilePath = filePath
+
+		if (not os.path.exists(checkpointFilePath)):
+			self.logger.error("Could not load checkpoint. \"{}\" does not exist".format(checkpointFilePath))
+			return False
+
+		#Load checkpoint
+		try:
+			self.logger.info("loadCheckpoint() Trying to load checkpoint \"{}\"".format(checkpointFilePath))
+			checkpointObj = None
+			with open(checkpointFilePath, "rb") as pickleFile:
+				checkpointObj = pickle.load(pickleFile)
+
+			if (checkpointObj):
+				if (isinstance(checkpointObj, AgentCheckpoint)):
+					checkpointObj.loadCheckpoint(self)
+				else:
+					raise ValueError("Loaded pickle was tpye \"{}\"".format(type(checkpointObj)))
+			else:
+				raise ValueError("Loaded pickle was None")
+		except:
+			self.logger.error("Error while loading checkpoint\n{}".format(traceback.format_exc()))
+			return False
+
+		self.logger.debug("loadCheckpoint() succeeded")
+		return True
+
 	def __str__(self):
-		return str(self.agentInfo)
+		return str(self.info)
 
 '''
 Item Json format

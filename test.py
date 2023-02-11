@@ -3,7 +3,7 @@ import json
 import random
 import multiprocessing as mp
 import os
-
+import pickle
 
 if __name__ == "__main__":
 	######################
@@ -34,64 +34,29 @@ if __name__ == "__main__":
 			pass
 	
 	#Create test agent
-	farmerSeed = AgentSeed("potatoFarmer", agentType="TestProducer", itemDict=allItemsDict, disableNetworkLink=True)
+	farmerSeed = AgentSeed("potatoFarmer", agentType="TestProducer", itemDict=allItemsDict, disableNetworkLink=True, outputDir="testCheckpoint")
 	farmer = farmerSeed.spawnAgent()
 	farmer.timeTicks = 48
 
-	#Get initial production deltas
-	dozenDeltas = farmer.getProductionInputDeltas("potato", 12)
-	print("# A # dozenDeltas = {}".format(dozenDeltas))
+	#Test pickling on dict
+	testObj = {"message": "Hello world!"}
+	with open("OUTPUT\\testObj.dict.pickle", "wb") as pickleFile:
+		pickle.dump(testObj, pickleFile)
 
-	#Give agent needed production inputs
-	allocate = True
-	if (allocate):
-		#print(farmer.landHoldings)
-		farmer.receiveLand("UNALLOCATED", 2)
-		#print(farmer.landHoldings)
-		farmer.allocateLand("potato", 2)
-		#print(farmer.landHoldings)
-		farmer.useTimeTicks(12)
-		#print(farmer.landHoldings)
-		farmer.useTimeTicks(12)
-		#print(farmer.landHoldings)
-	else:
-		farmer.receiveLand("potato", 2)
-		#print(farmer.landHoldings)
-	dozenDeltas = farmer.getProductionInputDeltas("potato", 12)
-	print("# B # dozenDeltas = {}".format(dozenDeltas))
+	loadedObj = {}
+	with open("OUTPUT\\testObj.dict.pickle", "rb") as pickleFileLoad:
+		loadedObj = pickle.load(pickleFileLoad)
 
+	print("loadedObj = {}".format(loadedObj))
 
-	farmer.receiveItem(ItemContainer("shovel", 1))
-	dozenDeltas = farmer.getProductionInputDeltas("potato", 12)
-	print("# C # dozenDeltas = {}".format(dozenDeltas))
+	#Test pickling on econ agent
+	farmer.saveCheckpoint()
+	print(farmer)
 
-	lowSkillContract = LaborContract(employerId=None, workerId=None, ticksPerStep=50, wagePerTick=10, workerSkillLevel=0.1, contractLength=10, startStep=0, endStep=10)
-	farmer.laborContracts[10] = {}
-	farmer.laborContracts[10]["A"] = lowSkillContract
-	farmer.laborContracts[10]["B"] = lowSkillContract
+	farmerSeed2 = AgentSeed("potatoFarmer_raw", agentType="TestProducer", itemDict=allItemsDict, disableNetworkLink=True, outputDir="testCheckpoint")
+	farmerLoaded = farmerSeed2.spawnAgent()
+	print(farmerLoaded)
+	farmerLoaded.loadCheckpoint(filePath="testCheckpoint\\CHECKPOINT\\potatoFarmer.TestProducer.checkpoint.pickle")
+	print(farmerLoaded)
 
-	highSkillContract = LaborContract(employerId=None, workerId=None, ticksPerStep=16, wagePerTick=10, workerSkillLevel=0.9, contractLength=10, startStep=0, endStep=10)
-	farmer.laborContracts[10]["C"] = highSkillContract
-
-	farmer.laborInventory[0.6] = 50
-	farmer.laborInventory[0.2] = 50
-	dozenDeltas = farmer.getProductionInputDeltas("potato", 12)
-	print("# D # dozenDeltas = {}".format(dozenDeltas))
-
-	farmer.receiveItem(ItemContainer("water", 1000))
-	dozenDeltas = farmer.getProductionInputDeltas("potato", 12)
-	print("# E # dozenDeltas = {}".format(dozenDeltas))
-	dozenDeficits = farmer.getProductionInputDeficit("potato", 12)
-	print("# E # dozenDeficits = {}".format(dozenDeficits))
-	dozenSurplus = farmer.getProductionInputSurplus("potato", 12)
-	print("# E # dozenSurplus = {}".format(dozenSurplus))
-	#maxQuant = farmer.getMaxProduction("potato")
-	#print(maxQuant)
-
-	#Produce some potatos
-	#farmer.produceItem(ItemContainer("potato", 1))
-	#print(farmer.inventory)
-	#farmer.produceItem(ItemContainer("potato", 1))
-	#print(farmer.inventory)
-	#farmer.produceItem(ItemContainer("potato", 1))
-	#print(farmer.inventory)
+	#print("farmerLoaded = {}".format(farmerLoaded))
