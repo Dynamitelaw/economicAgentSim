@@ -1459,11 +1459,11 @@ class TestFarmWorkerV2:
 
 			if (self.agent.stepNum >= self.startStep):
 				#Get free money early on in simulation to jump start economy
-				self.agent.receiveCurrency(self.initialIncome)
-				# if (self.initialIncomeSkewCntr > 0):
-				# 	self.agent.receiveCurrency(self.initialIncome)
-				# 	self.initialIncome = self.initialIncome*0.8
-				# 	self.initialIncomeSkewCntr -= 1
+				#self.agent.receiveCurrency(self.initialIncome)
+				if (self.initialIncomeSkewCntr > 0):
+					self.agent.receiveCurrency(self.initialIncome)
+					self.initialIncome = self.initialIncome*0.8
+					self.initialIncomeSkewCntr -= 1
 
 				#Look for jobs
 				avgLaborIncome = self.agent.getAvgLaborIncome()

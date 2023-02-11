@@ -1141,6 +1141,7 @@ class Agent:
 		self.needItemTransferAck = False
 		self.needLandTransferAck = False
 		self.needLaborCancellationAck = False
+		self.needTickBlockAck = False
 
 		#Keep track of other agents
 		self.allAgentDict = allAgentDict
@@ -1304,6 +1305,7 @@ class Agent:
 		'''
 		self.logger.info("Monitoring networkLink {}".format(self.networkLink))
 		while True:
+			self.logger.debug("Monitoring networkLink {}".format(self.networkLink))
 			incommingPacket = self.networkLink.recvPipe.recv()
 			self.logger.info("INBOUND {}".format(incommingPacket))
 			if ((incommingPacket.msgType == PACKET_TYPE.KILL_PIPE_AGENT) or (incommingPacket.msgType == PACKET_TYPE.KILL_ALL_BROADCAST)):
@@ -1324,7 +1326,8 @@ class Agent:
 			#Handle incoming acks
 			elif ((incommingPacket.msgType == PACKET_TYPE.CURRENCY_TRANSFER_ACK) or (incommingPacket.msgType == PACKET_TYPE.ITEM_TRANSFER_ACK) or (incommingPacket.msgType == PACKET_TYPE.LAND_TRANSFER_ACK) or	
 				(incommingPacket.msgType == PACKET_TYPE.TRADE_REQ_ACK) or (incommingPacket.msgType == PACKET_TYPE.LAND_TRADE_REQ_ACK) or (incommingPacket.msgType == PACKET_TYPE.LABOR_APPLICATION_ACK) or (incommingPacket.msgType == PACKET_TYPE.LABOR_CONTRACT_CANCEL_ACK) or
-				(incommingPacket.msgType == PACKET_TYPE.ITEM_MARKET_SAMPLE_ACK) or (incommingPacket.msgType == PACKET_TYPE.LABOR_MARKET_SAMPLE_ACK) or (incommingPacket.msgType == PACKET_TYPE.LAND_MARKET_SAMPLE_ACK)):
+				(incommingPacket.msgType == PACKET_TYPE.ITEM_MARKET_SAMPLE_ACK) or (incommingPacket.msgType == PACKET_TYPE.LABOR_MARKET_SAMPLE_ACK) or (incommingPacket.msgType == PACKET_TYPE.LAND_MARKET_SAMPLE_ACK) or 
+				(incommingPacket.msgType == PACKET_TYPE.TICK_BLOCKED_ACK)):
 				#Determine whether to handle this ack
 				handleAck = True
 				if (incommingPacket.msgType == PACKET_TYPE.CURRENCY_TRANSFER_ACK):
@@ -1335,6 +1338,8 @@ class Agent:
 					handleAck = self.needLandTransferAck
 				elif (incommingPacket.msgType == PACKET_TYPE.LABOR_CONTRACT_CANCEL_ACK):
 					handleAck = self.needLaborCancellationAck
+				elif (incommingPacket.msgType == PACKET_TYPE.TICK_BLOCKED_ACK):
+					handleAck = self.needTickBlockAck
 		
 				if (handleAck):
 					#Place incoming acks into the response buffer
@@ -3479,9 +3484,20 @@ class Agent:
 
 						#Send blocked signal to sim manager
 						self.logger.debug("We're tick blocked. Sending TICK_BLOCKED to simManager")
+						if (self.needTickBlockAck):
+							tickBlockedId = "TickBlocked.{}.{}".format(self.agentId, self.stepNum)
+							while not (tickBlockedId in self.responseBuffer):
+								tickBlockPacket = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.TICK_BLOCKED, transactionId=tickBlockedId)
+								self.sendPacket(tickBlockPacket)
+								time.sleep(self.responsePollTime)
 
-						tickBlockPacket = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.TICK_BLOCKED)
-						self.sendPacket(tickBlockPacket)
+							self.responseBufferLock.acquire()
+							del self.responseBuffer[tickBlockedId]
+							self.responseBufferLock.release()
+						else:
+							tickBlockPacket = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.TICK_BLOCKED)
+							self.sendPacket(tickBlockPacket)
+
 				else:
 					#We do not have enought time ticks
 					self.logger.error("Cannot use {} time ticks. Only have {} available".format(amount, self.timeTicks))
@@ -3559,9 +3575,20 @@ class Agent:
 
 					#Send blocked signal to sim manager
 					self.logger.debug("We're tick blocked. Sending TICK_BLOCKED to simManager")
+					if (self.needTickBlockAck):
+						tickBlockedId = "TickBlocked.{}.{}".format(self.agentId, self.stepNum)
+						while not (tickBlockedId in self.responseBuffer):
+							tickBlockPacket = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.TICK_BLOCKED, transactionId=tickBlockedId)
+							self.sendPacket(tickBlockPacket)
+							time.sleep(self.responsePollTime)
 
-					tickBlockPacket = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.TICK_BLOCKED)
-					self.sendPacket(tickBlockPacket)
+						self.responseBufferLock.acquire()
+						del self.responseBuffer[tickBlockedId]
+						self.responseBufferLock.release()
+					else:
+						tickBlockPacket = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.TICK_BLOCKED)
+						self.sendPacket(tickBlockPacket)
+
 
 			else:
 				#Lock timout

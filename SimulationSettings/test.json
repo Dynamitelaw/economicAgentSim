@@ -3,9 +3,29 @@
 	"description": "Test simulation with competetive farms. Used for testing and debug.",
 	"settings": {
 		"AgentNumProcesses": 6,
-		"SimulationSteps": 600,
+		"SimulationSteps": 800,
 		"TicksPerStep": 16,
 		"AgentSpawns":{
+			"AppleFarm": {
+				"TestFarmCompetetiveV2":{
+					"quantity": 9,
+					"settings": {
+						"itemId": "apple",
+						"startingProductionRate": 20,
+						"StartSkew": 9
+					}
+				}
+			},
+			"ButterFarm": {
+				"TestFarmCompetetiveV2":{
+					"quantity": 9,
+					"settings": {
+						"itemId": "butter",
+						"startingProductionRate":6.68,
+						"StartSkew": 9
+					}
+				}
+			},
 			"PeaFarm0": {
 				"TestFarmCompetetiveV2":{
 					"quantity": 1,
@@ -96,6 +116,26 @@
 					}
 				}
 			},
+			"EggFarm": {
+				"TestFarmCompetetiveV2":{
+					"quantity": 9,
+					"settings": {
+						"itemId": "egg",
+						"startingProductionRate": 15.04,
+						"StartSkew": 9
+					}
+				}
+			},
+			"SpudFarm": {
+				"TestFarmCompetetiveV2":{
+					"quantity": 9,
+					"settings": {
+						"itemId": "potato",
+						"startingProductionRate": 23.32,
+						"StartSkew": 9
+					}
+				}
+			},
 			"River": {
 				"TestSpawner":{
 					"quantity": 1,
@@ -126,6 +166,50 @@
 					"OuputPath": "ConsumptionStats/PrivateConsumption.csv"
 				}
 			},
+			"AppleMarket":{
+				"ItemPriceTracker":{
+					"id": "apple",
+					"OuputPath": "FoodMarket/apple/ApplePrice.csv"
+				},
+				"ProductionTracker":{
+					"id": "apple",
+					"OuputPath": "FoodMarket/apple/AppleProduction.csv"
+				},
+				"AccountingTracker":{
+					"AgentFilters": ["AppleFarmAccounting"],
+					"OuputPath": "FoodMarket/apple/AppleFarmAccounting.csv"
+				}
+			},
+			"ButterMarket":{
+				"ItemPriceTracker":{
+					"id": "butter",
+					"OuputPath": "FoodMarket/butter/ButterPrice.csv"
+				},
+				"ProductionTracker":{
+					"id": "butter",
+					"OuputPath": "FoodMarket/butter/ButterProduction.csv"
+				}
+			},
+			"EggMarket":{
+				"ItemPriceTracker":{
+					"id": "egg",
+					"OuputPath": "FoodMarket/egg/EggPrice.csv"
+				},
+				"ProductionTracker":{
+					"id": "egg",
+					"OuputPath": "FoodMarket/egg/EggProduction.csv"
+				}
+			},
+			"SpudMarket":{
+				"ItemPriceTracker":{
+					"id": "potato",
+					"OuputPath": "FoodMarket/potato/PotatoPrice.csv"
+				},
+				"ProductionTracker":{
+					"id": "potato",
+					"OuputPath": "FoodMarket/potato/PotatoProduction.csv"
+				}
+			},
 			"PeaMarket":{
 				"ItemPriceTracker":{
 					"id": "chickpea",
@@ -134,60 +218,6 @@
 				"ProductionTracker":{
 					"id": "chickpea",
 					"OuputPath": "FoodMarket/chickpea/ChickpeaProduction.csv"
-				}
-			},
-			"PeaFarm0_Accounting": {
-				"AccountingTracker":{
-					"AgentFilters": ["PeaFarm0"],
-					"OuputPath": "FoodMarket/chickpea/accounting/ChickpeaFarm0_Accounting.csv"
-				}
-			},
-			"PeaFarm1_Accounting": {
-				"AccountingTracker":{
-					"AgentFilters": ["PeaFarm1"],
-					"OuputPath": "FoodMarket/chickpea/accounting/ChickpeaFarm1_Accounting.csv"
-				}
-			},
-			"PeaFarm2_Accounting": {
-				"AccountingTracker":{
-					"AgentFilters": ["PeaFarm2"],
-					"OuputPath": "FoodMarket/chickpea/accounting/ChickpeaFarm2_Accounting.csv"
-				}
-			},
-			"PeaFarm3_Accounting": {
-				"AccountingTracker":{
-					"AgentFilters": ["PeaFarm3"],
-					"OuputPath": "FoodMarket/chickpea/accounting/ChickpeaFarm3_Accounting.csv"
-				}
-			},
-			"PeaFarm4_Accounting": {
-				"AccountingTracker":{
-					"AgentFilters": ["PeaFarm4"],
-					"OuputPath": "FoodMarket/chickpea/accounting/ChickpeaFarm4_Accounting.csv"
-				}
-			},
-			"PeaFarm5_Accounting": {
-				"AccountingTracker":{
-					"AgentFilters": ["PeaFarm5"],
-					"OuputPath": "FoodMarket/chickpea/accounting/ChickpeaFarm5_Accounting.csv"
-				}
-			},
-			"PeaFarm6_Accounting": {
-				"AccountingTracker":{
-					"AgentFilters": ["PeaFarm6"],
-					"OuputPath": "FoodMarket/chickpea/accounting/ChickpeaFarm6_Accounting.csv"
-				}
-			},
-			"PeaFarm7_Accounting": {
-				"AccountingTracker":{
-					"AgentFilters": ["PeaFarm7"],
-					"OuputPath": "FoodMarket/chickpea/accounting/ChickpeaFarm7_Accounting.csv"
-				}
-			},
-			"PeaFarm8_Accounting": {
-				"AccountingTracker":{
-					"AgentFilters": ["PeaFarm8"],
-					"OuputPath": "FoodMarket/chickpea/accounting/ChickpeaFarm8_Accounting.csv"
 				}
 			},
 			"WaterPrices":{

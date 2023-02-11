@@ -35,7 +35,7 @@ class ConnectionNetwork:
 		self.outputDir = outputDir
 		#self.logger = utils.getLogger("{}".format(__name__), logFile=logFile, outputdir=os.path.join(outputDir, "LOGS"), fileLevel=logLevel)   #This causes a serious performance hit. Only enable it if you REALLY need to
 		self.logger = utils.getLogger("{}".format(__name__), logFile=logFile, outputdir=os.path.join(outputDir, "LOGS"), fileLevel="INFO")
-		self.lockTimeout = 5
+		self.lockTimeout = 10
 
 		self.agentConnections = {}
 		self.agentConnectionsLock = threading.Lock()
@@ -233,7 +233,11 @@ class ConnectionNetwork:
 
 			#Handle tick blocked packets
 			elif (incommingPacket.msgType == PACKET_TYPE.TICK_BLOCKED):
-				self.timeTickBlockers[incommingPacket.senderId] = True
+				if (incommingPacket.senderId in self.timeTickBlockers):
+					self.timeTickBlockers[incommingPacket.senderId] = True
+
+				responsePacket = NetworkPacket(senderId=self.id, destinationId=incommingPacket.senderId, msgType=PACKET_TYPE.TICK_BLOCKED_ACK, transactionId=incommingPacket.transactionId)
+				self.sendPacket(incommingPacket.senderId, responsePacket)
 
 			#Handle marketplace packets
 			elif ((incommingPacket.msgType == PACKET_TYPE.ITEM_MARKET_UPDATE) or (incommingPacket.msgType == PACKET_TYPE.ITEM_MARKET_REMOVE) or (incommingPacket.msgType == PACKET_TYPE.ITEM_MARKET_SAMPLE) or (incommingPacket.msgType == PACKET_TYPE.ITEM_MARKET_SAMPLE_ACK)):
@@ -318,7 +322,8 @@ class ConnectionNetwork:
 							prevBlockerAgent = agentId
 							break
 			except:
-				pass
+				self.logger.warning(traceback.format_exc())
+				allAgentsBlocked = False
 
 			if (allAgentsBlocked and self.simStarted):
 				#Mark all spawned threads as elgible for garbage collection
@@ -364,12 +369,15 @@ class ConnectionNetwork:
 					averageLoopTime = endTime-prevStartTime
 				alpha = 0.3
 				averageLoopTime = ((1-alpha)*averageLoopTime) + (alpha*(endTime-prevStartTime))
+				self.lockTimeout = 2*averageLoopTime
 				prevStartTime = time.time()
 
 				#Reset tick block flags
 				self.logger.info("All agents are tick blocked. Reseting blocks and notifying simulation manager")
+				self.timeTickBlockers_Lock.acquire()
 				for agentId in self.timeTickBlockers:
 					self.timeTickBlockers[agentId] = False
+				self.timeTickBlockers_Lock.release()
 
 				#Notify sim manager to start the next step
 				controllerMsg = NetworkPacket(senderId=self.id, destinationId=self.simManagerId, msgType=PACKET_TYPE.ADVANCE_STEP)
