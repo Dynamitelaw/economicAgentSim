@@ -204,12 +204,27 @@ class ConnectionNetwork:
 				pipeIdList = list(self.agentConnections.keys())
 				self.agentConnectionsLock.release()  #<== release agentConnectionsLock
 
-				for pipeId in pipeIdList:
-					self.sendPacket(pipeId, incommingPacket)
+				if (incommingPacket.msgType == PACKET_TYPE.INFO_REQ_BROADCAST):
+					#Prefilter info req requests for improved performance
+					agentFilter = ""
+					try:
+						agentFilter = incommingPacket.payload.agentFilter
+					except:
+						agentFilter = ""
+					enableFiltering = len(agentFilter) > 0
+
+					for pipeId in pipeIdList:
+						if (not enableFiltering):
+							self.sendPacket(pipeId, incommingPacket)
+						elif (agentFilter in pipeId):
+							self.sendPacket(pipeId, incommingPacket)
+				else:
+					for pipeId in pipeIdList:
+						self.sendPacket(pipeId, incommingPacket)
 
 				self.logger.debug("Ending broadcast")
 
-				#CSet killAllFlag
+				#Set killAllFlag
 				if (incommingPacket.msgType == PACKET_TYPE.KILL_ALL_BROADCAST):
 					self.logger.debug("Setting killAllFlag")
 					self.killAllFlag = True

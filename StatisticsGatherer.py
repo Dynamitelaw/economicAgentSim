@@ -789,6 +789,7 @@ class AccountingTracker:
 					if (infoReq.transactionId == self.name):
 						self.addInfo(infoReq)
 
+
 	def loadCheckpoint(self):
 		pass
 
@@ -808,6 +809,8 @@ class StatisticsGatherer:
 
 		self.itemDict = itemDict
 		self.lockTimeout = 5
+
+		self.stepNum = -1
 
 		#Pipe connections to the connection network
 		self.networkLink = networkLink
@@ -879,6 +882,8 @@ class StatisticsGatherer:
 
 			#Hanle incoming tick grants
 			elif ((incommingPacket.msgType == PACKET_TYPE.TICK_GRANT) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST)):
+				self.stepNum += 1
+				self.logger.info("#### Step = {} ####".format(self.stepNum))
 				for trackerObj in self.trackers:
 					self.logger.info("Advancing step for {}".format(trackerObj))
 					trackerObj.advanceStep()

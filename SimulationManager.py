@@ -114,7 +114,7 @@ class SimulationManager:
 			self.logger.info("Starting all agent controllers")
 			controllerStartBroadcast = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.CONTROLLER_START_BROADCAST)
 			self.agent.sendPacket(controllerStartBroadcast)
-			time.sleep(sleepTime)  #Sleep to give controllers time to start blocking protocols #TODO: calculate sleep time based on size of agentDict
+			time.sleep(sleepTime)  #Sleep to give controllers time to start blocking protocols
 
 			#Load initial checkpoint if specified
 			if (self.initialCheckpoint):
@@ -177,7 +177,7 @@ class SimulationManager:
 					#Save checkpoint
 					if (self.checkpointFrequency):
 						if ((stepNum > 0) and (stepNum%self.checkpointFrequency == 0)):
-							self.logger.info("Saving simulation checkpoint")
+							self.logger.debug("Saving simulation checkpoint")
 							checkpointPacket = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.SAVE_CHECKPOINT_BROADCAST, payload=ticksPerStep)
 							self.agent.sendPacket(checkpointPacket)
 
