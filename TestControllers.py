@@ -1819,7 +1819,8 @@ class TestFarmCompetetiveV2:
 			for listing in sampledListings:
 				totalPrice += listing.unitPrice*listing.maxQuantity
 				totalQuantity += listing.maxQuantity
-			meanPrice = totalPrice/totalQuantity
+			if (totalQuantity > 0):
+				meanPrice = totalPrice/totalQuantity
 		self.logger.info("volume-adjusted average market price = {}".format(meanPrice))
 		
 
@@ -2043,6 +2044,629 @@ class TestFarmCompetetiveV2:
 		#Print stats
 		self.logger.debug("HR Stats: employees={}, requiredLabor={}, workerDeficit={}, applications={}, openSteps={}, workerWage={}".format(self.agent.laborContractsTotal, self.requiredLabor, self.workerDeficit, self.applications, self.openSteps, self.workerWage))
 
+
+	#########################
+	# Misc functions
+	#########################
+	def getInfoDumpString(self):
+		infoString = "CONTROLLER_INFO_DUMP: "
+		infoString += "\ntargetProductionRate={}".format(self.targetProductionRate)
+		infoString += "\ncurrentProductionRateAvg={}".format(self.currentProductionRateAvg)
+		infoString += "\nsellPrice={}".format(self.sellPrice)
+		infoString += "\ncurrentSalesAvg={}".format(self.currentSalesAvg)
+		infoString += "\nstepSales={}".format(self.stepSales)
+		infoString += "\nrequiredLabor={}".format(self.requiredLabor)
+		infoString += "\nworkerWage={}".format(self.workerWage)
+		infoString += "\napplications={}".format(self.applications)
+		infoString += "\nopenSteps={}".format(self.openSteps)
+		infoString += "\nworkerDeficit={}".format(self.workerDeficit)
+		infoString += "\nlistingActive={}".format(self.listingActive)
+
+		return infoString
+
+
+class TestFarmCompetetiveV3:
+	'''
+	This controller will hire workers and buy input costs to produce a single item.
+	Will sell that item on the marketplace, and adjust the price to maxmimize profit.
+	Used for testing.
+	'''
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO", outputDir="OUTPUT"):
+		self.agent = agent
+		self.agentId = agent.agentId
+		self.simManagerId = agent.simManagerId
+
+		self.name = "{}_TestFarmCompetetiveV2".format(agent.agentId)
+
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join(outputDir, "LOGS", "Controller_Logs"), fileLevel=fileLevel)
+
+		#Initiate thread kill flag to false
+		self.killThreads = False
+
+		#Handle start skews
+		self.startStep = 0
+		if ("StartSkew" in settings):
+			skewRate = settings["StartSkew"]+1
+			self.startStep = int(random.random()/(1.0/skewRate))
+		self.updateRate = 5
+		self.updateOffset = self.startStep
+
+		#Determine what to produce
+		itemList = self.agent.utilityFunctions.keys()
+		self.sellItemId = random.sample(itemList, 1)[0]
+		if ("itemId" in settings):
+			self.sellItemId = settings["itemId"]
+			self.logger.info("Sell item specified. Will sell \"{}\"".format(self.sellItemId))
+		else:
+			self.logger.info("No item specified. Randomly selected \"{}\"".format(self.sellItemId))
+
+
+		#Keep track of production targets
+		self.targetProductionRate = 10
+		if ("startingProductionRate" in settings):
+			self.targetProductionRate = settings["startingProductionRate"]
+			self.logger.info("Initial production rate specified. Will initialize target production to {} {} per step".format(self.targetProductionRate, self.sellItemId))
+		else:
+			self.logger.info("No initial production rate specified. Will initialize target production to {} {} per step".format(self.targetProductionRate, self.sellItemId))
+		self.currentProductionRateAvg = self.targetProductionRate
+		self.targetInventoryDays = 3
+
+		#Keep track of sell price
+		averageCustomers = 480/9
+		self.sellPrice = (self.agent.utilityFunctions[self.sellItemId].getMarginalUtility(self.targetProductionRate/averageCustomers)) * (1+(random.random()-0.5))
+		self.currentSalesAvg = self.targetProductionRate 
+		self.stepSales = self.currentSalesAvg
+		#self.stepSalesLock = threading.Lock()  #TODO
+
+		self.itemListing = ItemListing(sellerId=self.agentId, itemId=self.sellItemId, unitPrice=self.sellPrice, maxQuantity=self.currentProductionRateAvg/3)
+
+		#Keep track of wages and hiring stats
+		self.laborLock = threading.Lock()
+		self.requiredLabor = 0
+
+		self.laborSkillLevel = 0
+		self.maxTicksPerStep = 4
+		self.contractLength = int(14*(1+((random.random()-0.5)/2)))
+
+		self.workerWage = 80*(1 + ((random.random()-0.5)/2))
+		self.applications = 0
+		self.openSteps = 0
+		self.workerDeficit = math.ceil(self.requiredLabor/self.maxTicksPerStep)
+		self.listingActive = False
+		
+		self.laborListing = LaborListing(employerId=self.agentId, ticksPerStep=self.maxTicksPerStep, wagePerTick=self.workerWage, minSkillLevel=self.laborSkillLevel, contractLength=self.contractLength, listingName="Employer_{}".format(self.agentId))
+
+		#Keep track of business closing
+		self.closingBusiness = False
+		self.liquidationListings = {}
+
+	#########################
+	# Communication functions
+	#########################
+	def controllerStart(self, incommingPacket):
+		#Subscribe for tick blocking
+		self.agent.subcribeTickBlocking()
+
+		#Spawn initial quantity of land
+		self.agent.receiveLand("UNALLOCATED", 9999999999)
+
+		#Spawn starting capital
+		self.agent.receiveCurrency(260000)
+		#self.agent.receiveCurrency(1000)
+
+		#Spawn initial inventory of items
+		self.agent.receiveItem(ItemContainer(self.sellItemId, self.targetProductionRate*self.targetInventoryDays))
+
+		#Enable accounting
+		self.agent.enableTradeRevenueTracking()
+		self.agent.enableCurrencyOutflowTracking()
+		self.agent.enableCurrencyInflowTracking()
+
+
+	def receiveMsg(self, incommingPacket):
+		self.logger.info("INBOUND {}".format(incommingPacket))
+
+		if (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST):
+			if (self.closingBusiness):
+				self.logger.info("#### StepNum = {} ####".format(self.agent.stepNum))
+
+				#This business is currently under liquidation
+				#Check if liquidation is complete. If so, commit suicide
+				allItemsLiquidated = True
+				for itemId in self.agent.inventory:
+					itemContainer = self.agent.inventory[itemId]
+					if (itemContainer.quantity <= 0):
+						self.agent.removeItemListing(ItemListing(sellerId=self.agentId, itemId=itemId, unitPrice=0, maxQuantity=0))
+					else:
+						if ((self.agent.stepNum-self.updateOffset)%self.updateRate == 0):
+							self.liquidateItem(itemContainer)
+						allItemsLiquidated = False
+
+				if (allItemsLiquidated):
+					self.logger.info("Completed business liquidation. Commiting suicide")
+					killPacket = NetworkPacket(senderId=self.agentId, destinationId=self.agentId, msgType=PACKET_TYPE.KILL_PIPE_AGENT)
+					self.agent.sendPacket(killPacket)
+					self.killThreads = True
+
+			# A new step has started
+			if (self.agent.stepNum == self.startStep):
+				self.logger.info("StepNum = {}, Starting controller functionality".format(self.agent.stepNum))
+
+			if ((self.agent.stepNum >= self.startStep) and (not self.closingBusiness)):
+				self.logger.info("#### StepNum = {} ####".format(self.agent.stepNum))
+				#Determine if we should go out of business
+				currentCash = self.agent.getCurrencyBalance()
+				avgExpenses = self.agent.getAvgCurrencyOutflow()
+				stepExpenses = self.agent.getStepCurrencyOutflow()
+				if ((currentCash < (avgExpenses*1.5)) or (currentCash < (stepExpenses*1.5))):
+					#We're broke. Go out of business
+					self.closeBusiness()
+					
+				if (not self.closingBusiness):
+					#Update sales average
+					alpha = 0.2
+					self.currentSalesAvg = ((1-alpha)*self.currentSalesAvg) + (alpha*self.stepSales)
+					self.stepSales = 0
+
+					#Print business stats
+					self.logger.info("Current sales average = {}".format(self.currentSalesAvg))
+					avgRevenue = self.agent.getAvgTradeRevenue()
+					avgExpenses = self.agent.getAvgCurrencyOutflow()
+					self.logger.debug(self.agent.getAccountingStats())
+					self.logger.info("Avg Daily Expenses={}, Avg Daily Revenue={}, Avg Daily Profit={}".format(avgExpenses, avgRevenue, avgRevenue-avgExpenses))
+
+					if ((self.agent.stepNum-self.updateOffset)%self.updateRate == 0):
+						try:
+							#Adjust production
+							self.adjustProduction()
+
+							#Manage worker hiring
+							self.manageLabor()
+
+							#Produce items
+							self.produce()
+
+							#Update item listing
+							self.updateItemListing()
+						except:
+							self.logger.critical("UNHANDLED ERROR DURING STEP")
+							self.logger.critical(traceback.format_exc())
+							self.logger.debug(self.getInfoDumpString())
+							print("\a")
+					else:
+						try:
+							#Produce items
+							self.produce()
+						except:
+							self.logger.critical("UNHANDLED ERROR DURING STEP")
+							self.logger.critical(traceback.format_exc())
+							self.logger.critical(self.getInfoDumpString())
+							print("\a")
+
+			#Relinquish time ticks
+			self.logger.info("Relinquishing time ticks")
+			ticksRelinquished = self.agent.relinquishTimeTicks()
+			self.logger.info("Ticks relinquished. Waiting for tick grant")
+
+		if (incommingPacket.msgType == PACKET_TYPE.KILL_PIPE_AGENT) or (incommingPacket.msgType == PACKET_TYPE.KILL_ALL_BROADCAST):
+			self.killThreads = True
+
+		if ((incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST)):
+			controllerMsg = incommingPacket.payload
+			self.logger.info("INBOUND {}".format(controllerMsg))
+			
+			if (controllerMsg.msgType == PACKET_TYPE.STOP_TRADING):
+				self.killThreads = True
+
+
+	def evalTradeRequest(self, request):
+		self.logger.debug("evalTradeRequest({}) start".format(request))
+		productInventory = 0
+		if (request.itemPackage.id in self.agent.inventory):
+			productInventory = self.agent.inventory[request.itemPackage.id].quantity
+
+		tradeAccepted = productInventory>request.itemPackage.quantity
+		if (tradeAccepted):
+			self.stepSales += request.itemPackage.quantity
+
+		if (self.closingBusiness):
+			liquidationListing = self.liquidationListings[request.itemPackage.id]
+			liquidationListing.maxQuantity = productInventory-request.itemPackage.quantity
+			listingUpdated = self.agent.updateItemListing(liquidationListing)			
+
+		self.logger.debug("evalTradeRequest({}) return {}".format(request, tradeAccepted))
+		return tradeAccepted
+
+	#########################
+	# Production management 
+	#########################
+
+	def adjustProductionTarget(self, inventoryRatio, profitMargin):
+		self.logger.debug("adjustProductionTarget(inventoryRatio={}, profitMargin={}) start".format(inventoryRatio, profitMargin))
+		#Adjust target production based on current profit margin and inventory ratio
+		prodAlpha = 0.2
+
+		ratioList = []
+
+		profitAdjustmentRatio = 1
+		if (profitMargin > 0.05):
+			profitAdjustmentRatio = pow((1+profitMargin), 0.6)
+			ratioList.append(profitAdjustmentRatio)
+			self.logger.debug("adjustProductionTarget() Profit adjustment ratio = {}".format(profitAdjustmentRatio))
+
+		elif (profitMargin < 0):
+			profitAdjustmentRatio = pow((1+profitMargin), 1.6)
+			productionAdjustmentRatio = profitAdjustmentRatio
+			self.logger.debug("adjustProductionTarget() Profit adjustment ratio = {}".format(profitAdjustmentRatio))
+			self.logger.debug("adjustProductionTarget() Production adjustment ratio = {}".format(productionAdjustmentRatio))
+			targetProductionRate = ((1-prodAlpha)*((self.targetProductionRate+self.currentProductionRateAvg)/2)) + (prodAlpha*self.currentProductionRateAvg*productionAdjustmentRatio)
+
+			return round(targetProductionRate, g_ItemQuantityPercision)
+
+		inventoryAdjustmentRatio = pow(self.targetInventoryDays*inventoryRatio, 0.9)
+		self.logger.debug("adjustProductionTarget() Inventory adjustment ratio = {}".format(inventoryAdjustmentRatio))
+		ratioList.append(inventoryAdjustmentRatio)
+
+		productionAdjustmentRatio = inventoryAdjustmentRatio*profitAdjustmentRatio
+		self.logger.debug("adjustProductionTarget() Production adjustment ratio = {}".format(productionAdjustmentRatio))
+		targetProductionRate = ((1-prodAlpha)*((self.targetProductionRate+self.currentProductionRateAvg)/2)) + (prodAlpha*self.currentProductionRateAvg*productionAdjustmentRatio)
+
+		return round(targetProductionRate, g_ItemQuantityPercision)
+
+
+	def adjustSalePrice(self, avgRevenue, avgExpenses, meanPrice, saleRatio):
+		self.logger.debug("adjustProductionTarget(avgRevenue={}, avgExpenses={}, meanPrice={}, saleRatio={}) start".format(avgRevenue, avgExpenses, meanPrice, saleRatio))
+		ratioList = []
+
+		#Make sure sell price covers our costs
+		if (self.targetProductionRate > 0):
+			currentUnitCost = self.sellPrice
+			if (self.currentProductionRateAvg > 0):
+				currentUnitCost = (avgExpenses/self.currentProductionRateAvg) * (self.currentProductionRateAvg/self.targetProductionRate)
+				self.logger.debug("adjustSalePrice() currentUnitCost = {}".format(currentUnitCost))
+
+			if (self.sellPrice < currentUnitCost):
+				costAdjustmentRatio = pow(currentUnitCost/self.sellPrice, 1)
+				self.logger.debug("adjustSalePrice() Current price too low to cover costs. Cost adjustment ratio = {}".format(costAdjustmentRatio))
+
+				priceAlpha = 0.5
+				sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*self.sellPrice*costAdjustmentRatio)
+				if (sellPrice > 1.3*meanPrice):
+					sellPrice = 1.3*meanPrice
+
+				return sellPrice
+
+		#Adjust target price based on median price
+		marketAdjustmentRatio = pow(meanPrice/self.sellPrice, 0.7)
+		self.logger.debug("adjustSalePrice() marketAdjustmentRatio = {}".format(marketAdjustmentRatio))
+		ratioList.append(marketAdjustmentRatio)
+
+		#Adjust price based on sale ratios
+		if (saleRatio < 1):
+			saleAdjustmentRatio = pow(saleRatio, 1.4) 
+			self.logger.debug("adjustSalePrice() saleAdjustmentRatio = {}".format(saleAdjustmentRatio))
+			ratioList.append(saleAdjustmentRatio)
+		elif (saleRatio > 1):
+			saleAdjustmentRatio = pow(saleRatio, 0.4) 
+			self.logger.debug("adjustSalePrice() saleAdjustmentRatio = {}".format(saleAdjustmentRatio))
+			ratioList.append(saleAdjustmentRatio)
+		
+
+		#Get final price
+		priceAdjustmentRatio = sum(ratioList)/len(ratioList)  #take average adjustment ratio
+		self.logger.debug("adjustSalePrice() priceAdjustmentRatio = {}".format(priceAdjustmentRatio))
+		priceAlpha = 0.1
+		sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*self.sellPrice*priceAdjustmentRatio)
+
+		return sellPrice
+
+	def adjustProduction(self):
+		########
+		# Get current algortithm inputs
+		########
+
+		#Get current profit margins
+		avgRevenue = self.agent.getAvgTradeRevenue()
+		avgExpenses = self.agent.getAvgCurrencyOutflow()
+		profitMargin = 0
+		if (avgExpenses > 0):
+			profitMargin = (avgRevenue-avgExpenses)/avgExpenses
+		self.logger.debug("Profit margin = {}".format(profitMargin))
+
+		#Get product inventory
+		self.logger.info("Average production rate = {}".format(self.currentProductionRateAvg))
+		productInventory = 0
+		if (self.sellItemId in self.agent.inventory):
+			productInventory = self.agent.inventory[self.sellItemId].quantity
+		self.logger.debug("productInventory = {}".format(productInventory))
+		inventoryRatio = (self.currentSalesAvg+1) / (productInventory+1)
+		self.logger.debug("Inventory ratio = {}".format(inventoryRatio))
+
+		#Get current sales
+		self.logger.debug("Sales average = {}".format(self.currentSalesAvg))
+		saleRatio = (self.currentSalesAvg+1)/(self.currentProductionRateAvg+1)
+		self.logger.debug("Sale ratio = {}".format(saleRatio))
+
+		#Get volume-adjusted mean market price
+		sampledListings = self.agent.sampleItemListings(ItemContainer(self.sellItemId, 0.01), sampleSize=30)
+		meanPrice = self.sellPrice
+		totalQuantity = 0
+		totalPrice = 0
+		if (len(sampledListings) > 0):
+			for listing in sampledListings:
+				totalPrice += listing.unitPrice*listing.maxQuantity
+				totalQuantity += listing.maxQuantity
+			if (totalQuantity > 0):
+				meanPrice = totalPrice/totalQuantity
+		self.logger.info("volume-adjusted average market price = {}".format(meanPrice))
+		
+
+		########
+		# Get new production values
+		########
+
+		#Adjust target production rate
+		self.logger.info("Old target production rate = {}".format(self.targetProductionRate))
+		self.targetProductionRate = self.adjustProductionTarget(inventoryRatio, profitMargin)
+		self.logger.info("New target production rate = {}".format(self.targetProductionRate))
+
+		#Adjust sale price 
+		self.logger.info("Old sale price = {}".format(self.sellPrice))
+		self.sellPrice = self.adjustSalePrice(avgRevenue, avgExpenses, meanPrice, saleRatio)
+		self.logger.info("New sale price = {}".format(self.sellPrice))
+
+
+	def liquidateItem(self, itemContainer):
+		#Determine liquidation price
+		sampledListings = self.agent.sampleItemListings(itemContainer, sampleSize=30)
+		minPrice = None
+		for listing in sampledListings:
+			if not (listing.sellerId == self.agentId):
+				price = listing.unitPrice
+				if (not minPrice):
+					minPrice = price
+				elif (price < minPrice):
+					minPrice = price
+
+		if (not minPrice):
+			minPrice = 1
+
+		sellPrice = minPrice*0.95
+		if (sellPrice <= 0):
+			sellPrice = 1
+
+		#Post item listing
+		liquidationListing = ItemListing(sellerId=self.agentId, itemId=itemContainer.id, unitPrice=sellPrice, maxQuantity=itemContainer.quantity)
+		self.liquidationListings[itemContainer.id] = liquidationListing
+		listingUpdated = self.agent.updateItemListing(liquidationListing)
+
+
+	def acquireDeficits(self, deficits):
+		#Allocate more land if we don't have enough
+		landDeficit = deficits["LandDeficit"] - self.agent.landHoldings["ALLOCATING"]
+		if (landDeficit > 0):
+			self.agent.allocateLand(self.sellItemId, landDeficit)
+
+		#Spawn fixed item inputs
+		for itemId in deficits["FixedItemDeficit"]:
+			self.agent.receiveItem(deficits["FixedItemDeficit"][itemId])
+
+		#Adjust labor requirements
+		self.laborLock.acquire()
+		for skillLevel in deficits["LaborDeficit"]:
+			self.requiredLabor = deficits["LaborDeficit"][skillLevel]
+			self.workerDeficit = round(self.requiredLabor/self.maxTicksPerStep, 0)
+		self.laborLock.release()
+
+		#Spawn variable item inputs
+		for itemId in deficits["VariableItemDeficit"]:
+			self.agent.receiveItem(deficits["VariableItemDeficit"][itemId])
+			self.agent.receiveItem(deficits["VariableItemDeficit"][itemId])
+
+
+	def removeSurplus(self, surplusInputs):
+		#Deallocate land if we have too much
+		landSurplus = surplusInputs["LandSurplus"]
+		if (landSurplus > 0):
+			self.agent.deallocateLand(self.sellItemId, landSurplus)
+
+		#Liquidate fixed item inputs
+		# for itemId in surplusInputs["FixedItemSurplus"]:
+		# 	self.liquidateItem(surplusInputs["FixedItemSurplus"][itemId])
+
+		#Adjust labor requirements
+		self.laborLock.acquire()
+		for skillLevel in surplusInputs["LaborSurplus"]:
+			self.requiredLabor = -1*surplusInputs["LaborSurplus"][skillLevel]
+			self.workerDeficit = round(self.requiredLabor/self.maxTicksPerStep, 0)
+		self.laborLock.release()
+
+		#Liquidate variable item inputs
+		for itemId in surplusInputs["VariableItemSurplus"]:
+			self.liquidateItem(surplusInputs["VariableItemSurplus"][itemId])
+
+
+	def produce(self):
+		#See if we have any deficits for the new production rate
+		inputDeficits = self.agent.getProductionInputDeficit(self.sellItemId, self.targetProductionRate)
+		self.logger.debug("Input deficits = {}".format(inputDeficits))
+		self.acquireDeficits(inputDeficits)
+
+		#Get rid of surplus inputs
+		surplusInputs = self.agent.getProductionInputSurplus(self.sellItemId, self.targetProductionRate)
+		self.logger.debug("Input surplus = {}".format(surplusInputs))
+		self.removeSurplus(surplusInputs)
+
+		#Produce items
+		maxProductionPossible = self.agent.getMaxProduction(self.sellItemId)
+		productionAmount = maxProductionPossible
+		self.logger.debug("targetProductionRate={}, productionAmount={}".format(self.targetProductionRate, productionAmount))
+
+		producedItems = self.agent.produceItem(ItemContainer(self.sellItemId, productionAmount))
+		self.logger.debug("Produced {}".format(producedItems))
+
+		#Update production average
+		alpha = self.agent.accountingAlpha
+		self.currentProductionRateAvg = ((1-alpha)*self.currentProductionRateAvg) + (alpha*productionAmount)
+
+
+	def updateItemListing(self):
+		productInventory = 0
+		if (self.sellItemId in self.agent.inventory):
+			productInventory = self.agent.inventory[self.sellItemId].quantity
+
+		self.itemListing = ItemListing(sellerId=self.agentId, itemId=self.sellItemId, unitPrice=self.sellPrice, maxQuantity=productInventory/(2*self.targetInventoryDays))
+		if (self.itemListing.maxQuantity > 0):
+			self.logger.info("Updating item listing | {}".format(self.itemListing))
+			listingUpdated = self.agent.updateItemListing(self.itemListing)
+		else:
+			self.logger.info("Max quantity = 0. Removing item listing | {}".format(self.itemListing))
+			listingUpdated = self.agent.removeItemListing(self.itemListing)
+
+	#########################
+	# Labor management
+	#########################
+	def evalJobApplication(self, laborContract):
+		self.logger.debug("Recieved job application {}".format(laborContract))
+		if (self.closingBusiness):
+			return False
+
+		if (self.openSteps > 0):
+			self.applications = 0
+		self.openSteps = 0
+
+		self.applications += 1
+
+		#Hire them if we need the labor
+		acquired_laborLock = self.laborLock.acquire(timeout=5)
+		if (acquired_laborLock):
+			if (self.requiredLabor > 0):
+				self.logger.info("Accepting job application {}".format(laborContract))
+
+				#Decrease required labor
+				self.requiredLabor -= laborContract.ticksPerStep
+				self.laborLock.release()
+
+				self.logger.debug("Accepted job application {}".format(laborContract))
+				return True
+			else:
+				self.laborLock.release()
+				#We don't need more labor. Reject this application
+				self.logger.debug("Rejected job application {}".format(laborContract))
+				return False
+		else:
+			self.logger.error("evalJobApplication({}) laborLock acquisition timeout".format(laborContract))
+			return False
+
+
+	def adjustWorkerWage(self):
+		ratioList = []
+		
+		#Adjust wage  based on market rate
+		medianWage = self.workerWage
+		sampledListings = self.agent.sampleLaborListings(sampleSize=30)
+		sampledWages = SortedList()
+		if (len(sampledListings) > 0):
+			for listing in sampledListings:
+				sampledWages.add(listing.wagePerTick)
+			medianWage = sampledWages[int(len(sampledListings)/2)]
+		medianRatio = medianWage/self.workerWage
+		ratioList.append(medianRatio)
+
+		#Adjust wage based on worker deficit and application number
+		divisor = 1
+		if (self.workerDeficit < 0):
+			divisor = pow(abs(self.workerDeficit)*1.2, 1.1)
+		if (self.workerDeficit > 0) and (self.openSteps > 2):
+			divisor = 1/pow((self.workerDeficit), 0.15)
+		if (self.workerDeficit > 0):
+			if (abs(self.applications/self.workerDeficit)>1.5):
+				divisor = pow(abs(self.applications/self.workerDeficit), 1.5)
+
+		dividend = 1.0
+		if (self.openSteps > 3):
+			dividend = (pow(self.openSteps, 0.2))
+
+		deficitRatio = pow(dividend/divisor, 1.2)
+		ratioList.append(deficitRatio)
+
+		#Adjust the wage for next time
+		adjustmentAlpha = 0.1
+		adjustmentRatio = sum(ratioList)/len(ratioList)
+		newWage = ((1-adjustmentAlpha)*self.workerWage)+(adjustmentAlpha*adjustmentRatio*self.workerWage)
+
+		return newWage
+
+
+	def manageLabor(self):
+		#Lay off employees if required
+		if (self.workerDeficit < 0):
+			laborContracts = self.agent.getAllLaborContracts()
+			wageDict = {}
+			for contract in laborContracts:
+				wagePerTick = contract.wagePerTick
+				if not (contract.wagePerTick in wageDict):
+					wageDict[wagePerTick] = []
+				wageDict[wagePerTick].append(contract)
+	
+			sortedWageList = list(wageDict.keys())
+			sortedWageList.sort()
+
+			for wage in sortedWageList:
+				if (self.workerDeficit >= 0):
+					break
+				for contract in wageDict[wage]:
+					self.agent.cancelLaborContract(contract)
+					self.workerDeficit += 1
+
+					if (self.workerDeficit >= 0):
+						break
+
+		#Adjust wages
+		self.logger.debug("Old wage = {}".format(self.workerWage))
+		self.workerWage = self.adjustWorkerWage()
+		self.logger.debug("New wage = {}".format(self.workerWage))
+
+		#Update job listing
+		if (self.requiredLabor > 0):
+			self.laborListing = LaborListing(employerId=self.agentId, ticksPerStep=self.maxTicksPerStep, wagePerTick=self.workerWage, minSkillLevel=self.laborSkillLevel, contractLength=self.contractLength, listingName="Employer_{}".format(self.agentId))
+			self.logger.info("Updating job listing | {}".format(self.laborListing))
+			listingUpdated = self.agent.updateLaborListing(self.laborListing)
+			if (self.listingActive):
+				self.openSteps += 1
+			self.listingActive = True
+		else:
+			#Remove listing
+			self.agent.removeLaborListing(self.laborListing)
+			self.listingActive = False
+			self.applications = 0
+			self.openSteps = 0
+
+		#Print stats
+		self.logger.debug("HR Stats: employees={}, requiredLabor={}, workerDeficit={}, applications={}, openSteps={}, workerWage={}".format(self.agent.laborContractsTotal, self.requiredLabor, self.workerDeficit, self.applications, self.openSteps, self.workerWage))
+
+
+	#########################
+	# Business Suicide functions
+	#########################
+	def closeBusiness(self):
+		self.logger.error("### Going out of business ###")
+		self.closingBusiness = True
+
+		#Fire all employees
+		self.logger.info("Firing all employees")
+		self.agent.removeLaborListing(self.laborListing)
+		laborContracts = self.agent.getAllLaborContracts()
+		for contract in laborContracts:
+			self.agent.cancelLaborContract(contract)
+
+		#Sell all inventory
+		self.logger.info("Liquidating inventory")
+		for itemId in self.agent.inventory:
+			self.liquidateItem(self.agent.inventory[itemId])
+
+		#Post all land for sale
+		pass
 
 	#########################
 	# Misc functions

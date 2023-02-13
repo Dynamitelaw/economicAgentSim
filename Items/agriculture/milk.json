@@ -1,7 +1,7 @@
 {
-	"id": "egg",
-	"unit": "egg",
-	"Quantized": true,
+	"id": "milk",
+	"unit": "L",
+	"Quantized": false,
 	"category": "agriculture",
 	"ProductionLearningCurve": {
 		"StartingEfficiency": 1,
@@ -9,24 +9,15 @@
 	},
 	"ProductionInputs": {
 		"FixedCosts": {
-			"FixedLandCosts": {
-				"MaxYield": 4.92,
-				"MinQuantity": 0.5,
-				"Quantized": true,
-				"AllocationTime": 24
-			},
+			"FixedLandCosts": {},
 			"FixedItemCosts": {},
 			"FixedLaborCosts": {}
 		},
-		"VariableCosts": {
-			"VariableLaborCosts":  {
-				"0": 1.7
-			}
-		}
+		"VariableCosts": {}
 	},
 	"UtilityFunctions": {
 		"BaseUtility": {
-			"mean": 17,
+			"mean": 100,
 			"stdDev": 0.5
 		},
 		"DiminishingFactor": {
@@ -35,10 +26,10 @@
 		}
 	},
 	"NutritionalFacts": {
-		"kcalories": 78,
-		"carbohydrates(g)": 0.6,
-		"protein(g)": 6,
-		"fat(g)": 5,
-		"water(L)": 0.038
+		"kcalories": 610,
+		"carbohydrates(g)": 48,
+		"protein(g)": 31.5,
+		"fat(g)": 32.5,
+		"water(L)": 0.87
 	}
 }

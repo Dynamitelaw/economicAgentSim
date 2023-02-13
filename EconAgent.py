@@ -1049,6 +1049,8 @@ def getAgentController(agent, settings={}, logFile=True, fileLevel="INFO", outpu
 		return TestFarmCompetetive(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
 	if (agentInfo.agentType == "TestFarmCompetetiveV2"):
 		return TestFarmCompetetiveV2(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
+	if (agentInfo.agentType == "TestFarmCompetetiveV3"):
+		return TestFarmCompetetiveV3(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
 
 	#Unhandled agent type. Return default controller
 	return None
@@ -1931,6 +1933,8 @@ class Agent:
 		return self.totalCurrencyInflow
 	def getAvgCurrencyInflow(self):
 		return self.avgCurrencyInflow
+	def getStepCurrencyInflow(self):
+		return self.prevStepCurrencyInflow
 	def resetCurrencyInflow(self):
 		self.totalCurrencyInflow = 0
 
@@ -1941,6 +1945,8 @@ class Agent:
 		return self.totalCurrencyOutflow
 	def getAvgCurrencyOutflow(self):
 		return self.avgCurrencyOutflow
+	def getStepCurrencyOutflow(self):
+		return self.prevStepCurrencyOutflow
 	def resetCurrencyOutflow(self):
 		self.totalCurrencyOutflow = 0
 
@@ -1985,6 +1991,9 @@ class Agent:
 	#########################
 	# Currency transfer functions
 	#########################
+	def getCurrencyBalance(self):
+		return self.currencyBalance
+
 	def receiveCurrency(self, cents, incommingPacket=None):
 		'''
 		Returns True if transfer was succesful, False if not
@@ -3063,8 +3072,13 @@ class Agent:
 				ticks = laborContract.ticksPerStep
 				wage = laborContract.wagePerTick
 				netPayment = ticks*wage
-				paymentId = "LaborPayment_{}".format(laborContract.hash)
+				if (netPayment < self.currencyBalance):
+					#We don't have enough money to pay this employee. Fire them
+					self.logger.warning("Current balance ${} not enough to honor {}. Cancelling this labor contract".format(round(float(self.currencyBalance)/100, 2), laborContract))
+					self.cancelLaborContract(laborContract)
+					return False
 
+				paymentId = "LaborPayment_{}".format(laborContract.hash)
 				paymentSent = self.sendCurrency(netPayment, laborContract.workerId, transactionId=paymentId)
 				if not (paymentSent):
 					self.logger.error("{} failed".format(paymentId))
@@ -3348,6 +3362,7 @@ class Agent:
 				laborContractsList.append(tempLaborContracts[endStep][contractHash])
 
 		return laborContractsList
+
 
 	#########################
 	# Item Market functions

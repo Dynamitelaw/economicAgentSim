@@ -25,7 +25,8 @@ class ItemListing:
 		self.sellerId = sellerId
 		self.itemId = itemId
 		self.unitPrice = int(unitPrice)
-		self.maxQuantity = maxQuantity
+		self.quantPercision = g_ItemQuantityPercision
+		self.maxQuantity = round(maxQuantity, self.quantPercision)
 
 		tempListingStr = "ItemListing(seller={}, item={}, price={}, max={})".format(sellerId, itemId, self.unitPrice, maxQuantity)
 		self.hash = hashlib.sha256(tempListingStr.encode('utf-8')).hexdigest()[:8 ]

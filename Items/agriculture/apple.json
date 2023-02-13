@@ -15,13 +15,7 @@
 				"Quantized": true,
 				"AllocationTime": 24
 			},
-			"FixedItemCosts": {
-				"basket": {
-					"MaxYield": false,
-					"MinQuantity": 1,
-					"Quantized": true
-				}
-			},
+			"FixedItemCosts": {},
 			"FixedLaborCosts": {}
 		},
 		"VariableCosts": {
