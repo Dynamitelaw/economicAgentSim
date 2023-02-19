@@ -1,4 +1,4 @@
-#NetworkClasses.py
+# NetworkClasses.py
 ---
 ## NetworkPacket Class
 Network packets are how agents interface with the rest of the simulation. They are sent over the Connection Network.
