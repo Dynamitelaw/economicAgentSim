@@ -226,14 +226,6 @@ LOAD_CHECKPOINT_BROADCAST
 These message types are fowarded to the agent controller, so they have no hardcoded behavior.
 The following are the current types and their intended usage.
 ```python
-#example)
-controllerMessage = NetworkPacket(msgType=PACKET_TYPE.STOP_TRADING)
-
-networkPacket = NetworkPacket(msgType=PACKET_TYPE.CONTROLLER_MSG, payload=controllerMessage)
-networkPacket_broadcast = NetworkPacket(msgType=PACKET_TYPE.CONTROLLER_MSG_BROADCAST, payload=controllerMessage)
-#When an agent receives networkPacket or networkPacket_broadcast, it will foward it directly to it's controller for handling
-```
-```python
 ADVANCE_STEP
 	#Sent by the ConnectionNetwork to the SimulationManager. Tells the manager that all agents are ready for the next simulation step
 STOP_TRADING:
@@ -245,4 +237,12 @@ PROC_READY
 	#Sent by child process to the SimulationManager. Tells the manager that all agents in the process have been instantiated
 PROC_ERROR
 	#Sent by child process to the SimulationManager. Tells the manager that there was an error during agent instantiation
+```
+```python
+#example)
+controllerMessage = NetworkPacket(msgType=PACKET_TYPE.STOP_TRADING)
+
+networkPacket = NetworkPacket(msgType=PACKET_TYPE.CONTROLLER_MSG, payload=controllerMessage)
+networkPacket_broadcast = NetworkPacket(msgType=PACKET_TYPE.CONTROLLER_MSG_BROADCAST, payload=controllerMessage)
+#When an agent receives networkPacket or networkPacket_broadcast, it will foward it directly to it's controller for handling
 ```

@@ -6,4 +6,4 @@
 
 [EconAgent.py](Coding/EconAgent.md): An in-depth description of the **Agent** class
 
-[Network Packets](Coding/NetworkPackets.md): A ConnectionNetwork packet types and their usage
+[Network Packets](Coding/NetworkPackets.md): ConnectionNetwork packet types and their usage

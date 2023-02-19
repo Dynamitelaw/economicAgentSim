@@ -2,7 +2,7 @@
 ![Architecture Diagram](diagram.svg)
 
 ## Agent
-All economic participants in the simulation are instances of the **Agent** class.
+All economic participants in the simulation are instances of the [Agent](EconAgent.md) class.
 The Agent class is a generic class used by all agents running in a simulation. 
 
 The behavior and actions of any given agent is decided by it's controller, which handles all decision making. 
@@ -13,7 +13,7 @@ The **Connection Network** is how all agents in the simulation communicate with 
 Each agent has a single bidirectional connection with the connection network (this is a [multiprocessing pipe](https://docs.python.org/3/library/multiprocessing.html#pipes-and-queues)). 
 Agents send and receive [NetworkPackets](NetworkPackets.md) via this connection, which the Connection Network routes to the destination.
 
-For performance reasons, the Connection Network is also where the statics gatherer and all marketplaces are instantiated.
+For performance reasons, the Connection Network is also where the statistics gatherer and all marketplaces are instantiated.
 * **Statistics Gatherer** - Snoops on network traffic and sends info requests to agents, in order to keep track of economic statistics.
 * **Item Marketplace** - Acts a billboard where sellers can post listings for items that they're selling.
 * **Labor Marketplace** - Acts a billboard where employers can post job listings.

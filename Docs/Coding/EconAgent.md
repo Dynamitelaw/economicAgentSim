@@ -217,3 +217,4 @@ These classes are used by the Agent class for various functions.
 * **ProductionFunction** : Used to calculate production costs for a given item, as well as handling item production.
 * **NutritionTracker** : Keeps track of an agent's nutritional levels, as well as food consumption.
 * **LandAllocationQueue** : Keeps track of land that is currently being allocated.
+* **AgentCheckpoint** : This class stores information on current agent state for saving to and loading from simulation checkpoints.
