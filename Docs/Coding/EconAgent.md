@@ -17,7 +17,7 @@ The Agent class handles:
 * land transfers
 * currency balance management
 * item inventory management
-* ConnectionNetwork interactions
+* [ConnectionNetwork interactions](NetworkPackets.md)
 * utility calculations
 * marketplace updates and polling
 * nutrition tracking (if agent is a person)
@@ -55,6 +55,7 @@ The following are the methods intended for use by the agent controller. There ar
 ```python
 Agent.sendPacket(packet)	#Sends a NetworkPacket over the connection network.
 ```
+[Network Packet Types](NetworkPackets.md)
 
 #### Accounting
 ```python

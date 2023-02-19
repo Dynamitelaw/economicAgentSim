@@ -11,10 +11,10 @@ The Agent class is instead responsible for the controller's interface to the res
 ## Conection Network
 The **Connection Network** is how all agents in the simulation communicate with each other. 
 Each agent has a single bidirectional connection with the connection network (this is a [multiprocessing pipe](https://docs.python.org/3/library/multiprocessing.html#pipes-and-queues)). 
-Agents send and receive **NetworkPackets** via this connection, which the Connection Network routes to the destination.
+Agents send and receive [NetworkPackets](NetworkPackets.md) via this connection, which the Connection Network routes to the destination.
 
 For performance reasons, the Connection Network is also where the statics gatherer and all marketplaces are instantiated.
-* **Statistics Gather** - Snoops on network traffic and sends info requests to agents, in order to keep track of economic statistics.
+* **Statistics Gatherer** - Snoops on network traffic and sends info requests to agents, in order to keep track of economic statistics.
 * **Item Marketplace** - Acts a billboard where sellers can post listings for items that they're selling.
 * **Labor Marketplace** - Acts a billboard where employers can post job listings.
 * **Land Marketplace** - Acts a billboard where sellers can post listings for land they're selling.
