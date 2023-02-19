@@ -166,6 +166,13 @@ class ConnectionNetwork:
 				#We've received a kill command for this pipe. Remove destPipe from connections, then kill this monitor thread
 				self.logger.info("Killing pipe {} {}".format(agentId, agentLink))
 				try:
+					#Remove agent from blocking list
+					self.timeTickBlockers_Lock.acquire()
+					if (incommingPacket.senderId in self.timeTickBlockers):
+						del self.timeTickBlockers[incommingPacket.senderId]
+					self.timeTickBlockers_Lock.release()
+
+					#Remove connection pipe
 					acquired_agentConnectionsLock = self.agentConnectionsLock.acquire(timeout=self.lockTimeout)  #<== acquire agentConnectionsLock
 					if (acquired_agentConnectionsLock):
 						del self.agentConnections[incommingPacket.senderId]

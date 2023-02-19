@@ -2138,6 +2138,7 @@ class TestFarmCompetetiveV3:
 
 		#Keep track of business closing
 		self.closingBusiness = False
+		self.closingStep = 0
 		self.liquidationListings = {}
 
 	#########################
@@ -2151,11 +2152,11 @@ class TestFarmCompetetiveV3:
 		self.agent.receiveLand("UNALLOCATED", 9999999999)
 
 		#Spawn starting capital
-		self.agent.receiveCurrency(260000)
-		#self.agent.receiveCurrency(1000)
+		self.agent.receiveCurrency(600000)
+		#self.agent.receiveCurrency(9999999999999)
 
 		#Spawn initial inventory of items
-		self.agent.receiveItem(ItemContainer(self.sellItemId, self.targetProductionRate*self.targetInventoryDays))
+		self.agent.receiveItem(ItemContainer(self.sellItemId, self.targetProductionRate*self.targetInventoryDays*1.4))
 
 		#Enable accounting
 		self.agent.enableTradeRevenueTracking()
@@ -2175,7 +2176,8 @@ class TestFarmCompetetiveV3:
 				allItemsLiquidated = True
 				for itemId in self.agent.inventory:
 					itemContainer = self.agent.inventory[itemId]
-					if (itemContainer.quantity <= 0):
+					if (itemContainer.quantity <= 0.01):
+						self.agent.consumeItem(itemContainer)
 						self.agent.removeItemListing(ItemListing(sellerId=self.agentId, itemId=itemId, unitPrice=0, maxQuantity=0))
 					else:
 						if ((self.agent.stepNum-self.updateOffset)%self.updateRate == 0):
@@ -2183,9 +2185,8 @@ class TestFarmCompetetiveV3:
 						allItemsLiquidated = False
 
 				if (allItemsLiquidated):
-					self.logger.info("Completed business liquidation. Commiting suicide")
-					killPacket = NetworkPacket(senderId=self.agentId, destinationId=self.agentId, msgType=PACKET_TYPE.KILL_PIPE_AGENT)
-					self.agent.sendPacket(killPacket)
+					self.logger.warning("Completed business liquidation. Commiting suicide")
+					self.agent.commitSuicide()
 					self.killThreads = True
 
 			# A new step has started
@@ -2271,8 +2272,8 @@ class TestFarmCompetetiveV3:
 
 		if (self.closingBusiness):
 			liquidationListing = self.liquidationListings[request.itemPackage.id]
-			liquidationListing.maxQuantity = productInventory-request.itemPackage.quantity
-			listingUpdated = self.agent.updateItemListing(liquidationListing)			
+			liquidationListing.updateMaxQuantity(productInventory-request.itemPackage.quantity)
+			listingUpdated = self.agent.updateItemListing(liquidationListing)
 
 		self.logger.debug("evalTradeRequest({}) return {}".format(request, tradeAccepted))
 		return tradeAccepted
@@ -2284,7 +2285,7 @@ class TestFarmCompetetiveV3:
 	def adjustProductionTarget(self, inventoryRatio, profitMargin):
 		self.logger.debug("adjustProductionTarget(inventoryRatio={}, profitMargin={}) start".format(inventoryRatio, profitMargin))
 		#Adjust target production based on current profit margin and inventory ratio
-		prodAlpha = 0.2
+		prodAlpha = 0.3
 
 		ratioList = []
 
@@ -2303,10 +2304,11 @@ class TestFarmCompetetiveV3:
 
 			return round(targetProductionRate, g_ItemQuantityPercision)
 
-		inventoryAdjustmentRatio = pow(self.targetInventoryDays*inventoryRatio, 0.9)
+		inventoryAdjustmentRatio = pow(self.targetInventoryDays*inventoryRatio, 1.1)
 		self.logger.debug("adjustProductionTarget() Inventory adjustment ratio = {}".format(inventoryAdjustmentRatio))
 		ratioList.append(inventoryAdjustmentRatio)
 
+		#productionAdjustmentRatio = sum(ratioList)/len(ratioList)
 		productionAdjustmentRatio = inventoryAdjustmentRatio*profitAdjustmentRatio
 		self.logger.debug("adjustProductionTarget() Production adjustment ratio = {}".format(productionAdjustmentRatio))
 		targetProductionRate = ((1-prodAlpha)*((self.targetProductionRate+self.currentProductionRateAvg)/2)) + (prodAlpha*self.currentProductionRateAvg*productionAdjustmentRatio)
@@ -2321,7 +2323,7 @@ class TestFarmCompetetiveV3:
 		#Make sure sell price covers our costs
 		if (self.targetProductionRate > 0):
 			currentUnitCost = self.sellPrice
-			if (self.currentProductionRateAvg > 0):
+			if ((self.currentProductionRateAvg > 0) and (avgExpenses > 0)):
 				currentUnitCost = (avgExpenses/self.currentProductionRateAvg) * (self.currentProductionRateAvg/self.targetProductionRate)
 				self.logger.debug("adjustSalePrice() currentUnitCost = {}".format(currentUnitCost))
 
@@ -2333,6 +2335,13 @@ class TestFarmCompetetiveV3:
 				sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*self.sellPrice*costAdjustmentRatio)
 				if (sellPrice > 1.3*meanPrice):
 					sellPrice = 1.3*meanPrice
+
+				try:
+					x = int(sellPrice)
+				except:
+					self.logger.error("Invalid sell price {}".format(sellPrice))
+					self.logger.error("adjustProductionTarget(avgRevenue={}, avgExpenses={}, meanPrice={}, saleRatio={}) start".format(avgRevenue, avgExpenses, meanPrice, saleRatio))
+					sellPrice = self.sellPrice
 
 				return sellPrice
 
@@ -2357,6 +2366,13 @@ class TestFarmCompetetiveV3:
 		self.logger.debug("adjustSalePrice() priceAdjustmentRatio = {}".format(priceAdjustmentRatio))
 		priceAlpha = 0.1
 		sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*self.sellPrice*priceAdjustmentRatio)
+
+		try:
+			x = int(sellPrice)
+		except:
+			self.logger.error("Invalid sell price {}".format(sellPrice))
+			self.logger.error("adjustProductionTarget(avgRevenue={}, avgExpenses={}, meanPrice={}, saleRatio={}) start".format(avgRevenue, avgExpenses, meanPrice, saleRatio))
+			sellPrice = self.sellPrice
 
 		return sellPrice
 
@@ -2396,7 +2412,7 @@ class TestFarmCompetetiveV3:
 			for listing in sampledListings:
 				totalPrice += listing.unitPrice*listing.maxQuantity
 				totalQuantity += listing.maxQuantity
-			if (totalQuantity > 0):
+			if ((totalQuantity > 0) and (totalPrice > 0)):
 				meanPrice = totalPrice/totalQuantity
 		self.logger.info("volume-adjusted average market price = {}".format(meanPrice))
 		
@@ -2431,7 +2447,7 @@ class TestFarmCompetetiveV3:
 		if (not minPrice):
 			minPrice = 1
 
-		sellPrice = minPrice*0.95
+		sellPrice = (minPrice*0.95)/(pow(1+self.agent.stepNum-self.closingStep, 0.1))
 		if (sellPrice <= 0):
 			sellPrice = 1
 
@@ -2470,20 +2486,12 @@ class TestFarmCompetetiveV3:
 		if (landSurplus > 0):
 			self.agent.deallocateLand(self.sellItemId, landSurplus)
 
-		#Liquidate fixed item inputs
-		# for itemId in surplusInputs["FixedItemSurplus"]:
-		# 	self.liquidateItem(surplusInputs["FixedItemSurplus"][itemId])
-
 		#Adjust labor requirements
 		self.laborLock.acquire()
 		for skillLevel in surplusInputs["LaborSurplus"]:
 			self.requiredLabor = -1*surplusInputs["LaborSurplus"][skillLevel]
 			self.workerDeficit = round(self.requiredLabor/self.maxTicksPerStep, 0)
 		self.laborLock.release()
-
-		#Liquidate variable item inputs
-		for itemId in surplusInputs["VariableItemSurplus"]:
-			self.liquidateItem(surplusInputs["VariableItemSurplus"][itemId])
 
 
 	def produce(self):
@@ -2511,24 +2519,25 @@ class TestFarmCompetetiveV3:
 
 
 	def updateItemListing(self):
-		productInventory = 0
-		if (self.sellItemId in self.agent.inventory):
-			productInventory = self.agent.inventory[self.sellItemId].quantity
-
-		self.itemListing = ItemListing(sellerId=self.agentId, itemId=self.sellItemId, unitPrice=self.sellPrice, maxQuantity=productInventory/(2*self.targetInventoryDays))
-		if (self.itemListing.maxQuantity > 0):
-			self.logger.info("Updating item listing | {}".format(self.itemListing))
-			listingUpdated = self.agent.updateItemListing(self.itemListing)
-		else:
-			self.logger.info("Max quantity = 0. Removing item listing | {}".format(self.itemListing))
+		productInventory = 0	
+		if (self.sellItemId in self.agent.inventory):	
+			productInventory = self.agent.inventory[self.sellItemId].quantity	
+		self.itemListing = ItemListing(sellerId=self.agentId, itemId=self.sellItemId, unitPrice=self.sellPrice, maxQuantity=productInventory/(2*self.targetInventoryDays))	
+		if (self.itemListing.maxQuantity > 0):	
+			self.logger.info("Updating item listing | {}".format(self.itemListing))	
+			listingUpdated = self.agent.updateItemListing(self.itemListing)	
+		else:	
+			self.logger.info("Max quantity = 0. Removing item listing | {}".format(self.itemListing))	
 			listingUpdated = self.agent.removeItemListing(self.itemListing)
+
 
 	#########################
 	# Labor management
 	#########################
 	def evalJobApplication(self, laborContract):
 		self.logger.debug("Recieved job application {}".format(laborContract))
-		if (self.closingBusiness):
+
+		if (self.closingBusiness):	
 			return False
 
 		if (self.openSteps > 0):
@@ -2637,33 +2646,36 @@ class TestFarmCompetetiveV3:
 			self.listingActive = True
 		else:
 			#Remove listing
-			self.agent.removeLaborListing(self.laborListing)
-			self.listingActive = False
-			self.applications = 0
-			self.openSteps = 0
+			if (self.listingActive):
+				self.agent.removeLaborListing(self.laborListing)
+				self.listingActive = False
+				self.applications = 0
+				self.openSteps = 0
 
 		#Print stats
 		self.logger.debug("HR Stats: employees={}, requiredLabor={}, workerDeficit={}, applications={}, openSteps={}, workerWage={}".format(self.agent.laborContractsTotal, self.requiredLabor, self.workerDeficit, self.applications, self.openSteps, self.workerWage))
-
 
 	#########################
 	# Business Suicide functions
 	#########################
 	def closeBusiness(self):
-		self.logger.error("### Going out of business ###")
-		self.closingBusiness = True
-
-		#Fire all employees
-		self.logger.info("Firing all employees")
-		self.agent.removeLaborListing(self.laborListing)
-		laborContracts = self.agent.getAllLaborContracts()
-		for contract in laborContracts:
-			self.agent.cancelLaborContract(contract)
+		self.logger.warning("### Going out of business ###")
+		self.closingStep = self.agent.stepNum
 
 		#Sell all inventory
 		self.logger.info("Liquidating inventory")
 		for itemId in self.agent.inventory:
 			self.liquidateItem(self.agent.inventory[itemId])
+
+		self.closingBusiness = True
+
+		#Fire all employees
+		self.logger.info("Firing all employees")
+		if (self.listingActive):
+			self.agent.removeLaborListing(self.laborListing)
+		laborContracts = self.agent.getAllLaborContracts()
+		for contract in laborContracts:
+			self.agent.cancelLaborContract(contract)
 
 		#Post all land for sale
 		pass
@@ -2686,4 +2698,3 @@ class TestFarmCompetetiveV3:
 		infoString += "\nlistingActive={}".format(self.listingActive)
 
 		return infoString
-		

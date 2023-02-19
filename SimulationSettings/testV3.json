@@ -1,9 +1,9 @@
 {
-	"name": "TestSimulationV3",
+	"name": "TestSimulationV3_halfRevert",
 	"description": "Test simulation with competetive farms. Used for testing and debug.",
 	"settings": {
-		"AgentNumProcesses": 6,
-		"SimulationSteps": 600,
+		"AgentNumProcesses": 7,
+		"SimulationSteps": 250,
 		"TicksPerStep": 16,
 		"CheckpointFrequency": 50,
 		"AgentSpawns":{

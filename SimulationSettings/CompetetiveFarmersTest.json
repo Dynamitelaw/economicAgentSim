@@ -4,6 +4,8 @@
 		"AgentNumProcesses": 4,
 		"SimulationSteps": 90,
 		"TicksPerStep": 16,
+		"CheckpointFrequency": 20,
+		"InitialCheckpoint": "OUTPUT\\TestSimulation\\CHECKPOINT",
 		"AgentSpawns":{
 			"AppleFarmer": {
 				"TestSpawner":{

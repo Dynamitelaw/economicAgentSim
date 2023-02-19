@@ -1,5 +1,6 @@
 import hashlib
 import time
+import utils
 
 
 g_ItemQuantityPercision = 6
@@ -26,11 +27,14 @@ class ItemListing:
 		self.itemId = itemId
 		self.unitPrice = int(unitPrice)
 		self.quantPercision = g_ItemQuantityPercision
-		self.maxQuantity = round(maxQuantity, self.quantPercision)
+		self.maxQuantity = utils.truncateFloat(maxQuantity, self.quantPercision)
 
 		tempListingStr = "ItemListing(seller={}, item={}, price={}, max={})".format(sellerId, itemId, self.unitPrice, maxQuantity)
 		self.hash = hashlib.sha256(tempListingStr.encode('utf-8')).hexdigest()[:8 ]
 		self.listingStr = "ItemListing_{}(seller={}, item={}, price={}, max={})".format(self.hash, sellerId, itemId, self.unitPrice, maxQuantity)
+
+	def updateMaxQuantity(self, newQuantity):
+		self.maxQuantity = utils.truncateFloat(newQuantity, self.quantPercision)
 
 	def __str__(self):
 		return self.listingStr
@@ -40,7 +44,7 @@ class ItemContainer:
 	def __init__(self, itemId, itemQuantity):
 		self.id = itemId
 		self.quantPercision = g_ItemQuantityPercision
-		self.quantity = round(itemQuantity, self.quantPercision)
+		self.quantity = utils.truncateFloat(itemQuantity, self.quantPercision)
 
 	def __repr__(self):
 		return str(self)
@@ -86,11 +90,11 @@ class ItemContainer:
 				raise ValueError("Cannot add inventory entries of different items {} and {}".format(self.id, otherId))
 
 			self.quantity += other.quantity
-			self.quantity = round(self.quantity, self.quantPercision)
+			self.quantity = utils.truncateFloat(self.quantity, self.quantPercision)
 			return self
 		elif ((typeOther == int) or (typeOther == float)):
 			self.quantity += other
-			self.quantity = round(self.quantity, self.quantPercision)
+			self.quantity = utils.truncateFloat(self.quantity, self.quantPercision)
 			return self
 		else:
 			raise ValueError("Cannot add {} and {}".format(typeOther, type(self)))
@@ -103,11 +107,11 @@ class ItemContainer:
 				raise ValueError("Cannot subtract inventory entries of different items {} and {}".format(self.id, otherId))
 
 			self.quantity -= other.quantity
-			self.quantity = round(self.quantity, self.quantPercision)
+			self.quantity = utils.truncateFloat(self.quantity, self.quantPercision)
 			return self
 		elif ((typeOther == int) or (typeOther == float)):
 			self.quantity -= other
-			self.quantity = round(self.quantity, self.quantPercision)
+			self.quantity = utils.truncateFloat(self.quantity, self.quantPercision)
 			return self
 		else:
 			raise ValueError("Cannot subtract {} and {}".format(typeOther, type(self)))
@@ -122,7 +126,7 @@ class LaborListing:
 		self.contractLength = contractLength
 		self.listingName = listingName
 
-		tempListingStr = "LaborListing(employerId={}, ticksPerStep={}, wagePerTick={}, minSkillLevel={}, contractLength={}, listingName={})".format(employerId, ticksPerStep, self.wagePerTick, minSkillLevel, contractLength, listingName)
+		tempListingStr = "LaborListing(employerId={}, ticksPerStep={}, minSkillLevel={}, contractLength={}, listingName={})".format(employerId, ticksPerStep, minSkillLevel, contractLength, listingName)
 		self.hash = hashlib.sha256(tempListingStr.encode('utf-8')).hexdigest()[:8 ]
 		self.listingStr = "LaborListing_{}(employerId={}, ticksPerStep={}, wagePerTick={}, minSkillLevel={}, contractLength={}, listingName={})".format(self.hash, employerId, ticksPerStep, self.wagePerTick, minSkillLevel, contractLength, listingName)
 
@@ -130,7 +134,8 @@ class LaborListing:
 		return LaborContract(self.employerId, workerId, self.ticksPerStep, self.wagePerTick, workerSkillLevel, self.contractLength, startStep, startStep+self.contractLength-1, self.hash, "EmploymentContract_{}_{}_{}".format(self.employerId, workerId, startStep))
 
 	def __str__(self):
-		return self.listingStr
+		listingStr = "LaborListing_{}(employerId={}, ticksPerStep={}, wagePerTick={}, minSkillLevel={}, contractLength={}, listingName={})".format(self.hash, self.employerId, self.ticksPerStep, self.wagePerTick, self.minSkillLevel, self.contractLength, self.listingName)
+		return listingStr
 
 
 class LaborContract:

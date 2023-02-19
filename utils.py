@@ -112,3 +112,7 @@ def dictToJsonFile(dictionary, filePath):
 	file = open(filePath, "w")
 	file.write(jsonStr)
 	file.close()
+
+def truncateFloat(value, percision):
+	truncatedFloat = float(int(value*pow(10, percision)))/pow(10, percision)
+	return truncatedFloat

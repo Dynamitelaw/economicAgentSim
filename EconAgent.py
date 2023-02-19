@@ -513,7 +513,8 @@ class ProductionFunction:
 						break
 		
 		
-		maxQuantity = int(maxQuantity*pow(10, quantityPercision))/pow(10, quantityPercision)
+		#maxQuantity = int(maxQuantity*pow(10, quantityPercision))/pow(10, quantityPercision)
+		maxQuantity = utils.truncateFloat(maxQuantity, quantityPercision)
 
 		return maxQuantity
 
@@ -871,13 +872,14 @@ class NutritionTracker:
 
 		#Scale meal plan by calories
 		#self.logger.debug("getAutoMeal() nutrition vector = {}".format(planNutritionVec))
+		quantityPercision = g_ItemQuantityPercision
 		totalCost = 0
 		if (planNutritionVec[0] > 0):
 			calorieScale = self.targetCalories/planNutritionVec[0]
 			#self.logger.debug("getAutoMeal() calorie scale = {}".format(calorieScale))
 			for foodId in mealPlan:
 				quantity = mealPlan[foodId]*calorieScale
-				mealPlan[foodId] = quantity
+				mealPlan[foodId] = utils.truncateFloat(quantity, quantityPercision)
 				totalCost += foodUnitPrices[foodId]*quantity
 
 		#Make sure we have enough money for this meal plan
@@ -1526,7 +1528,7 @@ class Agent:
 		else:	
 			self.controller = getAgentController(self, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
 			if (not self.controller):
-				self.logger.warning("No controller was instantiated. \"{}\" is not a valid controller type".format(self.agentType))
+				self.logger.error("No controller was instantiated. \"{}\" is not a valid controller type".format(self.agentType))
 		self.controllerStart = False
 
 		#Keep track of spawned threads
@@ -3072,7 +3074,7 @@ class Agent:
 				ticks = laborContract.ticksPerStep
 				wage = laborContract.wagePerTick
 				netPayment = ticks*wage
-				if (netPayment < self.currencyBalance):
+				if (self.currencyBalance < netPayment):
 					#We don't have enough money to pay this employee. Fire them
 					self.logger.warning("Current balance ${} not enough to honor {}. Cancelling this labor contract".format(round(float(self.currencyBalance)/100, 2), laborContract))
 					self.cancelLaborContract(laborContract)
@@ -3231,10 +3233,10 @@ class Agent:
 
 		endStep = laborContract.endStep
 		if (endStep > self.stepNum):
+			self.laborContractsLock.acquire()
 			if (endStep in self.laborContracts):
 				if (laborContract.hash in self.laborContracts[endStep]):
 					#Remove contract from contract dict
-					self.laborContractsLock.acquire()
 					del self.laborContracts[laborContract.endStep][laborContract.hash]
 					self.laborContractsTotal -= 1
 
@@ -3246,9 +3248,11 @@ class Agent:
 
 					removalSuccess = True
 				else:
+					self.laborContractsLock.release()
 					self.logger.error("removeLaborContract() {} not found".format(laborContract))
 					removalSuccess = False
 			else:
+				self.laborContractsLock.release()
 				self.logger.error("removeLaborContract() {} not found".format(laborContract))
 				removalSuccess = True
 
@@ -3271,6 +3275,7 @@ class Agent:
 
 		endStep = laborContract.endStep
 		if (endStep > self.stepNum):
+			self.laborContractsLock.acquire()
 			if (endStep in self.laborContracts):
 				if (laborContract.hash in self.laborContracts[endStep]):
 					counterParty = None
@@ -3281,6 +3286,7 @@ class Agent:
 						#We are the employee
 						counterParty = laborContract.employerId
 					else:
+						self.laborContractsLock.release()
 						self.logger.error("cancelLaborContract({}) We are a third party to this contract. We cannot cancel it".format(laborContract))
 						return False
 
@@ -3295,6 +3301,7 @@ class Agent:
 							while not (transactionId in self.responseBuffer):
 								time.sleep(self.responsePollTime)
 								if (self.agentKillFlag):
+									self.laborContractsLock.release()
 									return False
 								
 							responsePacket = self.responseBuffer[transactionId]
@@ -3308,6 +3315,7 @@ class Agent:
 							else:
 								self.logger.error("cancelLaborContract({}) Lock \"responseBufferLock\" acquisition timeout".format(laborContract))
 								
+						self.laborContractsLock.release()
 						if (cancellationSuccess):
 							self.removeLaborContract(laborContract)
 						else:
@@ -3315,13 +3323,16 @@ class Agent:
 							return False
 
 					else:
+						self.laborContractsLock.release()
 						self.logger.error("cancelLaborContract() Could not determine counterParty of {}".format(laborContract))
 						return False
 				else:
-					self.logger.error("cancelLaborContract() {} not found".format(laborContract))
+					self.laborContractsLock.release()
+					self.logger.warning("cancelLaborContract() {} not found".format(laborContract))
 					return False
 			else:
-				self.logger.error("cancelLaborContract() {} not found".format(laborContract))
+				self.laborContractsLock.release()
+				self.logger.warning("cancelLaborContract() {} not found".format(laborContract))
 				return False
 
 
@@ -3479,11 +3490,11 @@ class Agent:
 					price = priceKeys.pop(0)
 					for itemListing in listingDict[price]:
 						#Stop if we have enough of the item
-						if (desiredAmount <= 0):
+						if (utils.truncateFloat(desiredAmount, g_ItemQuantityPercision) <= 0):
 							break
 
 						#Determine how much we can buy from this seller
-						requestedQuantity = desiredAmount
+						requestedQuantity = utils.truncateFloat(desiredAmount, g_ItemQuantityPercision)
 						if (desiredAmount > itemListing.maxQuantity):
 							requestedQuantity = itemListing.maxQuantity
 
@@ -4015,6 +4026,34 @@ class Agent:
 
 		self.logger.debug("loadCheckpoint() succeeded")
 		return True
+
+
+	def commitSuicide(self):
+		'''
+		Agent will send a KILL_AGENT packet to itself and it's controller
+		'''
+		killPacket = NetworkPacket(senderId=self.agentId, destinationId=self.agentId, msgType=PACKET_TYPE.KILL_PIPE_AGENT)
+		self.sendPacket(killPacket)
+
+
+	def startController(self):
+		'''
+		Agent will send a CONTROLLER_START packet to it's controller
+		'''
+		controllerStartPacket = NetworkPacket(senderId=self.agentId, destinationId=self.agentId, msgType=PACKET_TYPE.CONTROLLER_START)
+		if (self.controller):
+			if (not self.controllerStart):
+				self.controllerStart = True
+				controllerThread =  threading.Thread(target=self.controller.controllerStart, args=(controllerStartPacket, ))
+				controllerThread.start()
+				self.spawnedThreads.append(controllerThread)
+				return True
+			return True
+		else:
+			warning = "Agent does not have controller to start"
+			self.logger.error(warning)
+			return False			
+
 
 	def __str__(self):
 		return str(self.info)

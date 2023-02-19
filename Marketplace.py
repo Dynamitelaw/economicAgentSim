@@ -467,7 +467,7 @@ class LaborMarketplace:
 		'''
 		laborListing = incommingPacket.payload
 
-		self.logger.debug("{}.updateItemListing({}) start".format(self.agentId, laborListing))
+		self.logger.debug("{}.updateLaborListing({}) start".format(self.agentId, laborListing))
 
 		updateSuccess = False
 		#Update local labor market with listing
@@ -485,13 +485,13 @@ class LaborMarketplace:
 			self.laborMarketLock.release()
 
 		self.laborMarketEmployerLocks[employerId].acquire()
-		self.laborMarket[skillLevel][employerId][laborListing.listingName] = laborListing
+		self.laborMarket[skillLevel][employerId][laborListing.hash] = laborListing
 		self.laborMarketEmployerLocks[employerId].release()
 
 		updateSuccess = True
 
 		#Return status
-		self.logger.debug("{}.updateItemListing({}) return {}".format(self.agentId, laborListing, updateSuccess))
+		self.logger.debug("{}.updateLaborListing({}) return {}".format(self.agentId, laborListing, updateSuccess))
 		return updateSuccess
 
 	def removeLaborListing(self, incommingPacket):
@@ -501,30 +501,45 @@ class LaborMarketplace:
 		'''
 		laborListing = incommingPacket.payload
 
-		self.logger.debug("{}.removeItemListing({}) start".format(self.agentId, laborListing))
+		self.logger.debug("{}.removeLaborListing({}) start".format(self.agentId, laborListing))
 
 		updateSuccess = False
 
 		#Remove listing from local labor market
 		skillLevel = laborListing.minSkillLevel
 		if (not skillLevel in self.laborMarket):
-			self.logger.warning("{}.removeItemListing({}) failed. Listing not in labor market".format(self.agentId, laborListing))
+			errorString = "{}.removeLaborListing({}) failed. Listing (minSkillLevel={}) not in labor market".format(self.agentId, laborListing, skillLevel)
+			self.logger.error(errorString)
+
+			errorPacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType=PACKET_TYPE.ERROR, payload=errorString, transactionId=incommingPacket.transactionId)
+			self.sendPacket(errorPacket)
+
 			updateSuccess = False
 			return updateSuccess
 
 		employerId = laborListing.employerId
 		if (not employerId in self.laborMarket[skillLevel]):
-			self.logger.warning("{}.removeItemListing({}) failed. Listing not in labor market".format(self.agentId, laborListing))
+			errorString = "{}.removeLaborListing({}) failed. Listing (employerId={}) not in labor market".format(self.agentId, laborListing, employerId)
+			self.logger.error(errorString)
+
+			errorPacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType=PACKET_TYPE.ERROR, payload=errorString, transactionId=incommingPacket.transactionId)
+			self.sendPacket(errorPacket)
+
 			updateSuccess = False
 			return updateSuccess
 
-		if (not laborListing.listingStr in self.laborMarket[skillLevel][employerId]):
-			self.logger.warning("{}.removeItemListing({}) failed. Listing not in labor market".format(self.agentId, laborListing))
+		if (not laborListing.hash in self.laborMarket[skillLevel][employerId]):
+			errorString = "{}.removeLaborListing({}) failed. Listing (hash={}) not in labor market".format(self.agentId, laborListing, laborListing.hash)
+			self.logger.error(errorString)
+
+			errorPacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType=PACKET_TYPE.ERROR, payload=errorString, transactionId=incommingPacket.transactionId)
+			self.sendPacket(errorPacket)
+
 			updateSuccess = False
 			return updateSuccess
 
 		self.laborMarketEmployerLocks[employerId].acquire()
-		del self.laborMarket[skillLevel][employerId][laborListing.listingStr]
+		del self.laborMarket[skillLevel][employerId][laborListing.hash]
 
 		if (len(self.laborMarket[skillLevel][employerId]) == 0):
 			self.laborMarketLock.acquire()
@@ -536,7 +551,7 @@ class LaborMarketplace:
 		updateSuccess = True
 
 		#Return status
-		self.logger.debug("{}.removeItemListing({}) return {}".format(self.agentId, laborListing, updateSuccess))
+		self.logger.debug("{}.removeLaborListing({}) return {}".format(self.agentId, laborListing, updateSuccess))
 		return updateSuccess
 
 	def sampleLaborListings(self, incommingPacket, agentLink, agentSendLock):

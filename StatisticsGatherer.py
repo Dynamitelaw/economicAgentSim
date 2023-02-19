@@ -286,6 +286,9 @@ class LaborContractTracker:
 		self.loadedLaborContracts = {}
 		self.loadedLaborContractsLock = threading.Lock()
 
+		self.removedLaborContracts = {}
+		self.removedLaborContractsLock = threading.Lock()
+
 		self.hourWageListSorted = SortedList()
 		self.hourWageTotal = 0
 
@@ -372,6 +375,11 @@ class LaborContractTracker:
 		self.outputFile.close()
 
 	def advanceStep(self):
+		#Clear out removed contracts dict from last step
+		self.removedLaborContractsLock.acquire()
+		self.removedLaborContracts = {}
+		self.removedLaborContractsLock.release()
+
 		acquired_stepNumLock = self.stepNumLock.acquire(timeout=self.lockTimout)
 		if (acquired_stepNumLock):
 			acquired_wageMetricsLock = self.wageMetricsLock.acquire(timeout=self.lockTimout)
@@ -577,10 +585,15 @@ class LaborContractTracker:
 					#This labor application was accepted
 					laborContract = incommingPacket.payload["laborContract"]
 					self.addLaborContract(laborContract)
-			# elif (incommingPacket.msgType == PACKET_TYPE.LABOR_CONTRACT_CANCEL):
-			# 	#This labor application was canceled
-			# 	laborContract = incommingPacket.payload
-			# 	self.removeLaborContract(laborContract)
+			elif (incommingPacket.msgType == PACKET_TYPE.LABOR_CONTRACT_CANCEL):
+				#This labor application was canceled
+				laborContract = incommingPacket.payload
+				contractHash = laborContract.hash
+				self.removedLaborContractsLock.acquire()
+				if not (contractHash in self.removedLaborContracts):
+					self.removedLaborContracts[contractHash] = True
+					self.removeLaborContract(laborContract)
+				self.removedLaborContractsLock.release()
 
 
 	def handleInfoResp(self, incommingPacket):
