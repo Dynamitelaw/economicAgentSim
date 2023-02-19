@@ -128,7 +128,7 @@ Agent.sendItem(itemPackage, recipientId)	#Send an item to another agent. Returns
 Agent.consumeItem(itemPackage)	#Consume an item. Returns True is successful, False if not
 ```
 ```python
-#WARNING: This spawns new items from the either when called directly. Should only be called directly during simulation setup.
+#WARNING: This spawns new items from the ether when called directly. Should only be called directly during simulation setup.
 Agent.receiveItem(itemPackage)	#Add an item to an agent's inventory
 ```
 ```python
