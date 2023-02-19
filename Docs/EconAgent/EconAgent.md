@@ -53,24 +53,24 @@ The following are the methods intended for use by the agent controller. There ar
 ```python
 Agent.sendPacket(packet)
 ```
-	Sends a **NetworkPacket** over the connection network.
+Sends a **NetworkPacket** over the connection network.
 
 #### Accounting
 ##### Labor Income
 ```python
 Agent.enableLaborIncomeTracking()
 ```
-	Enables the tracking of labor income.
+Enables the tracking of labor income.
 
 ```python
 Agent.getTotalLaborIncome()
 ```
-	Gets the total labor income from the start of the simulation.
+Gets the total labor income from the start of the simulation.
 
 ```python
 Agent.getAvgLaborIncome()
 ```
-	Gets the current exponential moving average labor income per step. 
+Gets the current exponential moving average labor income per step. 
 
 #### Currency
 
