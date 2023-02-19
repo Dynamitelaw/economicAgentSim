@@ -53,20 +53,61 @@ The following are the methods intended for use by the agent controller. There ar
 
 #### Network
 ```python
-Agent.sendPacket(packet)	#Sends a **NetworkPacket** over the connection network.
-Agent.enableLaborIncomeTracking()	#Enables the tracking of labor income.
-Agent.getTotalLaborIncome()	#Gets the total labor income from the start of the simulation.
-Agent.getAvgLaborIncome()	#Gets the current exponential moving average labor income per step. 
-Agent.resetLaborIncome()	#Resets the total labor income to 0. 
+Agent.sendPacket(packet)	#Sends a NetworkPacket over the connection network.
 ```
 
+#### Accounting
+```python
+Agent.enableLaborIncomeTracking()	#Enables the tracking of labor income.
+Agent.getTotalLaborIncome()			#Gets the total labor income from the start of the simulation.
+Agent.getAvgLaborIncome()			#Gets the current exponential moving average labor income per step. 
+Agent.resetLaborIncome()			#Resets the total labor income to 0. 
+```
 ```python
 Agent.enableLaborExpenseTracking()	#Enables the tracking of labor expenses.
-Agent.getTotalLaborExpense()	#Gets the total labor expenses from the start of the simulation.
-Agent.getAvgLaborExpense()	#Gets the current exponential moving average labor expenses per step. 
-Agent.resetLaborExpense()	#Resets the total labor expenses to 0. 
+Agent.getTotalLaborExpense()		#Gets the total labor expenses from the start of the simulation.
+Agent.getAvgLaborExpense()			#Gets the current exponential moving average labor expenses per step. 
+Agent.resetLaborExpense()			#Resets the total labor expenses to 0. 
 ```
-
+```python
+Agent.enableTradeRevenueTracking()	#Enables the tracking of item trading revenue.
+Agent.getTotalTradeRevenue()		#Gets the total item trading revenue from the start of the simulation.
+Agent.getAvgTradeRevenue()			#Gets the current exponential moving average trading revenue per step. 
+Agent.resetTradeRevenue()			#Resets the total trading revenue to 0. 
+```
+```python
+Agent.enableItemExpensesTracking()	#Enables the tracking of item trading expenses.
+Agent.getTotalItemExpenses()		#Gets the total item trading expenses from the start of the simulation.
+Agent.getAvgItemExpenses()			#Gets the current exponential moving average trading expenses per step. 
+Agent.resetItemExpenses()			#Resets the total trading expenses to 0. 
+```
+```python
+Agent.enableLandRevenueTracking()	#Enables the tracking of land sale revenue.
+Agent.getTotalLandRevenue()			#Gets the total land sale revenue from the start of the simulation. 
+Agent.resetLandRevenue()			#Resets the total land sale revenue to 0. 
+```
+```python
+Agent.enableLandExpensesTracking()	#Enables the tracking of land sale expenses.
+Agent.getTotalLandExpenses()		#Gets the total land sale expenses from the start of the simulation. 
+Agent.resetLandExpenses()			#Resets the total land sale expenses to 0. 
+```
+```python
+Agent.enableCurrencyInflowTracking()	#Enables the tracking of currency inflow.
+Agent.getTotalCurrencyInflow()			#Gets the total currency inflow from the start of the simulation.
+Agent.getAvgCurrencyInflow()			#Gets the current exponential moving average of curreny inflow per step. 
+Agent.getStepCurrencyInflow()			#Resets the currency inflow for the previous simulation step. 
+Agent.resetCurrencyInflow()				#Resets the total currency inflow to 0. 
+```
+```python
+Agent.enableCurrencyOutflowTracking()	#Enables the tracking of currency outflow.
+Agent.getTotalCurrencyOutflow()			#Gets the total currency outflow from the start of the simulation.
+Agent.getAvgCurrencyOutflow()			#Gets the current exponential moving average of curreny outflow per step. 
+Agent.getStepCurrencyOutflow()			#Resets the currency outflow for the previous simulation step. 
+Agent.resetCurrencyOutflow()			#Resets the total currency outflow to 0. 
+```
+```python
+Agent.getAccountingStats()	#Returns a dictionary of all accounting stats
+```
 
 #### Currency
 
