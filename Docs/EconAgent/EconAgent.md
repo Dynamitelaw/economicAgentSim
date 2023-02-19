@@ -22,6 +22,7 @@ The Agent class handles:
 * marketplace updates and polling
 * nutrition tracking (if agent is a person)
 
+---
 ### Initialization
 Because simulations are split into multiple processes, instances of the Agent class cannot be initialized outside of the process they'll be run in. 
 This is because they contain [thread locks](https://docs.python.org/3/library/threading.html#lock-objects), which cannot be pickled, and therefore cannot be transfered between two different processes.
@@ -46,8 +47,11 @@ Args:
 * **outputDir**: \<str\> The output path of this simulation
 * **disableNetworkLink**: \<bool\> If True, the agent will ignore incoming packets, and will not send any packets. This is only used for testing, when you want to interact with an agent directly rather than over the network.
 
+---
 ### Methods
 The following are the methods intended for use by the agent controller. There are more methods, but they are used internally, and should not be called by an agent controller.
+
+---
 
 #### Network
 ```python
