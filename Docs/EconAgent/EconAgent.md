@@ -158,19 +158,53 @@ Agent.receiveLand(itemId, stepProductionQuantity)	#Get a dictionary of input sur
 ```
 
 #### Labor
+```python
+Agent.sendJobApplication(laborListing)	#Apply for a <LaborListing>. Returns True is application accepted, False if not
+Agent.cancelLaborContract(laborListing)	#Unilateraly cancel a <LaborContract>
+```
+```python
+Agent.getNetContractedEmployeeLabor()	#Returns a dictionary of all current labor contracts in which this agent is the employer, organized by skill level
+Agent.getAllLaborContracts()	#Returns a list of all current labor contracts
+```
 
-#### Marketplace
-
-##### Item MarketplaceItem
-
-##### Land MarketplaceItem
-
-##### Labor MarketplaceItem
+#### Marketplaces
+```python
+Agent.updateItemListing(itemListing)	#Update the Item Marketplace with an <ItemListing>
+Agent.removeItemListing(itemListing)	#Removes an <ItemListing> from the Item Marketplace
+Agent.sampleItemListings(itemContainer, sampleSize=3)	#Returns a random sampling of ItemListings from the Item Marketplace, where ItemListing.itemId == itemContainer.id
+Agent.acquireItem(itemContainer, sampleSize=5)		#Automatically attempt to acquire an item for the lowest price. Will return an itemContainer of acquired items.
+```
+```python
+Agent.updateLaborListing(laborListing)	#Update the Labor Marketplace with an <LaborListing>
+Agent.removeLaborListing(laborListing)	#Removes an <LaborListing> from the Labor Marketplace
+Agent.sampleLaborListings(sampleSize=3, maxSkillLevel=-1, minSkillLevel=0)	#Returns a random sampling of LaborListings from the Labor Marketplace
+```
+```python
+Agent.updateLandListing(laborListing)	#Update the Land Marketplace with an <LandListing>
+Agent.removeLandListing(laborListing)	#Removes an <LandListing> from the Land Marketplace
+Agent.sampleLandListings(allocation, hectares, sampleSize=3)	#Returns a random sampling of LandListings from the Land Marketplace
+```
 
 #### Utility
+```python
+Agent.getMarginalUtility(itemId)	#Get the marginal utility of an item
+```
 
 #### Time
+```python
+Agent.subcribeTickBlocking()	#Notify the simulation manager that you need to be included in simulation step synchronization. Should be called by the controller during simulation setup.
+Agent.relinquishTimeTicks()	#Use up all remaining ticks and wait for the next simulation step
+```
 
 #### Food
+```python
+Agent.enableHunger(autoEat=True)	#Enable nutrition tracking for this agent. If autoEat is set to True, agent will automatically purchase and consume required food at the start of each simulation step.	
+```
 
 #### Misc
+```python
+Agent.saveCheckpoint(filePath=None)	#Saves current agent state into a checkpoint file. Will determine it's own filepath if filePath is not defined
+Agent.loadCheckpoint(filePath=None)	#Attempts to load agent state from checkpoint file. Returns true if successful, False if not. Will try to find the checkpoint file if filePath is not specified.
+Agent.startController()	#Agent will send a CONTROLLER_START packet to it's controller.
+Agent.commitSuicide()	#Agent will send a KILL_AGENT packet to itself and it's controller.
+```
