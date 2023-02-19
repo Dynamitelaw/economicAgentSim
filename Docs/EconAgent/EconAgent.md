@@ -59,7 +59,7 @@ Agent.sendPacket(packet)	#Sends a NetworkPacket over the connection network.
 #### Accounting
 ```python
 Agent.enableLaborIncomeTracking()	#Enables the tracking of labor income.
-Agent.getTotalLaborIncome()			#Gets the total labor income from the start of the simulation.
+Agent.getTotalLaborIncome()		#Gets the total labor income from the start of the simulation.
 Agent.getAvgLaborIncome()		#Gets the current exponential moving average labor income per step. 
 Agent.resetLaborIncome()		#Resets the total labor income to 0. 
 ```
@@ -72,8 +72,8 @@ Agent.resetLaborExpense()		#Resets the total labor expenses to 0.
 ```python
 Agent.enableTradeRevenueTracking()	#Enables the tracking of item trading revenue.
 Agent.getTotalTradeRevenue()		#Gets the total item trading revenue from the start of the simulation.
-Agent.getAvgTradeRevenue()		#Gets the current exponential moving average trading revenue per step. 
-Agent.resetTradeRevenue()		#Resets the total trading revenue to 0. 
+Agent.getAvgTradeRevenue()	#Gets the current exponential moving average trading revenue per step. 
+Agent.resetTradeRevenue()	#Resets the total trading revenue to 0. 
 ```
 ```python
 Agent.enableItemExpensesTracking()	#Enables the tracking of item trading expenses.
@@ -92,18 +92,18 @@ Agent.getTotalLandExpenses()		#Gets the total land sale expenses from the start 
 Agent.resetLandExpenses()		#Resets the total land sale expenses to 0. 
 ```
 ```python
-Agent.enableCurrencyInflowTracking()		#Enables the tracking of currency inflow.
-Agent.getTotalCurrencyInflow()			#Gets the total currency inflow from the start of the simulation.
-Agent.getAvgCurrencyInflow()			#Gets the current exponential moving average of curreny inflow per step. 
-Agent.getStepCurrencyInflow()			#Resets the currency inflow for the previous simulation step. 
-Agent.resetCurrencyInflow()			#Resets the total currency inflow to 0. 
+Agent.enableCurrencyInflowTracking()	#Enables the tracking of currency inflow.
+Agent.getTotalCurrencyInflow()		#Gets the total currency inflow from the start of the simulation.
+Agent.getAvgCurrencyInflow()		#Gets the current exponential moving average of curreny inflow per step. 
+Agent.getStepCurrencyInflow()		#Resets the currency inflow for the previous simulation step. 
+Agent.resetCurrencyInflow()		#Resets the total currency inflow to 0. 
 ```
 ```python
-Agent.enableCurrencyOutflowTracking()		#Enables the tracking of currency outflow.
-Agent.getTotalCurrencyOutflow()			#Gets the total currency outflow from the start of the simulation.
-Agent.getAvgCurrencyOutflow()			#Gets the current exponential moving average of curreny outflow per step. 
-Agent.getStepCurrencyOutflow()			#Resets the currency outflow for the previous simulation step. 
-Agent.resetCurrencyOutflow()			#Resets the total currency outflow to 0. 
+Agent.enableCurrencyOutflowTracking()	#Enables the tracking of currency outflow.
+Agent.getTotalCurrencyOutflow()		#Gets the total currency outflow from the start of the simulation.
+Agent.getAvgCurrencyOutflow()		#Gets the current exponential moving average of curreny outflow per step. 
+Agent.getStepCurrencyOutflow()		#Resets the currency outflow for the previous simulation step. 
+Agent.resetCurrencyOutflow()		#Resets the total currency outflow to 0. 
 ```
 ```python
 Agent.getAccountingStats()	#Returns a dictionary of all accounting stats
