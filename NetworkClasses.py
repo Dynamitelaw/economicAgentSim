@@ -182,6 +182,27 @@ LAND_TRADE_REQ
 LAND_TRADE_REQ_ACK
 	payload = <dict> {"tradeRequest": <LandTradeRequest>, "accepted": <bool>}
 
+LABOR_APPLICATION
+	payload = <LaborContract>
+	If sent to an agent, it will foward the contract to its controller for evaluation
+
+LABOR_APPLICATION_ACK
+	payload = <dcit> {"laborContract": <LaborContract>, "accepted": <bool>}
+	Sent to the agent that applied for a job. Payload is True is accepted, False if not.
+
+LABOR_TIME_SEND
+	payload = <dict> {"ticks": <int> ticks, "skillLevel": <float> self.skillLevel}
+	Used by an agent sending their time to their employer
+
+LABOR_CONTRACT_CANCEL
+	payload = <LaborContract>
+	If sent to an agent, it will cancel the specified labor contract
+
+LABOR_CONTRACT_CANCEL_ACK
+	payload = <dict> {"cancellationSuccess": <bool>, "laborContract": <LaborContract>}
+	Sent in response to a LABOR_CONTRACT_CANCEL
+
+
 #########################
 # Market Packets
 #########################
@@ -278,6 +299,37 @@ TICK_BLOCK_SUBSCRIBE:
 
 TICK_BLOCKED
 	Sent by a controller to the ConnectionNetwork. Tells the network that the controller is out of time ticks and cannot execute more actions
+
+TICK_BLOCKED_ACK
+	Sent by the ConnectionNetwork to the blocked agent, so that the agent knows it's TICK_BLOCKED was registered
+
+TICK_GRANT
+	payload = <int> ticks
+	Send by the simulation manager to an agent at the beginning of a step.
+
+TICK_GRANT_BROADCAST
+	payload = <int> ticks
+	Send by the simulation manager to all agents at the beginning of a step.
+
+TERMINATE_SIMULATION
+	If sent to the simulation manager, it will terminate the simulation
+
+PROC_STOP
+	If sent to a simulation process, it will kill itself
+
+SAVE_CHECKPOINT
+	If send to an agent, it will save a checkpoint file
+
+SAVE_CHECKPOINT_BROADCAST
+	If sent, all agents and marketplaces will save a checkpoint
+	
+LOAD_CHECKPOINT
+	payload = <str> checkpoint path
+	If sent to an agent, it will load a checkpoint
+
+LOAD_CHECKPOINT_BROADCAST
+	payload = <str> checkpoint path
+	If sent, all agents and markets will load a checkpoint
 
 #########################
 # Controller messages

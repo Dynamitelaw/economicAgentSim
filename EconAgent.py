@@ -107,7 +107,7 @@ class UtilityFunction:
 #######################
 class ProductionFunction:
 	'''
-	Used to calculate production costs for a given item
+	Used to calculate production costs for a given item, as well as handling item production
 	'''
 	def __init__(self, itemDict):
 		self.itemDict = itemDict

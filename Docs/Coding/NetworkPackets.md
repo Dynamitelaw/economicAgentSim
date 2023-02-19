@@ -1,5 +1,7 @@
-# NetworkPacket Class
-Network packets are how agents interface with the rest of the simulation.
+#NetworkClasses.py
+---
+## NetworkPacket Class
+Network packets are how agents interface with the rest of the simulation. They are sent over the Connection Network.
 ### Initialization
 ```python
 packet = NetworkPacket(senderId, msgType, destinationId=None, payload=None, transactionId=None)
@@ -10,8 +12,9 @@ Args:
 * **destinationId**: \<str\> Name of the destination agent. Required if sending a packet to a particular agent.
 * **payload**: Payload of the packet. Can be any pickle-safe python object.
 * **transactionId**: \<str\> The ID of a larger transaction. If a packet is a single email, the transactionId is the email subject that can be shared among multiple packets. Used by the Agent class to handle interactions that require multiple packets between agents.
+---
 
-# PACKET_TYPE Enums
+## PACKET_TYPE Enums
 
 ### Network Packets
 ```python
@@ -69,6 +72,26 @@ LAND_TRADE_REQ
 
 LAND_TRADE_REQ_ACK
 	#payload = <dict> {"tradeRequest": <LandTradeRequest>, "accepted": <bool>}
+
+LABOR_APPLICATION
+	#payload = <LaborContract>
+	#If sent to an agent, it will foward the contract to its controller for evaluation
+
+LABOR_APPLICATION_ACK
+	#payload = <dcit> {"laborContract": <LaborContract>, "accepted": <bool>}
+	#Sent to the agent that applied for a job. Payload is True is accepted, False if not.
+
+LABOR_TIME_SEND
+	#payload = <dict> {"ticks": <int> ticks, "skillLevel": <float> self.skillLevel}
+	#Used by an agent sending their time to their employer
+
+LABOR_CONTRACT_CANCEL
+	#payload = <LaborContract>
+	#If sent to an agent, it will cancel the specified labor contract
+
+LABOR_CONTRACT_CANCEL_ACK
+	#payload = <dict> {"cancellationSuccess": <bool>, "laborContract": <LaborContract>}
+	#Sent in response to a LABOR_CONTRACT_CANCEL
 ```
 
 ### Market Packets
@@ -126,7 +149,7 @@ LAND_MARKET_SAMPLE_ACK
 ```python
 PRODUCTION_NOTIFICATION
 	#payload = <ItemContainer>
-	#Send when an item is produced by an agent. Is only fowarded if snooped on, otherwise ignored
+	#Sent when an item is produced by an agent. Is only fowarded if snooped on, otherwise ignored
 
 INFO_REQ
 	#payload = <InfoRequest>
@@ -163,20 +186,52 @@ TICK_BLOCK_SUBSCRIBE:
 
 TICK_BLOCKED
 	#Sent by a controller to the ConnectionNetwork. Tells the network that the controller is out of time ticks and cannot execute more actions
+
+TICK_BLOCKED_ACK
+	#Sent by the ConnectionNetwork to the blocked agent, so that the agent knows it's TICK_BLOCKED was registered
+
+TICK_GRANT
+	#payload = <int> ticks
+	#Send by the simulation manager to an agent at the beginning of a step.
+
+TICK_GRANT_BROADCAST
+	#payload = <int> ticks
+	#Send by the simulation manager to all agents at the beginning of a step.
+
+TERMINATE_SIMULATION
+	#If sent to the simulation manager, it will terminate the simulation
+
+PROC_STOP
+	#If sent to a simulation process, it will kill itself
+
+SAVE_CHECKPOINT
+	#If send to an agent, it will save a checkpoint file
+
+SAVE_CHECKPOINT_BROADCAST
+	#If sent, all agents and marketplaces will save a checkpoint
+	
+LOAD_CHECKPOINT
+	#payload = <str> checkpoint path
+	#If sent to an agent, it will load a checkpoint
+
+LOAD_CHECKPOINT_BROADCAST
+	#payload = <str> checkpoint path
+	#If sent, all agents and markets will load a checkpoint
 ```
 
 ### Controller messages
 These message types are fowarded to the agent controller, so they have no hardcoded behavior.
 The following are the current types and their intended usage.
 ```python
-msg = NetworkPacket(msgType="CONTROLLER_MSG|CONTROLLER_MSG_BROADCAST", payload=controllerMessage)
 #controllerMessage is expected to be a <NetworkPacket> obj
+msg = NetworkPacket(msgType=PACKET_TYPE.CONTROLLER_MSG, payload=controllerMessage)
+msgBroadcast = NetworkPacket(msgType=PACKET_TYPE.CONTROLLER_MSG_BROADCAST, payload=controllerMessage)
 ```
 ```python
 ADVANCE_STEP
 	#Sent by the ConnectionNetwork to the SimulationManager. Tells the manager that all agents are ready for the next simulation step
 STOP_TRADING:
-	#Tells the recipient controller to cease all trading activity
+	#Tells the recipient controller that the simulation is ending, and to cease all trading activity
 TICK_GRANT:
 	#payload=<int> tickAmount
 	#Grants the recipient controller time ticks. Sent by the SimulationManager to synchronize sim time.

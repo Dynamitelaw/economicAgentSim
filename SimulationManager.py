@@ -178,7 +178,7 @@ class SimulationManager:
 					if (self.checkpointFrequency):
 						if ((stepNum > 0) and (stepNum%self.checkpointFrequency == 0)):
 							self.logger.debug("Saving simulation checkpoint")
-							checkpointPacket = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.SAVE_CHECKPOINT_BROADCAST, payload=ticksPerStep)
+							checkpointPacket = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.SAVE_CHECKPOINT_BROADCAST)
 							self.agent.sendPacket(checkpointPacket)
 
 			#Calculate runtime

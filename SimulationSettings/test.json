@@ -3,7 +3,7 @@
 	"description": "Test simulation with competetive farms. Used for testing and debug.",
 	"settings": {
 		"AgentNumProcesses": 7,
-		"SimulationSteps": 400,
+		"SimulationSteps": 1600,
 		"TicksPerStep": 16,
 		"CheckpointFrequency": 50,
 		"AgentSpawns":{

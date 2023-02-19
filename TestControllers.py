@@ -2156,7 +2156,7 @@ class TestFarmCompetetiveV3:
 		#self.agent.receiveCurrency(9999999999999)
 
 		#Spawn initial inventory of items
-		self.agent.receiveItem(ItemContainer(self.sellItemId, self.targetProductionRate*self.targetInventoryDays*1.4))
+		self.agent.receiveItem(ItemContainer(self.sellItemId, self.targetProductionRate*self.targetInventoryDays*1.8))
 
 		#Enable accounting
 		self.agent.enableTradeRevenueTracking()
@@ -2285,7 +2285,7 @@ class TestFarmCompetetiveV3:
 	def adjustProductionTarget(self, inventoryRatio, profitMargin):
 		self.logger.debug("adjustProductionTarget(inventoryRatio={}, profitMargin={}) start".format(inventoryRatio, profitMargin))
 		#Adjust target production based on current profit margin and inventory ratio
-		prodAlpha = 0.3
+		prodAlpha = 0.2
 
 		ratioList = []
 
@@ -2304,7 +2304,7 @@ class TestFarmCompetetiveV3:
 
 			return round(targetProductionRate, g_ItemQuantityPercision)
 
-		inventoryAdjustmentRatio = pow(self.targetInventoryDays*inventoryRatio, 1.1)
+		inventoryAdjustmentRatio = pow(self.targetInventoryDays*inventoryRatio, 0.7)
 		self.logger.debug("adjustProductionTarget() Inventory adjustment ratio = {}".format(inventoryAdjustmentRatio))
 		ratioList.append(inventoryAdjustmentRatio)
 
