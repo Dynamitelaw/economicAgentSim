@@ -131,8 +131,8 @@ Agent.consumeItem(itemPackage)	#Consume an item. Returns True is successful, Fal
 Agent.receiveItem(itemPackage)	#Add an item to an agent's inventory
 ```
 ```python
-Agent.produceItem(itemContainer)	#Produce an item. Returns an itemContainer if successful, False if not
-Agent.getMaxProduction(itemId)		#Get the maximum amount of an item this agent can produce
+Agent.produceItem(itemContainer)		#Produce an item. Returns an itemContainer if successful, False if not
+Agent.getMaxProduction(itemId)			#Get the maximum amount of an item this agent can produce
 Agent.getProductionInputDeltas(itemId, stepProductionQuantity)	#Get a dictionary of input surpluses and deficits for a target production quantity per step
 Agent.getProductionInputDeficit(itemId)		#Get a dictionary of input deficits for a target production quantity per step
 Agent.getProductionInputSurplus(itemId)		#Get a dictionary of input deficits for a target production quantity per step
@@ -164,24 +164,24 @@ Agent.cancelLaborContract(laborListing)	#Unilateraly cancel a <LaborContract>
 ```
 ```python
 Agent.getNetContractedEmployeeLabor()	#Returns a dictionary of all current labor contracts in which this agent is the employer, organized by skill level
-Agent.getAllLaborContracts()	#Returns a list of all current labor contracts
+Agent.getAllLaborContracts()		#Returns a list of all current labor contracts
 ```
 
 #### Marketplaces
 ```python
-Agent.updateItemListing(itemListing)	#Update the Item Marketplace with an <ItemListing>
-Agent.removeItemListing(itemListing)	#Removes an <ItemListing> from the Item Marketplace
+Agent.updateItemListing(itemListing)			#Update the Item Marketplace with an <ItemListing>
+Agent.removeItemListing(itemListing)			#Removes an <ItemListing> from the Item Marketplace
 Agent.sampleItemListings(itemContainer, sampleSize=3)	#Returns a random sampling of ItemListings from the Item Marketplace, where ItemListing.itemId == itemContainer.id
 Agent.acquireItem(itemContainer, sampleSize=5)		#Automatically attempt to acquire an item for the lowest price. Will return an itemContainer of acquired items.
 ```
 ```python
-Agent.updateLaborListing(laborListing)	#Update the Labor Marketplace with an <LaborListing>
-Agent.removeLaborListing(laborListing)	#Removes an <LaborListing> from the Labor Marketplace
+Agent.updateLaborListing(laborListing)			#Update the Labor Marketplace with an <LaborListing>
+Agent.removeLaborListing(laborListing)			#Removes an <LaborListing> from the Labor Marketplace
 Agent.sampleLaborListings(sampleSize=3, maxSkillLevel=-1, minSkillLevel=0)	#Returns a random sampling of LaborListings from the Labor Marketplace
 ```
 ```python
-Agent.updateLandListing(laborListing)	#Update the Land Marketplace with an <LandListing>
-Agent.removeLandListing(laborListing)	#Removes an <LandListing> from the Land Marketplace
+Agent.updateLandListing(laborListing)			#Update the Land Marketplace with an <LandListing>
+Agent.removeLandListing(laborListing)			#Removes an <LandListing> from the Land Marketplace
 Agent.sampleLandListings(allocation, hectares, sampleSize=3)	#Returns a random sampling of LandListings from the Land Marketplace
 ```
 
@@ -205,8 +205,8 @@ Agent.enableHunger(autoEat=True)	#Enable nutrition tracking for this agent. If a
 ```python
 Agent.saveCheckpoint(filePath=None)	#Saves current agent state into a checkpoint file. Will determine it's own filepath if filePath is not defined
 Agent.loadCheckpoint(filePath=None)	#Attempts to load agent state from checkpoint file. Returns true if successful, False if not. Will try to find the checkpoint file if filePath is not specified.
-Agent.startController()	#Agent will send a CONTROLLER_START packet to it's controller.
-Agent.commitSuicide()	#Agent will send a KILL_AGENT packet to itself and it's controller.
+Agent.startController()			#Agent will send a CONTROLLER_START packet to it's controller.
+Agent.commitSuicide()			#Agent will send a KILL_AGENT packet to itself and it's controller.
 ```
 
 ---
