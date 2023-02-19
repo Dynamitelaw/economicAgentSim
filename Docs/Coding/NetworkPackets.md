@@ -72,7 +72,10 @@ LAND_TRADE_REQ
 
 LAND_TRADE_REQ_ACK
 	#payload = <dict> {"tradeRequest": <LandTradeRequest>, "accepted": <bool>}
+```
 
+### Labor Packets
+```python
 LABOR_APPLICATION
 	#payload = <LaborContract>
 	#If sent to an agent, it will foward the contract to its controller for evaluation
