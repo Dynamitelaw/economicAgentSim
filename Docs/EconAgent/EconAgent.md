@@ -72,8 +72,8 @@ Agent.resetLaborExpense()		#Resets the total labor expenses to 0.
 ```python
 Agent.enableTradeRevenueTracking()	#Enables the tracking of item trading revenue.
 Agent.getTotalTradeRevenue()		#Gets the total item trading revenue from the start of the simulation.
-Agent.getAvgTradeRevenue()	#Gets the current exponential moving average trading revenue per step. 
-Agent.resetTradeRevenue()	#Resets the total trading revenue to 0. 
+Agent.getAvgTradeRevenue()		#Gets the current exponential moving average trading revenue per step. 
+Agent.resetTradeRevenue()		#Resets the total trading revenue to 0. 
 ```
 ```python
 Agent.enableItemExpensesTracking()	#Enables the tracking of item trading expenses.
@@ -110,12 +110,52 @@ Agent.getAccountingStats()	#Returns a dictionary of all accounting stats
 ```
 
 #### Currency
+```python
+Agent.getCurrencyBalance()	#Returns the current cash balance
+```
+```python
+Agent.sendCurrency(centsm recipientId)	#Sends currency to another agent. Returns True is successful, False if not
+```
+```python
+#WARNING: This prints new currency when called directly. Should only be called directly during simulation setup.
+Agent.receiveCurrency(cents)	#Add currency to the agent's balance
+```
 
 #### Item Production/Consumption
+```python
+Agent.sendItem(itemPackage, recipientId)	#Send an item to another agent. Returns True is successful, False if not
+Agent.consumeItem(itemPackage)	#Consume an item. Returns True is successful, False if not
+```
+```python
+#WARNING: This spawns new items from the either when called directly. Should only be called directly during simulation setup.
+Agent.receiveItem(itemPackage)	#Add an item to an agent's inventory
+```
+```python
+Agent.produceItem(itemContainer)	#Produce an item. Returns an itemContainer if successful, False if not
+Agent.getMaxProduction(itemId)		#Get the maximum amount of an item this agent can produce
+Agent.getProductionInputDeltas(itemId, stepProductionQuantity)	#Get a dictionary of input surpluses and deficits for a target production quantity per step
+Agent.getProductionInputDeficit(itemId)		#Get a dictionary of input deficits for a target production quantity per step
+Agent.getProductionInputSurplus(itemId)		#Get a dictionary of input deficits for a target production quantity per step
+```
 
 #### Item Trading
+```python
+Agent.sendTradeRequest(request, recipientId)	#Send a <TradeRequest> to another agent. Will execute trade if accepted
+```
 
 #### Land Allocation/Trading
+```python
+Agent.deallocateLand(allocationType, hectares)	#Deallocate land from a particular use. Returns True is successful, False if not
+Agent.allocateLand(allocationType, hectares)	#Allocate land for a particular use. Returns True is successful, False if not
+```
+```python
+Agent.sendLandTradeRequest(request, recipientId)	#Send a <LandTradeRequest> to another agent. Will execute trade if accepted
+Agent.sendLand( allocation, hectares, recipientId)	#Send land to another agent. Returns True is successful, False if not
+```
+```python
+#WARNING: This spawns new land when called directly. Should only be called directly during simulation setup.
+Agent.receiveLand(itemId, stepProductionQuantity)	#Get a dictionary of input surpluses and deficits for a target production quantity per step
+```
 
 #### Labor
 
