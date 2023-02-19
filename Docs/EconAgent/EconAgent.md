@@ -208,3 +208,11 @@ Agent.loadCheckpoint(filePath=None)	#Attempts to load agent state from checkpoin
 Agent.startController()	#Agent will send a CONTROLLER_START packet to it's controller.
 Agent.commitSuicide()	#Agent will send a KILL_AGENT packet to itself and it's controller.
 ```
+
+---
+## Sub Classes
+These classes are used by the Agent class for various functions.
+* **UtilityFunction** : Determines the utility for an object for a particular agent.
+* **ProductionFunction** : Used to calculate production costs for a given item, as well as handling item production.
+* **NutritionTracker** : Keeps track of an agent's nutritional levels, as well as food consumption.
+* **LandAllocationQueue** : Keeps track of land that is currently being allocated.
