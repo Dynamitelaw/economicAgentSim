@@ -56,7 +56,6 @@ Agent.sendPacket(packet)
 Sends a **NetworkPacket** over the connection network.
 
 #### Accounting
-##### Labor Income
 ```python
 Agent.enableLaborIncomeTracking()
 ```
@@ -71,6 +70,32 @@ Gets the total labor income from the start of the simulation.
 Agent.getAvgLaborIncome()
 ```
 Gets the current exponential moving average labor income per step. 
+
+```python
+Agent.resetLaborIncome()
+```
+Resets the total labor income to 0. 
+
+
+```python
+Agent.enableLaborExpenseTracking()
+```
+Enables the tracking of labor expenses.
+
+```python
+Agent.getTotalLaborExpense()
+```
+Gets the total labor expenses from the start of the simulation.
+
+```python
+Agent.getAvgLaborExpense()
+```
+Gets the current exponential moving average labor expenses per step. 
+
+```python
+Agent.resetLaborExpense()
+```
+Resets the total labor expenses to 0. 
 
 #### Currency
 
