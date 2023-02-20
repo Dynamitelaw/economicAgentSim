@@ -19,7 +19,7 @@ runSim.py takes in a json file as an argument. This file defines all simulation 
 		* *\<str\>StatName* : \<json\> This is an arbitrary name for this statistic. Must be unique. The data for this field is a json object describing *StatName*
 			* *\<str\>STAT_TRACKER_TYPE* : \<json\> *STAT_TRACKER_TYPE* denotes the type of stat tracker you want to use. The data for this field is a json object describing tracker settings. The format of these tracker settings are dependent on *STAT_TRACKER_TYPE*.
 
-Here is an example file:
+Example file:
 ```json
 {
 	"name": "MySimulation",
@@ -86,3 +86,58 @@ Here is an example file:
 	}
 }
 ```
+
+## Statistics Trackers
+These are all the current statistic tracker types, and their settings formats.
+* **LaborContractTracker** : Tracks all currently active LaborContracts by snooping on LABOR_APPLICATION_ACK and LABOR_CONTRACT_CANCEL packets.
+```json
+"LaborContractTracker": {
+	"OuputPath": "My/Output/Path.csv"
+}
+```
+* **ConsumptionTracker** : Tracks net consumption by snooping on TRADE_REQ_ACK packets.
+```json
+"ConsumptionTracker": {
+	"ConsumerClasses": ["TestFarmWorker_Rule", "TestFarmWorker_AI"],
+	"OuputPath": "My/Output/Path.csv"
+}
+```
+* **ItemPriceTracker** : Tracks the distribution of sale prices for a particular item by snooping on TRADE_REQ_ACK packets.
+```json
+"ItemPriceTracker": {
+	"id": "apple",
+	"OuputPath": "My/Output/Path.csv"
+}
+```
+* **ProductionTracker** : Tracks the net production of a particular item by snooping on PRODUCTION_NOTIFICATION packets.
+```json
+"ProductionTracker": {
+	"id": "apple",
+	"OuputPath": "My/Output/Path.csv"
+}
+```
+* **AccountingTracker** : Tracks the accounting stats of particular agents by sending out INFO_REQ packets.
+```json
+"AccountingTracker": {
+	"AgentFilters": ["PeaFarm0"],
+	"OuputPath": "My/Output/Path.csv"
+}
+```
+					"OuputPath": "LaborStats/AllLabor.csv"
+				}
+				"ConsumptionTracker": {
+					"ConsumerClasses": ["TestFarmWorker"],
+					"OuputPath": "ConsumptionStats/PrivateConsumption.csv"
+				}
+				"ItemPriceTracker":{
+					"id": "apple",
+					"OuputPath": "FoodMarket/apple/ApplePrice.csv"
+				},
+				"ProductionTracker":{
+					"id": "apple",
+					"OuputPath": "FoodMarket/apple/AppleProduction.csv"
+				},
+				"AccountingTracker":{
+					"AgentFilters": ["PeaFarm0"],
+					"OuputPath": "FoodMarket/chickpea/accounting/ChickpeaFarm0_Accounting.csv"
+				}
