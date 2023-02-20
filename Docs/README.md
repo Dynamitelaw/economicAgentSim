@@ -1,5 +1,5 @@
 # Usage
-[Statistics Gatherer](Usage/Statistics.md): A guide on dumping economic stats from a simulation.
+[Simulation Settings](Usage/SimulationSettings.md): Format of a simulation settings file.
 
 # Coding Documentation
 [Program Architecture](Coding/ProgramArchitecture.md): A high-level overview of the program architecture.
