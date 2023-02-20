@@ -96,9 +96,10 @@ These are all the current statistic tracker types, and their settings formats.
 }
 ```
 * **ConsumptionTracker** : Tracks net consumption by snooping on TRADE_REQ_ACK packets.
+	* ConsumerClasses : \<list(\<str\>)\> A list of strings to filter which agents you want to track consumption for.
 ```json
 "ConsumptionTracker": {
-	"ConsumerClasses": ["TestFarmWorker_Rule", "TestFarmWorker_AI"],
+	"ConsumerClasses": ["TestFarmWorker", "TestFarmWorkerOwner"],
 	"OuputPath": "My/Output/Path.csv"
 }
 ```
@@ -117,27 +118,10 @@ These are all the current statistic tracker types, and their settings formats.
 }
 ```
 * **AccountingTracker** : Tracks the accounting stats of particular agents by sending out INFO_REQ packets.
+	* AgentFilters : \<list(\<str\>)\> A list of strings to filter which agents you want to get accounting stats for.
 ```json
 "AccountingTracker": {
 	"AgentFilters": ["PeaFarm0"],
 	"OuputPath": "My/Output/Path.csv"
 }
 ```
-					"OuputPath": "LaborStats/AllLabor.csv"
-				}
-				"ConsumptionTracker": {
-					"ConsumerClasses": ["TestFarmWorker"],
-					"OuputPath": "ConsumptionStats/PrivateConsumption.csv"
-				}
-				"ItemPriceTracker":{
-					"id": "apple",
-					"OuputPath": "FoodMarket/apple/ApplePrice.csv"
-				},
-				"ProductionTracker":{
-					"id": "apple",
-					"OuputPath": "FoodMarket/apple/AppleProduction.csv"
-				},
-				"AccountingTracker":{
-					"AgentFilters": ["PeaFarm0"],
-					"OuputPath": "FoodMarket/chickpea/accounting/ChickpeaFarm0_Accounting.csv"
-				}
