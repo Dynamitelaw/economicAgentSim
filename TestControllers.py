@@ -2593,11 +2593,11 @@ class TestFarmCompetetiveV3:
 
 	def updateItemListing(self):
 		#TODO
-		'''
+		
 		productInventory = 0	
 		if (self.sellItemId in self.agent.inventory):	
 			productInventory = self.agent.inventory[self.sellItemId].quantity	
-		self.itemListing = ItemListing(sellerId=self.agentId, itemId=self.sellItemId, unitPrice=self.sellPrice, maxQuantity=productInventory/(2*self.targetInventoryDays))	
+		self.itemListing = ItemListing(sellerId=self.agentId, itemId=self.sellItemId, unitPrice=self.sellPrice, maxQuantity=self.currentProductionRateAvg/3)  #productInventory/(2*self.targetInventoryDays))	
 		if (self.itemListing.maxQuantity > 0):	
 			self.logger.info("Updating item listing | {}".format(self.itemListing))	
 			listingUpdated = self.agent.updateItemListing(self.itemListing)	
@@ -2608,6 +2608,7 @@ class TestFarmCompetetiveV3:
 		self.itemListing = ItemListing(sellerId=self.agentId, itemId=self.sellItemId, unitPrice=self.sellPrice, maxQuantity=self.currentProductionRateAvg/3)
 		self.logger.info("Updating item listing | {}".format(self.itemListing))
 		listingUpdated = self.agent.updateItemListing(self.itemListing)
+		'''
 
 
 	#########################
