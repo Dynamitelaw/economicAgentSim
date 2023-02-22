@@ -8,6 +8,9 @@ import threading
 import math
 from sortedcontainers import SortedList
 import traceback
+import queue
+import numpy as np
+from sklearn.linear_model import LinearRegression
 
 import utils
 from TradeClasses import *
@@ -2036,10 +2039,11 @@ class TestFarmCompetetiveV2:
 			self.listingActive = True
 		else:
 			#Remove listing
-			self.agent.removeLaborListing(self.laborListing)
-			self.listingActive = False
-			self.applications = 0
-			self.openSteps = 0
+			if (self.listingActive):
+				self.agent.removeLaborListing(self.laborListing)
+				self.listingActive = False
+				self.applications = 0
+				self.openSteps = 0
 
 		#Print stats
 		self.logger.debug("HR Stats: employees={}, requiredLabor={}, workerDeficit={}, applications={}, openSteps={}, workerWage={}".format(self.agent.laborContractsTotal, self.requiredLabor, self.workerDeficit, self.applications, self.openSteps, self.workerWage))
@@ -2101,6 +2105,12 @@ class TestFarmCompetetiveV3:
 			self.logger.info("No item specified. Randomly selected \"{}\"".format(self.sellItemId))
 
 
+		#Keep track of price elasticity
+		elasticitySampleSize = 50
+		self.elastDatapoints = queue.Queue(elasticitySampleSize)
+		self.linearModel = LinearRegression()
+		self.demandElasticity = None
+
 		#Keep track of production targets
 		self.targetProductionRate = 10
 		if ("startingProductionRate" in settings):
@@ -2116,6 +2126,7 @@ class TestFarmCompetetiveV3:
 		self.sellPrice = (self.agent.utilityFunctions[self.sellItemId].getMarginalUtility(self.targetProductionRate/averageCustomers)) * (1+(random.random()-0.5))
 		self.currentSalesAvg = self.targetProductionRate 
 		self.stepSales = self.currentSalesAvg
+		self.averageUnitCost = None
 		#self.stepSalesLock = threading.Lock()  #TODO
 
 		self.itemListing = ItemListing(sellerId=self.agentId, itemId=self.sellItemId, unitPrice=self.sellPrice, maxQuantity=self.currentProductionRateAvg/3)
@@ -2152,11 +2163,11 @@ class TestFarmCompetetiveV3:
 		self.agent.receiveLand("UNALLOCATED", 9999999999)
 
 		#Spawn starting capital
-		self.agent.receiveCurrency(600000)
-		#self.agent.receiveCurrency(9999999999999)
+		#self.agent.receiveCurrency(600000)
+		self.agent.receiveCurrency(9999999999999)
 
 		#Spawn initial inventory of items
-		self.agent.receiveItem(ItemContainer(self.sellItemId, self.targetProductionRate*self.targetInventoryDays*1.8))
+		self.agent.receiveItem(ItemContainer(self.sellItemId, self.targetProductionRate*self.targetInventoryDays))
 
 		#Enable accounting
 		self.agent.enableTradeRevenueTracking()
@@ -2176,6 +2187,7 @@ class TestFarmCompetetiveV3:
 				allItemsLiquidated = True
 				for itemId in self.agent.inventory:
 					itemContainer = self.agent.inventory[itemId]
+					self.logger.debug("Remainging inventory: {}".format(itemContainer))
 					if (itemContainer.quantity <= 0.01):
 						self.agent.consumeItem(itemContainer)
 						self.agent.removeItemListing(ItemListing(sellerId=self.agentId, itemId=itemId, unitPrice=0, maxQuantity=0))
@@ -2272,7 +2284,7 @@ class TestFarmCompetetiveV3:
 
 		if (self.closingBusiness):
 			liquidationListing = self.liquidationListings[request.itemPackage.id]
-			liquidationListing.updateMaxQuantity(productInventory-request.itemPackage.quantity)
+			liquidationListing.updateMaxQuantity((productInventory-request.itemPackage.quantity)*0.93)
 			listingUpdated = self.agent.updateItemListing(liquidationListing)
 
 		self.logger.debug("evalTradeRequest({}) return {}".format(request, tradeAccepted))
@@ -2322,28 +2334,50 @@ class TestFarmCompetetiveV3:
 
 		#Make sure sell price covers our costs
 		if (self.targetProductionRate > 0):
-			currentUnitCost = self.sellPrice
-			if ((self.currentProductionRateAvg > 0) and (avgExpenses > 0)):
+			#if ((self.currentProductionRateAvg > 0) and (avgExpenses > 0)): #TODO
+			if (self.currentProductionRateAvg > 0):
 				currentUnitCost = (avgExpenses/self.currentProductionRateAvg) * (self.currentProductionRateAvg/self.targetProductionRate)
 				self.logger.debug("adjustSalePrice() currentUnitCost = {}".format(currentUnitCost))
 
-			if (self.sellPrice < currentUnitCost):
-				costAdjustmentRatio = pow(currentUnitCost/self.sellPrice, 1)
-				self.logger.debug("adjustSalePrice() Current price too low to cover costs. Cost adjustment ratio = {}".format(costAdjustmentRatio))
+				unitCostAlpha = 0.15
+				if (self.averageUnitCost):
+					self.averageUnitCost = ((1-unitCostAlpha)*self.averageUnitCost) + (unitCostAlpha*currentUnitCost)
+				else:
+					self.averageUnitCost = currentUnitCost
+				self.logger.debug("averageUnitCost = {}".format(self.averageUnitCost))
 
-				priceAlpha = 0.5
-				sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*self.sellPrice*costAdjustmentRatio)
-				if (sellPrice > 1.3*meanPrice):
-					sellPrice = 1.3*meanPrice
+				#Calculate price that maximizes revenue based on demand elasticity
+				'''
+				if (self.demandElasticity): #TODO
+					if (self.demandElasticity < 0):
+						#We have a valid demand elasticity. Calculate price that maximizes profits
+						idealPrice = (self.averageUnitCost/2) + (self.sellPrice/2) + (self.currentSalesAvg/(2*self.demandElasticity))  #see Docs/misc/IdealPrice_Derivation for derivation
+						if (idealPrice > 0) and (idealPrice > self.averageUnitCost):
+							self.logger.debug("Theoretical ideal unit price = {}".format(round(idealPrice, 4)))
+							priceAlpha = 0.3
+							sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*idealPrice)
 
-				try:
-					x = int(sellPrice)
-				except:
-					self.logger.error("Invalid sell price {}".format(sellPrice))
-					self.logger.error("adjustProductionTarget(avgRevenue={}, avgExpenses={}, meanPrice={}, saleRatio={}) start".format(avgRevenue, avgExpenses, meanPrice, saleRatio))
-					sellPrice = self.sellPrice
+							return sellPrice
+				'''
 
-				return sellPrice
+				#We don't know demand elasticity yet. Make sure we are breaking even
+				if (self.sellPrice < currentUnitCost):
+					costAdjustmentRatio = pow(currentUnitCost/self.sellPrice, 1)
+					self.logger.debug("adjustSalePrice() Current price too low to cover costs. Cost adjustment ratio = {}".format(costAdjustmentRatio))
+
+					priceAlpha = 0.5
+					sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*self.sellPrice*costAdjustmentRatio)
+					if (sellPrice > 1.3*meanPrice):
+						sellPrice = 1.3*meanPrice
+
+					try:
+						x = int(sellPrice)
+					except:
+						self.logger.error("Invalid sell price {}".format(sellPrice))
+						self.logger.error("adjustProductionTarget(avgRevenue={}, avgExpenses={}, meanPrice={}, saleRatio={}) start".format(avgRevenue, avgExpenses, meanPrice, saleRatio))
+						sellPrice = self.sellPrice
+
+					return sellPrice
 
 		#Adjust target price based on median price
 		marketAdjustmentRatio = pow(meanPrice/self.sellPrice, 0.7)
@@ -2385,6 +2419,12 @@ class TestFarmCompetetiveV3:
 		avgRevenue = self.agent.getAvgTradeRevenue()
 		avgExpenses = self.agent.getAvgCurrencyOutflow()
 		profitMargin = 0
+		'''
+		if (avgExpenses > (avgRevenue/20)):
+			profitMargin = (avgRevenue-avgExpenses)/avgExpenses
+		elif (avgExpenses > 0):
+			profitMargin = 2
+		'''
 		if (avgExpenses > 0):
 			profitMargin = (avgRevenue-avgExpenses)/avgExpenses
 		self.logger.debug("Profit margin = {}".format(profitMargin))
@@ -2415,6 +2455,37 @@ class TestFarmCompetetiveV3:
 			if ((totalQuantity > 0) and (totalPrice > 0)):
 				meanPrice = totalPrice/totalQuantity
 		self.logger.info("volume-adjusted average market price = {}".format(meanPrice))
+
+		#Update elasticity datapoints
+		if (self.elastDatapoints.full()):
+			self.elastDatapoints.get()
+		newDataPoint = {"price": self.sellPrice, "avgSales": self.currentSalesAvg}
+		self.elastDatapoints.put(newDataPoint)
+
+		#Calculate demand elasticity
+		if (self.elastDatapoints.qsize() > 10):
+			#Get lists of price datapoints and sales datapoints
+			priceList = []
+			salesList = []
+			for datapoint in list(self.elastDatapoints.queue):
+				priceList.append(datapoint["price"])
+				salesList.append(datapoint["avgSales"])
+
+			priceAxis = np.array(priceList).reshape((-1, 1))
+			salesAxis = np.array(salesList)
+
+			#Use linear regression to find demand elasticity
+			self.linearModel.fit(priceAxis, salesAxis)
+			calcElastitcity = self.linearModel.coef_[0]
+			if (self.demandElasticity):
+				elastAlpha = 0.4
+				self.demandElasticity = ((1-elastAlpha)*self.demandElasticity) + (elastAlpha*calcElastitcity)
+			else:
+				self.demandElasticity = calcElastitcity
+
+		if (self.demandElasticity):
+			self.logger.info("Demand elasticity = {}".format(round(self.demandElasticity, 3)))
+
 		
 
 		########
@@ -2433,21 +2504,23 @@ class TestFarmCompetetiveV3:
 
 
 	def liquidateItem(self, itemContainer):
+		#Get volume-adjusted mean market price
+		sampledListings = self.agent.sampleItemListings(ItemContainer(self.sellItemId, 0.01), sampleSize=30)
+		meanPrice = 100
+		totalQuantity = 0
+		totalPrice = 0
+		if (len(sampledListings) > 0):
+			for listing in sampledListings:
+				if not (listing.sellerId == self.agentId):
+					totalPrice += listing.unitPrice*listing.maxQuantity
+					totalQuantity += listing.maxQuantity
+			if ((totalQuantity > 0) and (totalPrice > 0)):
+				meanPrice = totalPrice/totalQuantity
+
 		#Determine liquidation price
-		sampledListings = self.agent.sampleItemListings(itemContainer, sampleSize=30)
-		minPrice = None
-		for listing in sampledListings:
-			if not (listing.sellerId == self.agentId):
-				price = listing.unitPrice
-				if (not minPrice):
-					minPrice = price
-				elif (price < minPrice):
-					minPrice = price
-
-		if (not minPrice):
-			minPrice = 1
-
-		sellPrice = (minPrice*0.95)/(pow(1+self.agent.stepNum-self.closingStep, 0.1))
+		discountRatio = 0.85 + (0.1/(pow(1+self.agent.stepNum-self.closingStep, 0.2)))
+		sellPrice = meanPrice*discountRatio
+		self.logger.debug("{} discount ratio = {}".format(itemContainer.id, round(discountRatio, 3)))
 		if (sellPrice <= 0):
 			sellPrice = 1
 
@@ -2519,6 +2592,8 @@ class TestFarmCompetetiveV3:
 
 
 	def updateItemListing(self):
+		#TODO
+		'''
 		productInventory = 0	
 		if (self.sellItemId in self.agent.inventory):	
 			productInventory = self.agent.inventory[self.sellItemId].quantity	
@@ -2529,6 +2604,10 @@ class TestFarmCompetetiveV3:
 		else:	
 			self.logger.info("Max quantity = 0. Removing item listing | {}".format(self.itemListing))	
 			listingUpdated = self.agent.removeItemListing(self.itemListing)
+		'''
+		self.itemListing = ItemListing(sellerId=self.agentId, itemId=self.sellItemId, unitPrice=self.sellPrice, maxQuantity=self.currentProductionRateAvg/3)
+		self.logger.info("Updating item listing | {}".format(self.itemListing))
+		listingUpdated = self.agent.updateItemListing(self.itemListing)
 
 
 	#########################

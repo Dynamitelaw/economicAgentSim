@@ -3471,6 +3471,9 @@ class Agent:
 		Returns the amount of the item that is acquired
 		'''
 		itemAcquired = 0
+		oldInventoryQuantity = 0
+		if (itemContainer.id in self.inventory):
+			oldInventoryQuantity = self.inventory[itemContainer.id].quantity
 
 		#Sample market
 		listingDict = {}
@@ -3509,11 +3512,25 @@ class Agent:
 								itemAcquired += requestedQuantity
 						else:
 							self.logger.warning("Could not acquire {} {}. Current balance ${} not enough at current unit price ${}".format(requestedQuantity, itemId, self.currencyBalance/100, price/100))
+
+							newInventoryQuantity = 0
+							if (itemContainer.id in self.inventory):
+								newInventoryQuantity = self.inventory[itemContainer.id].quantity
+							acquisitionQuantity = newInventoryQuantity-oldInventoryQuantity
+							if (acquisitionQuantity < itemAcquired):
+								itemAcquired = acquisitionQuantity
 							return itemAcquired
 				else:
 					if (desiredAmount > 0):
 						self.logger.warning("Could not acquire enough {}. Could only get {}".format(itemId, itemAcquired))
 						self.logger.debug("listingDict = {}".format(listingDict))
+
+						newInventoryQuantity = 0
+						if (itemContainer.id in self.inventory):
+							newInventoryQuantity = self.inventory[itemContainer.id].quantity
+						acquisitionQuantity = newInventoryQuantity-oldInventoryQuantity
+						if (acquisitionQuantity < itemAcquired):
+							itemAcquired = acquisitionQuantity
 						return itemAcquired
 
 		else:
@@ -3525,6 +3542,12 @@ class Agent:
 			self.logger.warning("Could not acquire {}".format(itemContainer))
 			self.logger.debug("listingDict = {}".format(listingDict))
 
+		newInventoryQuantity = 0
+		if (itemContainer.id in self.inventory):
+			newInventoryQuantity = self.inventory[itemContainer.id].quantity
+		acquisitionQuantity = newInventoryQuantity-oldInventoryQuantity
+		if (acquisitionQuantity < itemAcquired):
+			itemAcquired = acquisitionQuantity
 		return itemAcquired
 
 
