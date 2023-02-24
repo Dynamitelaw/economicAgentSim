@@ -767,18 +767,23 @@ class NutritionTracker:
 		#Get dictionary of average food prices
 		foodUnitPrices = {}
 		for foodId in self.nutritionalDict:
-			#Get average market price of this food item
-			sampleSize = 5
-			itemContainer = ItemContainer(foodId, 1)
-			sampledListings = self.agent.sampleItemListings(itemContainer, sampleSize=sampleSize)
-			sampledPrices = SortedList()
-			sampleSize = len(sampledListings)
-			if (sampleSize > 0):
-				for listing in sampledListings:
-					sampledPrices.add(listing.unitPrice)
-				medianUnitPrice = sampledPrices[int(sampleSize/2)]
+			#Check to see if we have a memory of the previous price
+			if (foodId in self.agent.priceMemory):
+				foodUnitPrices[foodId] = self.agent.priceMemory[foodId]
 
-				foodUnitPrices[foodId] = medianUnitPrice
+			else:
+				#Get average market price of this food item
+				sampleSize = 5
+				itemContainer = ItemContainer(foodId, 1)
+				sampledListings = self.agent.sampleItemListings(itemContainer, sampleSize=sampleSize)
+				sampledPrices = SortedList()
+				sampleSize = len(sampledListings)
+				if (sampleSize > 0):
+					for listing in sampledListings:
+						sampledPrices.add(listing.unitPrice)
+					medianUnitPrice = sampledPrices[int(sampleSize/2)]
+
+					foodUnitPrices[foodId] = medianUnitPrice
 
 		#Calculate current and historical nutritional defecits
 		currentDeficit = np.array([self.targetCalories-self.currentCalories, self.targetCarbs-self.currentCarbs, self.targetProtein-self.currentProtein, self.targetFat-self.currentFat])
@@ -1126,7 +1131,7 @@ class AgentCheckpoint:
 		self.inventory = agentObj.inventory
 		self.debtBalance = agentObj.debtBalance
 		self.landHoldings = agentObj.landHoldings
-		self.landAllocationQueue__quueu = agentObj.landAllocationQueue.queue
+		self.landAllocationQueue__queue = agentObj.landAllocationQueue.queue
 
 		#Keep track of labor stuff
 		self.skillLevel = agentObj.skillLevel
@@ -1157,6 +1162,9 @@ class AgentCheckpoint:
 		if (agentObj.nutritionTracker):
 			self.nutritionTracker__consumptionAvg = agentObj.nutritionTracker.consumptionAvg
 			self.nutritionTracker__stepConsumption = agentObj.nutritionTracker.stepConsumption
+
+		#Price memory
+		self.priceMemory = agentObj.priceMemory
 
 		#####
 		# Keep track of accounting stats
@@ -1236,7 +1244,7 @@ class AgentCheckpoint:
 		agentObj.landHoldings = self.landHoldings
 
 		agentLandAllocationQueue = LandAllocationQueue(agentObj)
-		agentLandAllocationQueue.queue = self.landAllocationQueue__quueu
+		agentLandAllocationQueue.queue = self.landAllocationQueue__queue
 		agentObj.landAllocationQueue = agentLandAllocationQueue
 
 		#Keep track of labor stuff
@@ -1279,6 +1287,9 @@ class AgentCheckpoint:
 			agentNutritionTracker.consumptionAvg = self.nutritionTracker__consumptionAvg
 			agentNutritionTracker.stepConsumption = self.nutritionTracker__stepConsumption
 			agentObj.nutritionTracker = agentNutritionTracker
+
+		#Price memory
+		agentObj.priceMemory = self.priceMemory
 
 		#####
 		# Keep track of accounting stats
@@ -1462,6 +1473,10 @@ class Agent:
 		#Keep track of agent nutrition
 		self.enableNutrition = False
 		self.nutritionTracker = None
+
+		#Keep track of prices
+		self.priceMemory = {}
+		self.priceMemoryLock = threading.Lock()
 
 		#####
 		# Keep track of accounting stats
@@ -3480,6 +3495,7 @@ class Agent:
 		Returns the amount of the item that is acquired
 		'''
 		itemAcquired = 0
+		netCost = 0
 		oldInventoryQuantity = 0
 		if (itemContainer.id in self.inventory):
 			oldInventoryQuantity = self.inventory[itemContainer.id].quantity
@@ -3497,6 +3513,7 @@ class Agent:
 			priceKeys.sort()
 			desiredAmount = itemContainer.quantity
 			itemId = itemContainer.id
+
 			while (desiredAmount > 0):
 				if (len(priceKeys) > 0):
 					price = priceKeys.pop(0)
@@ -3519,27 +3536,43 @@ class Agent:
 							if (tradeCompleted):
 								desiredAmount -= requestedQuantity
 								itemAcquired += requestedQuantity
+
+								netCost += totalCost
 						else:
 							self.logger.warning("Could not acquire {} {}. Current balance ${} not enough at current unit price ${}".format(requestedQuantity, itemId, self.currencyBalance/100, price/100))
 
+							#Double check acquired quantity
 							newInventoryQuantity = 0
 							if (itemContainer.id in self.inventory):
 								newInventoryQuantity = self.inventory[itemContainer.id].quantity
 							acquisitionQuantity = newInventoryQuantity-oldInventoryQuantity
 							if (acquisitionQuantity < itemAcquired):
 								itemAcquired = acquisitionQuantity
+
+							#Update avg price in agent memory
+							if (itemAcquired > 0):
+								avgUnitPrice = netCost/itemAcquired
+								self.updatePriceMemory(itemId, avgUnitPrice)
+
 							return itemAcquired
 				else:
 					if (desiredAmount > 0):
 						self.logger.warning("Could not acquire enough {}. Could only get {}".format(itemId, itemAcquired))
 						self.logger.debug("listingDict = {}".format(listingDict))
 
+						#Double check acquired quantity
 						newInventoryQuantity = 0
 						if (itemContainer.id in self.inventory):
 							newInventoryQuantity = self.inventory[itemContainer.id].quantity
 						acquisitionQuantity = newInventoryQuantity-oldInventoryQuantity
 						if (acquisitionQuantity < itemAcquired):
 							itemAcquired = acquisitionQuantity
+
+						#Update avg price in agent memory
+						if (itemAcquired > 0):
+							avgUnitPrice = netCost/itemAcquired
+							self.updatePriceMemory(itemId, avgUnitPrice)
+
 						return itemAcquired
 
 		else:
@@ -3551,14 +3584,29 @@ class Agent:
 			self.logger.warning("Could not acquire {}".format(itemContainer))
 			self.logger.debug("listingDict = {}".format(listingDict))
 
+		#Double check acquired quantity
 		newInventoryQuantity = 0
 		if (itemContainer.id in self.inventory):
 			newInventoryQuantity = self.inventory[itemContainer.id].quantity
 		acquisitionQuantity = newInventoryQuantity-oldInventoryQuantity
 		if (acquisitionQuantity < itemAcquired):
 			itemAcquired = acquisitionQuantity
+
+		#Update avg price in agent memory
+		if (itemAcquired > 0):
+			avgUnitPrice = netCost/itemAcquired
+			self.updatePriceMemory(itemId, avgUnitPrice)
+
 		return itemAcquired
 
+
+	def updatePriceMemory(self, itemId, unitPrice):
+		if not (itemId in self.priceMemory):
+			self.priceMemoryLock.acquire()
+			self.priceMemory[itemId] = unitPrice
+			self.priceMemoryLock.release()
+		else:
+			self.priceMemory[itemId] = unitPrice
 
 	#########################
 	# Labor Market functions

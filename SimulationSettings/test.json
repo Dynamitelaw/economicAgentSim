@@ -3,9 +3,10 @@
 	"description": "An economy that only produces and consumes food.",
 	"settings": {
 		"AgentNumProcesses": 7,
-		"SimulationSteps": 25,
+		"SimulationSteps": 51,
 		"TicksPerStep": 16,
 		"CheckpointFrequency": 50,
+		"InitialCheckpoint": "OUTPUT\\FeudalFarmingEconomy\\CHECKPOINT",
 		"AgentSpawns":{
 			"AppleFarm": {
 				"TestFarmCompetetiveV3":{

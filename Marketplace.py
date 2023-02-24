@@ -100,12 +100,12 @@ class ItemMarketplace:
 
 			#Handle incoming save checkpoint commands
 			elif ((incommingPacket.msgType == PACKET_TYPE.SAVE_CHECKPOINT) or (incommingPacket.msgType == PACKET_TYPE.SAVE_CHECKPOINT_BROADCAST)):
-				#Save agent checkpoint
+				#Save market checkpoint
 				self.saveCheckpoint()
 
 			#Handle incoming load checkpoint commands
 			elif ((incommingPacket.msgType == PACKET_TYPE.LOAD_CHECKPOINT) or (incommingPacket.msgType == PACKET_TYPE.LOAD_CHECKPOINT_BROADCAST)):
-				#Load agent checkpoint
+				#Load market checkpoint
 				filePath = incommingPacket.payload
 				self.loadCheckpoint(filePath=filePath)
 
@@ -443,12 +443,12 @@ class LaborMarketplace:
 
 			#Handle incoming save checkpoint commands
 			elif ((incommingPacket.msgType == PACKET_TYPE.SAVE_CHECKPOINT) or (incommingPacket.msgType == PACKET_TYPE.SAVE_CHECKPOINT_BROADCAST)):
-				#Save agent checkpoint
+				#Save market checkpoint
 				self.saveCheckpoint()
 
 			#Handle incoming load checkpoint commands
 			elif ((incommingPacket.msgType == PACKET_TYPE.LOAD_CHECKPOINT) or (incommingPacket.msgType == PACKET_TYPE.LOAD_CHECKPOINT_BROADCAST)):
-				#Load agent checkpoint
+				#Load market checkpoint
 				filePath = incommingPacket.payload
 				self.loadCheckpoint(filePath=filePath)
 
@@ -568,6 +568,8 @@ class LaborMarketplace:
 			self.laborMarket[skillLevel][employerId] = {}
 			self.laborMarketLock.release()
 
+		if not (employerId in self.laborMarketEmployerLocks):
+			self.laborMarketEmployerLocks[employerId]  = threading.Lock()
 		self.laborMarketEmployerLocks[employerId].acquire()
 		self.laborMarket[skillLevel][employerId][laborListing.hash] = laborListing
 		self.laborMarketEmployerLocks[employerId].release()
@@ -622,6 +624,8 @@ class LaborMarketplace:
 			updateSuccess = False
 			return updateSuccess
 
+		if (not employerId in self.laborMarketEmployerLocks):
+			self.laborMarketEmployerLocks[employerId] = threading.Lock()
 		self.laborMarketEmployerLocks[employerId].acquire()
 		del self.laborMarket[skillLevel][employerId][laborListing.hash]
 
@@ -843,12 +847,12 @@ class LandMarketplace:
 
 			#Handle incoming save checkpoint commands
 			elif ((incommingPacket.msgType == PACKET_TYPE.SAVE_CHECKPOINT) or (incommingPacket.msgType == PACKET_TYPE.SAVE_CHECKPOINT_BROADCAST)):
-				#Save agent checkpoint
+				#Save market checkpoint
 				self.saveCheckpoint()
 
 			#Handle incoming load checkpoint commands
 			elif ((incommingPacket.msgType == PACKET_TYPE.LOAD_CHECKPOINT) or (incommingPacket.msgType == PACKET_TYPE.LOAD_CHECKPOINT_BROADCAST)):
-				#Load agent checkpoint
+				#Load market checkpoint
 				filePath = incommingPacket.payload
 				self.loadCheckpoint(filePath=filePath)
 
