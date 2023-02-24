@@ -1515,6 +1515,7 @@ class TestFarmWorkerV2:
 			self.expectedWage = self.expectedWage*0.9
 			self.logger.info("Could not find a job this step")
 
+
 class TestFarmCompetetiveV2:
 	'''
 	This controller will hire workers and buy input costs to produce a single item.
@@ -2080,7 +2081,7 @@ class TestFarmCompetetiveV3:
 		self.agentId = agent.agentId
 		self.simManagerId = agent.simManagerId
 
-		self.name = "{}_TestFarmCompetetiveV2".format(agent.agentId)
+		self.name = "{}_TestFarmCompetetiveV3".format(agent.agentId)
 
 		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join(outputDir, "LOGS", "Controller_Logs"), fileLevel=fileLevel)
 
@@ -2775,3 +2776,37 @@ class TestFarmCompetetiveV3:
 		infoString += "\nlistingActive={}".format(self.listingActive)
 
 		return infoString
+
+
+class DoNothingBlocker:
+	'''
+	This controller will do nothing, and immediately relinquish time ticks upon receipt
+	'''
+	def __init__(self, agent, settings={}, logFile=True, fileLevel="INFO", outputDir="OUTPUT"):
+		self.agent = agent
+		self.agentId = agent.agentId
+		self.simManagerId = agent.simManagerId
+
+		self.name = "{}_DoNothingBlocker".format(agent.agentId)
+
+		self.logger = utils.getLogger("Controller_{}".format(self.agentId), logFile=logFile, outputdir=os.path.join(outputDir, "LOGS", "Controller_Logs"), fileLevel=fileLevel)
+
+		#Initiate thread kill flag to false
+		self.killThreads = False
+
+	def controllerStart(self, incommingPacket):
+		#Subscribe for tick blocking
+		self.agent.subcribeTickBlocking()
+
+	def receiveMsg(self, incommingPacket):
+		self.logger.info("INBOUND {}".format(incommingPacket))
+
+		if (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST):
+			self.agent.relinquishTimeTicks()
+
+		if ((incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST)):
+			controllerMsg = incommingPacket.payload
+			self.logger.info("INBOUND {}".format(controllerMsg))
+			
+			if (controllerMsg.msgType == PACKET_TYPE.STOP_TRADING):
+				self.killThreads = True

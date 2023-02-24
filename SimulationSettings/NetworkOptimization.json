@@ -1,0 +1,15 @@
+{
+	"name": "NetworkOptimization",
+	"settings": {
+		"AgentNumProcesses": 7,
+		"SimulationSteps": 30,
+		"TicksPerStep": 16,
+		"AgentSpawns":{
+			"TickBlocker": {
+				"DoNothingBlocker":{
+					"quantity": 5000
+				}
+			}
+		}
+	}
+}

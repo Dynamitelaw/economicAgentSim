@@ -11,6 +11,8 @@ import threading
 import os
 import random
 import time
+import pickle
+import traceback
 
 from NetworkClasses import *
 import utils
@@ -19,6 +21,7 @@ import utils
 class ItemMarketplace:
 	def __init__(self, itemDict, networkLink, simManagerId=None, logFile=True, fileLevel="INFO", outputDir="OUTPUT"):
 		self.agentId = "ItemMarketplace"
+		self.outputDir = outputDir
 		self.logger = utils.getLogger("ItemMarketplace", logFile=logFile, console="ERROR", outputdir=os.path.join(outputDir, "LOGS", "Markets"), fileLevel=fileLevel)
 		self.logger.info("ItemMarketplace instantiated")
 
@@ -94,6 +97,17 @@ class ItemMarketplace:
 				stallMonitor = threading.Thread(target=self.waitForStall)
 				self.prevStallMonitor = stallMonitor
 				stallMonitor.start()
+
+			#Handle incoming save checkpoint commands
+			elif ((incommingPacket.msgType == PACKET_TYPE.SAVE_CHECKPOINT) or (incommingPacket.msgType == PACKET_TYPE.SAVE_CHECKPOINT_BROADCAST)):
+				#Save agent checkpoint
+				self.saveCheckpoint()
+
+			#Handle incoming load checkpoint commands
+			elif ((incommingPacket.msgType == PACKET_TYPE.LOAD_CHECKPOINT) or (incommingPacket.msgType == PACKET_TYPE.LOAD_CHECKPOINT_BROADCAST)):
+				#Load agent checkpoint
+				filePath = incommingPacket.payload
+				self.loadCheckpoint(filePath=filePath)
 
 			#Handle errors
 			elif (incommingPacket.msgType == PACKET_TYPE.ERROR):
@@ -278,6 +292,64 @@ class ItemMarketplace:
 	#########################
 	# Misc functions
 	#########################
+	def saveCheckpoint(self, filePath=None):
+		'''
+		Saves current agent state into a checkpoint file. Will determine it's own filepath if filePath is not defined
+		'''
+		self.logger.info("saveCheckpoint() start")
+		checkpointObj = self.itemMarket
+
+		checkpointFileName = "{}.checkpoint.pickle".format(self.agentId)
+		outputPath = os.path.join(self.outputDir, "CHECKPOINT", checkpointFileName)
+		if (filePath):
+			outputPath = filePath
+		utils.createFolderPath(outputPath)
+
+		self.logger.info("saveCheckpoint() Saving checkpoint to \"{}\"".format(outputPath))
+		with open(outputPath, "wb") as pickleFile:
+			pickle.dump(checkpointObj, pickleFile)
+
+	def loadCheckpoint(self, filePath=None):
+		'''
+		Attempts to load agent state from checkpoint file. Returns true if successful, False if not
+		Will try to find the checkpoint file if filePath is not specified.
+		'''
+		self.logger.info("loadCheckpoint(filePath={}) start".format(filePath))
+
+		#Determine checkpoint file path
+		checkpointFileName = "{}.checkpoint.pickle".format(self.agentId)
+		checkpointFilePath = os.path.join(self.outputDir, "CHECKPOINT", checkpointFileName)
+		if (filePath):
+			if (os.path.isdir(filePath)):
+				checkpointFilePath = os.path.join(filePath, checkpointFileName)
+			else:
+				checkpointFilePath = filePath
+
+		if (not os.path.exists(checkpointFilePath)):
+			self.logger.error("Could not load checkpoint. \"{}\" does not exist".format(checkpointFilePath))
+			return False
+
+		#Load checkpoint
+		try:
+			self.logger.info("loadCheckpoint() Trying to load checkpoint \"{}\"".format(checkpointFilePath))
+			checkpointObj = None
+			with open(checkpointFilePath, "rb") as pickleFile:
+				checkpointObj = pickle.load(pickleFile)
+
+			if (checkpointObj):
+				if (isinstance(checkpointObj, dict)):
+					self.itemMarket = checkpointObj
+				else:
+					raise ValueError("Loaded pickle was tpye \"{}\"".format(type(checkpointObj)))
+			else:
+				raise ValueError("Loaded pickle was None")
+		except:
+			self.logger.error("Error while loading checkpoint\n{}".format(traceback.format_exc()))
+			return False
+
+		self.logger.debug("loadCheckpoint() succeeded")
+		return True
+
 	def handleInfoRequest(self, infoRequest):
 		if (self.agentId == infoRequest.agentId):
 			infoKey = infoRequest.infoKey
@@ -300,6 +372,7 @@ class ItemMarketplace:
 class LaborMarketplace:
 	def __init__(self, networkLink, simManagerId=None, logFile=True, fileLevel="INFO", outputDir="OUTPUT"):
 		self.agentId = "LaborMarketplace"
+		self.outputDir = outputDir
 		self.logger = utils.getLogger("LaborMarketplace", logFile=logFile, console="ERROR", outputdir=os.path.join(outputDir, "LOGS", "Markets"), fileLevel=fileLevel)
 		self.logger.info("LaborMarketplace instantiated")
 
@@ -367,6 +440,17 @@ class LaborMarketplace:
 				stallMonitor = threading.Thread(target=self.waitForStall)
 				self.prevStallMonitor = stallMonitor
 				stallMonitor.start()
+
+			#Handle incoming save checkpoint commands
+			elif ((incommingPacket.msgType == PACKET_TYPE.SAVE_CHECKPOINT) or (incommingPacket.msgType == PACKET_TYPE.SAVE_CHECKPOINT_BROADCAST)):
+				#Save agent checkpoint
+				self.saveCheckpoint()
+
+			#Handle incoming load checkpoint commands
+			elif ((incommingPacket.msgType == PACKET_TYPE.LOAD_CHECKPOINT) or (incommingPacket.msgType == PACKET_TYPE.LOAD_CHECKPOINT_BROADCAST)):
+				#Load agent checkpoint
+				filePath = incommingPacket.payload
+				self.loadCheckpoint(filePath=filePath)
 
 			#Handle errors
 			elif (incommingPacket.msgType == PACKET_TYPE.ERROR):
@@ -608,6 +692,64 @@ class LaborMarketplace:
 	#########################
 	# Misc functions
 	#########################
+	def saveCheckpoint(self, filePath=None):
+		'''
+		Saves current agent state into a checkpoint file. Will determine it's own filepath if filePath is not defined
+		'''
+		self.logger.info("saveCheckpoint() start")
+		checkpointObj = self.laborMarket
+
+		checkpointFileName = "{}.checkpoint.pickle".format(self.agentId)
+		outputPath = os.path.join(self.outputDir, "CHECKPOINT", checkpointFileName)
+		if (filePath):
+			outputPath = filePath
+		utils.createFolderPath(outputPath)
+
+		self.logger.info("saveCheckpoint() Saving checkpoint to \"{}\"".format(outputPath))
+		with open(outputPath, "wb") as pickleFile:
+			pickle.dump(checkpointObj, pickleFile)
+
+	def loadCheckpoint(self, filePath=None):
+		'''
+		Attempts to load agent state from checkpoint file. Returns true if successful, False if not
+		Will try to find the checkpoint file if filePath is not specified.
+		'''
+		self.logger.info("loadCheckpoint(filePath={}) start".format(filePath))
+
+		#Determine checkpoint file path
+		checkpointFileName = "{}.checkpoint.pickle".format(self.agentId)
+		checkpointFilePath = os.path.join(self.outputDir, "CHECKPOINT", checkpointFileName)
+		if (filePath):
+			if (os.path.isdir(filePath)):
+				checkpointFilePath = os.path.join(filePath, checkpointFileName)
+			else:
+				checkpointFilePath = filePath
+
+		if (not os.path.exists(checkpointFilePath)):
+			self.logger.error("Could not load checkpoint. \"{}\" does not exist".format(checkpointFilePath))
+			return False
+
+		#Load checkpoint
+		try:
+			self.logger.info("loadCheckpoint() Trying to load checkpoint \"{}\"".format(checkpointFilePath))
+			checkpointObj = None
+			with open(checkpointFilePath, "rb") as pickleFile:
+				checkpointObj = pickle.load(pickleFile)
+
+			if (checkpointObj):
+				if (isinstance(checkpointObj, dict)):
+					self.laborMarket = checkpointObj
+				else:
+					raise ValueError("Loaded pickle was tpye \"{}\"".format(type(checkpointObj)))
+			else:
+				raise ValueError("Loaded pickle was None")
+		except:
+			self.logger.error("Error while loading checkpoint\n{}".format(traceback.format_exc()))
+			return False
+
+		self.logger.debug("loadCheckpoint() succeeded")
+		return True
+
 	def handleInfoRequest(self, infoRequest):
 		if (self.agentId == infoRequest.agentId):
 			infoKey = infoRequest.infoKey
@@ -630,6 +772,7 @@ class LaborMarketplace:
 class LandMarketplace:
 	def __init__(self, networkLink, simManagerId=None, logFile=True, fileLevel="INFO", outputDir="OUTPUT"):
 		self.agentId = "LandMarketplace"
+		self.outputDir = outputDir
 		self.logger = utils.getLogger("LandMarketplace", logFile=logFile, console="ERROR", outputdir=os.path.join(outputDir, "LOGS", "Markets"), fileLevel=fileLevel)
 		self.logger.info("LandMarketplace instantiated")
 
@@ -697,6 +840,17 @@ class LandMarketplace:
 				stallMonitor = threading.Thread(target=self.waitForStall)
 				self.prevStallMonitor = stallMonitor
 				stallMonitor.start()
+
+			#Handle incoming save checkpoint commands
+			elif ((incommingPacket.msgType == PACKET_TYPE.SAVE_CHECKPOINT) or (incommingPacket.msgType == PACKET_TYPE.SAVE_CHECKPOINT_BROADCAST)):
+				#Save agent checkpoint
+				self.saveCheckpoint()
+
+			#Handle incoming load checkpoint commands
+			elif ((incommingPacket.msgType == PACKET_TYPE.LOAD_CHECKPOINT) or (incommingPacket.msgType == PACKET_TYPE.LOAD_CHECKPOINT_BROADCAST)):
+				#Load agent checkpoint
+				filePath = incommingPacket.payload
+				self.loadCheckpoint(filePath=filePath)
 
 			#Handle errors
 			elif (incommingPacket.msgType == PACKET_TYPE.ERROR):
@@ -903,6 +1057,64 @@ class LandMarketplace:
 	#########################
 	# Misc functions
 	#########################
+	def saveCheckpoint(self, filePath=None):
+		'''
+		Saves current agent state into a checkpoint file. Will determine it's own filepath if filePath is not defined
+		'''
+		self.logger.info("saveCheckpoint() start")
+		checkpointObj = self.landMarket
+
+		checkpointFileName = "{}.checkpoint.pickle".format(self.agentId)
+		outputPath = os.path.join(self.outputDir, "CHECKPOINT", checkpointFileName)
+		if (filePath):
+			outputPath = filePath
+		utils.createFolderPath(outputPath)
+
+		self.logger.info("saveCheckpoint() Saving checkpoint to \"{}\"".format(outputPath))
+		with open(outputPath, "wb") as pickleFile:
+			pickle.dump(checkpointObj, pickleFile)
+
+	def loadCheckpoint(self, filePath=None):
+		'''
+		Attempts to load agent state from checkpoint file. Returns true if successful, False if not
+		Will try to find the checkpoint file if filePath is not specified.
+		'''
+		self.logger.info("loadCheckpoint(filePath={}) start".format(filePath))
+
+		#Determine checkpoint file path
+		checkpointFileName = "{}.checkpoint.pickle".format(self.agentId)
+		checkpointFilePath = os.path.join(self.outputDir, "CHECKPOINT", checkpointFileName)
+		if (filePath):
+			if (os.path.isdir(filePath)):
+				checkpointFilePath = os.path.join(filePath, checkpointFileName)
+			else:
+				checkpointFilePath = filePath
+
+		if (not os.path.exists(checkpointFilePath)):
+			self.logger.error("Could not load checkpoint. \"{}\" does not exist".format(checkpointFilePath))
+			return False
+
+		#Load checkpoint
+		try:
+			self.logger.info("loadCheckpoint() Trying to load checkpoint \"{}\"".format(checkpointFilePath))
+			checkpointObj = None
+			with open(checkpointFilePath, "rb") as pickleFile:
+				checkpointObj = pickle.load(pickleFile)
+
+			if (checkpointObj):
+				if (isinstance(checkpointObj, dict)):
+					self.landMarket = checkpointObj
+				else:
+					raise ValueError("Loaded pickle was tpye \"{}\"".format(type(checkpointObj)))
+			else:
+				raise ValueError("Loaded pickle was None")
+		except:
+			self.logger.error("Error while loading checkpoint\n{}".format(traceback.format_exc()))
+			return False
+
+		self.logger.debug("loadCheckpoint() succeeded")
+		return True
+
 	def handleInfoRequest(self, infoRequest):
 		if (self.agentId == infoRequest.agentId):
 			infoKey = infoRequest.infoKey

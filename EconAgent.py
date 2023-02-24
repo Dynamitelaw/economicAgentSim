@@ -43,6 +43,7 @@ import traceback
 
 from NetworkClasses import *
 from TestControllers import *
+from AgentControllers import *
 from TradeClasses import *
 import utils
 
@@ -1020,6 +1021,12 @@ def getAgentController(agent, settings={}, logFile=True, fileLevel="INFO", outpu
 	'''
 	agentInfo = agent.info
 
+	#Normal agent controllers
+	if (agentInfo.agentType == "FrugalWorker"):
+		return FrugalWorker(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
+	if (agentInfo.agentType == "BasicItemProducer"):
+		return BasicItemProducer(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
+
 	#Test controllers
 	if (agentInfo.agentType == "PushoverController"):
 		return PushoverController(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
@@ -1053,6 +1060,8 @@ def getAgentController(agent, settings={}, logFile=True, fileLevel="INFO", outpu
 		return TestFarmCompetetiveV2(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
 	if (agentInfo.agentType == "TestFarmCompetetiveV3"):
 		return TestFarmCompetetiveV3(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
+	if (agentInfo.agentType == "DoNothingBlocker"):
+		return DoNothingBlocker(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
 
 	#Unhandled agent type. Return default controller
 	return None

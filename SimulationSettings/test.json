@@ -1,9 +1,9 @@
 {
-	"name": "TestSimulationV3_noElast",
-	"description": "Test simulation with competetive farms. Used for testing and debug.",
+	"name": "FeudalFarmingEconomy",
+	"description": "An economy that only produces and consumes food.",
 	"settings": {
 		"AgentNumProcesses": 7,
-		"SimulationSteps": 400,
+		"SimulationSteps": 25,
 		"TicksPerStep": 16,
 		"CheckpointFrequency": 50,
 		"AgentSpawns":{
@@ -27,98 +27,18 @@
 					}
 				}
 			},
-			"PeaFarm0": {
-				"TestFarmCompetetiveV3":{
-					"quantity": 1,
+			"PeaFarm": {
+				"BasicItemProducer":{
+					"quantity": 9,
 					"settings": {
 						"itemId": "chickpea",
-						"startingProductionRate": 35,
-						"StartSkew": 9
-					}
-				}
-			},
-			"PeaFarm1": {
-				"TestFarmCompetetiveV3":{
-					"quantity": 1,
-					"settings": {
-						"itemId": "chickpea",
-						"startingProductionRate": 35,
-						"StartSkew": 9
-					}
-				}
-			},
-			"PeaFarm2": {
-				"TestFarmCompetetiveV3":{
-					"quantity": 1,
-					"settings": {
-						"itemId": "chickpea",
-						"startingProductionRate": 35,
-						"StartSkew": 9
-					}
-				}
-			},
-			"PeaFarm3": {
-				"TestFarmCompetetiveV3":{
-					"quantity": 1,
-					"settings": {
-						"itemId": "chickpea",
-						"startingProductionRate": 35,
-						"StartSkew": 9
-					}
-				}
-			},
-			"PeaFarm4": {
-				"TestFarmCompetetiveV3":{
-					"quantity": 1,
-					"settings": {
-						"itemId": "chickpea",
-						"startingProductionRate": 35,
-						"StartSkew": 9
-					}
-				}
-			},
-			"PeaFarm5": {
-				"TestFarmCompetetiveV3":{
-					"quantity": 1,
-					"settings": {
-						"itemId": "chickpea",
-						"startingProductionRate": 35,
-						"StartSkew": 9
-					}
-				}
-			},
-			"PeaFarm6": {
-				"TestFarmCompetetiveV3":{
-					"quantity": 1,
-					"settings": {
-						"itemId": "chickpea",
-						"startingProductionRate": 35,
-						"StartSkew": 9
-					}
-				}
-			},
-			"PeaFarm7": {
-				"TestFarmCompetetiveV3":{
-					"quantity": 1,
-					"settings": {
-						"itemId": "chickpea",
-						"startingProductionRate": 35,
-						"StartSkew": 9
-					}
-				}
-			},
-			"PeaFarm8": {
-				"TestFarmCompetetiveV3":{
-					"quantity": 1,
-					"settings": {
-						"itemId": "chickpea",
-						"startingProductionRate": 35,
+						"startingProductionRate": 4,
 						"StartSkew": 9
 					}
 				}
 			},
 			"EggFarm": {
-				"TestFarmCompetetiveV3":{
+				"BasicItemProducer":{
 					"quantity": 9,
 					"settings": {
 						"itemId": "egg",
@@ -128,7 +48,7 @@
 				}
 			},
 			"SpudFarm": {
-				"TestFarmCompetetiveV3":{
+				"BasicItemProducer":{
 					"quantity": 9,
 					"settings": {
 						"itemId": "potato",
@@ -146,8 +66,8 @@
 					}
 				}
 			},
-			"FarmWorker": {
-				"TestFarmWorkerV2":{
+			"Peasant": {
+				"FrugalWorker":{
 					"quantity": 480,
 					"settings": {
 						"StartSkew": 9
@@ -215,66 +135,6 @@
 				"ProductionTracker":{
 					"id": "chickpea",
 					"OuputPath": "FoodMarket/chickpea/ChickpeaProduction.csv"
-				}
-			},
-			"PeaFarm0_Accounting": {
-				"AccountingTracker":{
-					"AgentFilters": ["PeaFarm0"],
-					"OuputPath": "FoodMarket/chickpea/accounting/ChickpeaFarm0_Accounting.csv"
-				}
-			},
-			"PeaFarm1_Accounting": {
-				"AccountingTracker":{
-					"AgentFilters": ["PeaFarm1"],
-					"OuputPath": "FoodMarket/chickpea/accounting/ChickpeaFarm1_Accounting.csv"
-				}
-			},
-			"PeaFarm2_Accounting": {
-				"AccountingTracker":{
-					"AgentFilters": ["PeaFarm2"],
-					"OuputPath": "FoodMarket/chickpea/accounting/ChickpeaFarm2_Accounting.csv"
-				}
-			},
-			"PeaFarm3_Accounting": {
-				"AccountingTracker":{
-					"AgentFilters": ["PeaFarm3"],
-					"OuputPath": "FoodMarket/chickpea/accounting/ChickpeaFarm3_Accounting.csv"
-				}
-			},
-			"PeaFarm4_Accounting": {
-				"AccountingTracker":{
-					"AgentFilters": ["PeaFarm4"],
-					"OuputPath": "FoodMarket/chickpea/accounting/ChickpeaFarm4_Accounting.csv"
-				}
-			},
-			"PeaFarm5_Accounting": {
-				"AccountingTracker":{
-					"AgentFilters": ["PeaFarm5"],
-					"OuputPath": "FoodMarket/chickpea/accounting/ChickpeaFarm5_Accounting.csv"
-				}
-			},
-			"PeaFarm6_Accounting": {
-				"AccountingTracker":{
-					"AgentFilters": ["PeaFarm6"],
-					"OuputPath": "FoodMarket/chickpea/accounting/ChickpeaFarm6_Accounting.csv"
-				}
-			},
-			"PeaFarm7_Accounting": {
-				"AccountingTracker":{
-					"AgentFilters": ["PeaFarm7"],
-					"OuputPath": "FoodMarket/chickpea/accounting/ChickpeaFarm7_Accounting.csv"
-				}
-			},
-			"PeaFarm8_Accounting": {
-				"AccountingTracker":{
-					"AgentFilters": ["PeaFarm8"],
-					"OuputPath": "FoodMarket/chickpea/accounting/ChickpeaFarm8_Accounting.csv"
-				}
-			},
-			"WaterPrices":{
-				"ItemPriceTracker":{
-					"id": "water",
-					"OuputPath": "FoodMarket/water.csv"
 				}
 			}
 		}

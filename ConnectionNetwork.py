@@ -283,10 +283,14 @@ class ConnectionNetwork:
 
 			#Handle info response packets
 			elif (incommingPacket.msgType == PACKET_TYPE.INFO_RESP):
-				#Foward to statistics gatherer
-				infoRespThread = threading.Thread(target=self.statsGatherer.handleInfoResp, args=(incommingPacket,))
-				infoRespThread.start()
-				self.spawnedThreads.append(infoRespThread)
+				if (destinationId == "StatisticsGatherer"):
+					#Foward to statistics gatherer
+					infoRespThread = threading.Thread(target=self.statsGatherer.handleInfoResp, args=(incommingPacket,))
+					infoRespThread.start()
+					self.spawnedThreads.append(infoRespThread)
+				else:
+					#Foward packet to destination
+					self.sendPacket(destinationId, incommingPacket)
 
 			#Route all over packets
 			elif (destinationId in self.agentConnections):
