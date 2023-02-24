@@ -2092,7 +2092,7 @@ class TestFarmCompetetiveV3:
 		if ("StartSkew" in settings):
 			skewRate = settings["StartSkew"]+1
 			self.startStep = int(random.random()/(1.0/skewRate))
-		self.updateRate = 5
+		self.updateRate = 3
 		self.updateOffset = self.startStep
 
 		#Determine what to produce
@@ -2106,7 +2106,7 @@ class TestFarmCompetetiveV3:
 
 
 		#Keep track of price elasticity
-		elasticitySampleSize = 50
+		elasticitySampleSize = 80
 		self.elastDatapoints = queue.Queue(elasticitySampleSize)
 		self.linearModel = LinearRegression()
 		self.demandElasticity = None
@@ -2163,8 +2163,8 @@ class TestFarmCompetetiveV3:
 		self.agent.receiveLand("UNALLOCATED", 9999999999)
 
 		#Spawn starting capital
-		#self.agent.receiveCurrency(600000)
-		self.agent.receiveCurrency(9999999999999)
+		self.agent.receiveCurrency(600000)
+		#self.agent.receiveCurrency(9999999999999)
 
 		#Spawn initial inventory of items
 		self.agent.receiveItem(ItemContainer(self.sellItemId, self.targetProductionRate*self.targetInventoryDays))
@@ -2179,87 +2179,7 @@ class TestFarmCompetetiveV3:
 		self.logger.info("INBOUND {}".format(incommingPacket))
 
 		if (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT) or (incommingPacket.msgType == PACKET_TYPE.TICK_GRANT_BROADCAST):
-			if (self.closingBusiness):
-				self.logger.info("#### StepNum = {} ####".format(self.agent.stepNum))
-
-				#This business is currently under liquidation
-				#Check if liquidation is complete. If so, commit suicide
-				allItemsLiquidated = True
-				for itemId in self.agent.inventory:
-					itemContainer = self.agent.inventory[itemId]
-					self.logger.debug("Remainging inventory: {}".format(itemContainer))
-					if (itemContainer.quantity <= 0.01):
-						self.agent.consumeItem(itemContainer)
-						self.agent.removeItemListing(ItemListing(sellerId=self.agentId, itemId=itemId, unitPrice=0, maxQuantity=0))
-					else:
-						if ((self.agent.stepNum-self.updateOffset)%self.updateRate == 0):
-							self.liquidateItem(itemContainer)
-						allItemsLiquidated = False
-
-				if (allItemsLiquidated):
-					self.logger.warning("Completed business liquidation. Commiting suicide")
-					self.agent.commitSuicide()
-					self.killThreads = True
-
-			# A new step has started
-			if (self.agent.stepNum == self.startStep):
-				self.logger.info("StepNum = {}, Starting controller functionality".format(self.agent.stepNum))
-
-			if ((self.agent.stepNum >= self.startStep) and (not self.closingBusiness)):
-				self.logger.info("#### StepNum = {} ####".format(self.agent.stepNum))
-				#Determine if we should go out of business
-				currentCash = self.agent.getCurrencyBalance()
-				avgExpenses = self.agent.getAvgCurrencyOutflow()
-				stepExpenses = self.agent.getStepCurrencyOutflow()
-				if ((currentCash < (avgExpenses*1.5)) or (currentCash < (stepExpenses*1.5))):
-					#We're broke. Go out of business
-					self.closeBusiness()
-					
-				if (not self.closingBusiness):
-					#Update sales average
-					alpha = 0.2
-					self.currentSalesAvg = ((1-alpha)*self.currentSalesAvg) + (alpha*self.stepSales)
-					self.stepSales = 0
-
-					#Print business stats
-					self.logger.info("Current sales average = {}".format(self.currentSalesAvg))
-					avgRevenue = self.agent.getAvgTradeRevenue()
-					avgExpenses = self.agent.getAvgCurrencyOutflow()
-					self.logger.debug(self.agent.getAccountingStats())
-					self.logger.info("Avg Daily Expenses={}, Avg Daily Revenue={}, Avg Daily Profit={}".format(avgExpenses, avgRevenue, avgRevenue-avgExpenses))
-
-					if ((self.agent.stepNum-self.updateOffset)%self.updateRate == 0):
-						try:
-							#Adjust production
-							self.adjustProduction()
-
-							#Manage worker hiring
-							self.manageLabor()
-
-							#Produce items
-							self.produce()
-
-							#Update item listing
-							self.updateItemListing()
-						except:
-							self.logger.critical("UNHANDLED ERROR DURING STEP")
-							self.logger.critical(traceback.format_exc())
-							self.logger.debug(self.getInfoDumpString())
-							print("\a")
-					else:
-						try:
-							#Produce items
-							self.produce()
-						except:
-							self.logger.critical("UNHANDLED ERROR DURING STEP")
-							self.logger.critical(traceback.format_exc())
-							self.logger.critical(self.getInfoDumpString())
-							print("\a")
-
-			#Relinquish time ticks
-			self.logger.info("Relinquishing time ticks")
-			ticksRelinquished = self.agent.relinquishTimeTicks()
-			self.logger.info("Ticks relinquished. Waiting for tick grant")
+			self.runStep()
 
 		if (incommingPacket.msgType == PACKET_TYPE.KILL_PIPE_AGENT) or (incommingPacket.msgType == PACKET_TYPE.KILL_ALL_BROADCAST):
 			self.killThreads = True
@@ -2294,10 +2214,94 @@ class TestFarmCompetetiveV3:
 	# Production management 
 	#########################
 
+	def runStep(self):
+		if (self.closingBusiness):
+			self.logger.info("#### StepNum = {} ####".format(self.agent.stepNum))
+
+			#This business is currently under liquidation
+			#Check if liquidation is complete. If so, commit suicide
+			allItemsLiquidated = True
+			for itemId in self.agent.inventory:
+				itemContainer = self.agent.inventory[itemId]
+				self.logger.debug("Remainging inventory: {}".format(itemContainer))
+				if (itemContainer.quantity <= 0.01):
+					self.agent.consumeItem(itemContainer)
+					self.agent.removeItemListing(ItemListing(sellerId=self.agentId, itemId=itemId, unitPrice=0, maxQuantity=0))
+				else:
+					if ((self.agent.stepNum-self.updateOffset)%self.updateRate == 0):
+						self.liquidateItem(itemContainer)
+					allItemsLiquidated = False
+
+			if (allItemsLiquidated):
+				self.logger.warning("Completed business liquidation. Commiting suicide")
+				self.agent.commitSuicide()
+				self.killThreads = True
+
+		# A new step has started
+		if (self.agent.stepNum == self.startStep):
+			self.logger.info("StepNum = {}, Starting controller functionality".format(self.agent.stepNum))
+
+		if ((self.agent.stepNum >= self.startStep) and (not self.closingBusiness)):
+			self.logger.info("#### StepNum = {} ####".format(self.agent.stepNum))
+			#Determine if we should go out of business
+			currentCash = self.agent.getCurrencyBalance()
+			avgExpenses = self.agent.getAvgCurrencyOutflow()
+			stepExpenses = self.agent.getStepCurrencyOutflow()
+			if ((currentCash < (avgExpenses*1.5)) or (currentCash < (stepExpenses*1.5))):
+				#We're broke. Go out of business
+				self.closeBusiness()
+				
+			if (not self.closingBusiness):
+				#Update sales average
+				alpha = 0.2
+				self.currentSalesAvg = ((1-alpha)*self.currentSalesAvg) + (alpha*self.stepSales)
+				self.stepSales = 0
+
+				#Print business stats
+				self.logger.info("Current sales average = {}".format(self.currentSalesAvg))
+				avgRevenue = self.agent.getAvgTradeRevenue()
+				avgExpenses = self.agent.getAvgCurrencyOutflow()
+				self.logger.debug(self.agent.getAccountingStats())
+				self.logger.info("Avg Daily Expenses={}, Avg Daily Revenue={}, Avg Daily Profit={}".format(avgExpenses, avgRevenue, avgRevenue-avgExpenses))
+
+				if ((self.agent.stepNum-self.updateOffset)%self.updateRate == 0):
+					try:
+						#Adjust production
+						self.adjustProduction()
+
+						#Manage worker hiring
+						self.manageLabor()
+
+						#Produce items
+						self.produce()
+
+						#Update item listing
+						self.updateItemListing()
+					except:
+						self.logger.critical("UNHANDLED ERROR DURING STEP")
+						self.logger.critical(traceback.format_exc())
+						self.logger.debug(self.getInfoDumpString())
+						print("\a")
+				else:
+					try:
+						#Produce items
+						self.produce()
+					except:
+						self.logger.critical("UNHANDLED ERROR DURING STEP")
+						self.logger.critical(traceback.format_exc())
+						self.logger.critical(self.getInfoDumpString())
+						print("\a")
+
+		#Relinquish time ticks
+		self.logger.info("Relinquishing time ticks")
+		ticksRelinquished = self.agent.relinquishTimeTicks()
+		self.logger.info("Ticks relinquished. Waiting for tick grant")
+
+
 	def adjustProductionTarget(self, inventoryRatio, profitMargin):
 		self.logger.debug("adjustProductionTarget(inventoryRatio={}, profitMargin={}) start".format(inventoryRatio, profitMargin))
 		#Adjust target production based on current profit margin and inventory ratio
-		prodAlpha = 0.2
+		prodAlpha = 0.07
 
 		ratioList = []
 
@@ -2334,8 +2338,8 @@ class TestFarmCompetetiveV3:
 
 		#Make sure sell price covers our costs
 		if (self.targetProductionRate > 0):
-			#if ((self.currentProductionRateAvg > 0) and (avgExpenses > 0)): #TODO
-			if (self.currentProductionRateAvg > 0):
+			if ((self.currentProductionRateAvg > 0) and (avgExpenses > 0)): #TODO
+			#if (self.currentProductionRateAvg > 0):
 				currentUnitCost = (avgExpenses/self.currentProductionRateAvg) * (self.currentProductionRateAvg/self.targetProductionRate)
 				self.logger.debug("adjustSalePrice() currentUnitCost = {}".format(currentUnitCost))
 
@@ -2348,21 +2352,21 @@ class TestFarmCompetetiveV3:
 
 				#Calculate price that maximizes revenue based on demand elasticity
 				'''
+				#This shit doesn't work. 
+				#TODO: Maybe I need to weigh the elasticity measurement towards more recent data? How do you do that with linear regression?
 				if (self.demandElasticity): #TODO
 					if (self.demandElasticity < 0):
 						#We have a valid demand elasticity. Calculate price that maximizes profits
 						idealPrice = (self.averageUnitCost/2) + (self.sellPrice/2) + (self.currentSalesAvg/(2*self.demandElasticity))  #see Docs/misc/IdealPrice_Derivation for derivation
 						if (idealPrice > 0) and (idealPrice > self.averageUnitCost):
 							self.logger.debug("Theoretical ideal unit price = {}".format(round(idealPrice, 4)))
-							priceAlpha = 0.3
-							sellPrice = ((1-priceAlpha)*self.sellPrice) + (priceAlpha*idealPrice)
+							idealRatio = pow(idealPrice/self.sellPrice, 0.7)
+							ratioList.append(idealRatio)
+				'''				
 
-							return sellPrice
-				'''
-
-				#We don't know demand elasticity yet. Make sure we are breaking even
-				if (self.sellPrice < currentUnitCost):
-					costAdjustmentRatio = pow(currentUnitCost/self.sellPrice, 1)
+				#Make sure we are breaking even
+				if (self.sellPrice < self.averageUnitCost):
+					costAdjustmentRatio = pow(self.averageUnitCost/self.sellPrice, 1)
 					self.logger.debug("adjustSalePrice() Current price too low to cover costs. Cost adjustment ratio = {}".format(costAdjustmentRatio))
 
 					priceAlpha = 0.5
@@ -2419,14 +2423,11 @@ class TestFarmCompetetiveV3:
 		avgRevenue = self.agent.getAvgTradeRevenue()
 		avgExpenses = self.agent.getAvgCurrencyOutflow()
 		profitMargin = 0
-		'''
 		if (avgExpenses > (avgRevenue/20)):
 			profitMargin = (avgRevenue-avgExpenses)/avgExpenses
 		elif (avgExpenses > 0):
 			profitMargin = 2
-		'''
-		if (avgExpenses > 0):
-			profitMargin = (avgRevenue-avgExpenses)/avgExpenses
+		
 		self.logger.debug("Profit margin = {}".format(profitMargin))
 
 		#Get product inventory
@@ -2477,8 +2478,9 @@ class TestFarmCompetetiveV3:
 			#Use linear regression to find demand elasticity
 			self.linearModel.fit(priceAxis, salesAxis)
 			calcElastitcity = self.linearModel.coef_[0]
+			r_sq = self.linearModel.score(priceAxis, salesAxis)
 			if (self.demandElasticity):
-				elastAlpha = 0.4
+				elastAlpha = 0.2*(r_sq)
 				self.demandElasticity = ((1-elastAlpha)*self.demandElasticity) + (elastAlpha*calcElastitcity)
 			else:
 				self.demandElasticity = calcElastitcity
@@ -2507,6 +2509,8 @@ class TestFarmCompetetiveV3:
 		#Get volume-adjusted mean market price
 		sampledListings = self.agent.sampleItemListings(ItemContainer(self.sellItemId, 0.01), sampleSize=30)
 		meanPrice = 100
+		if (itemContainer.id in self.liquidationListings):
+			meanPrice = self.liquidationListings[itemContainer.id].unitPrice
 		totalQuantity = 0
 		totalPrice = 0
 		if (len(sampledListings) > 0):
@@ -2592,8 +2596,6 @@ class TestFarmCompetetiveV3:
 
 
 	def updateItemListing(self):
-		#TODO
-		
 		productInventory = 0	
 		if (self.sellItemId in self.agent.inventory):	
 			productInventory = self.agent.inventory[self.sellItemId].quantity	
@@ -2604,11 +2606,6 @@ class TestFarmCompetetiveV3:
 		else:	
 			self.logger.info("Max quantity = 0. Removing item listing | {}".format(self.itemListing))	
 			listingUpdated = self.agent.removeItemListing(self.itemListing)
-		'''
-		self.itemListing = ItemListing(sellerId=self.agentId, itemId=self.sellItemId, unitPrice=self.sellPrice, maxQuantity=self.currentProductionRateAvg/3)
-		self.logger.info("Updating item listing | {}".format(self.itemListing))
-		listingUpdated = self.agent.updateItemListing(self.itemListing)
-		'''
 
 
 	#########################

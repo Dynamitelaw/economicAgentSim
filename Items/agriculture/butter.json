@@ -24,7 +24,7 @@
 	},
 	"UtilityFunctions": {
 		"BaseUtility": {
-			"mean": 883,
+			"mean": 1083,
 			"stdDev": 0.5
 		},
 		"DiminishingFactor": {
