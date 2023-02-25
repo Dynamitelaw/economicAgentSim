@@ -6,6 +6,7 @@
 		"SimulationSteps": 151,
 		"TicksPerStep": 16,
 		"CheckpointFrequency": 50,
+		"ItemSettings": "Items",
 		"AgentSpawns":{
 			"RuleAppleFarm": {
 				"BasicItemProducer":{

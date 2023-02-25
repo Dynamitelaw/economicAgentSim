@@ -182,29 +182,12 @@ def RunSimulation(settingsDict, logLevel="INFO", outputDir=None):
 		# Parse All Items
 		######################
 		logger.info("Parsing items")
+		itemDir = "Items"
+		if ("ItemSettings" in settingsDict):
+			itemDir = settingsDict["ItemSettings"]
 
 		#Congregate items into into a single dict
-		allItemsDict = {}
-		for fileName in os.listdir("Items"):
-			try:
-				path = os.path.join("Items", fileName)
-				if (os.path.isfile(path)):
-					itemDictFile = open(path, "r")
-					itemDict = json.load(itemDictFile)
-					itemDictFile.close()
-
-					allItemsDict[itemDict["id"]] = itemDict
-				elif (os.path.isdir(path)):
-					for subFileName in os.listdir(path):
-						subPath = os.path.join(path, subFileName)
-						if (os.path.isfile(subPath)):
-							itemDictFile = open(subPath, "r")
-							itemDict = json.load(itemDictFile)
-							itemDictFile.close()
-
-							allItemsDict[itemDict["id"]] = itemDict
-			except:
-				pass
+		allItemsDict = utils.loadItemDict(itemDir)
 
 		########################################
 		# Create AgentSeeds for each subprocess
@@ -320,7 +303,7 @@ def RunSimulation(settingsDict, logLevel="INFO", outputDir=None):
 		managerProc = multiprocessing.Process(target=launchSimulation, args=(simManagerSeed, settingsDict))
 		childProcesses.append(managerProc)
 		managerProc.start()
-		#managerProc.join()  #DO NOT use a join statment here, or anywhere else in this function. It breaks interrupt handling
+		managerProc.join()  #DO NOT use a join statment here, or anywhere else in this function. It breaks interrupt handling. #Past me, I must ignore your advice and renable this. Thanks for the warning
 		#launchSimulation(simManagerSeed, settingsDict)
 
 	except KeyboardInterrupt:
