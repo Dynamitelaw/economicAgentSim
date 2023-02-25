@@ -3,14 +3,13 @@
 	"description": "An economy that only produces and consumes food.",
 	"settings": {
 		"AgentNumProcesses": 7,
-		"SimulationSteps": 51,
+		"SimulationSteps": 151,
 		"TicksPerStep": 16,
 		"CheckpointFrequency": 50,
-		"InitialCheckpoint": "OUTPUT\\FeudalFarmingEconomy\\CHECKPOINT",
 		"AgentSpawns":{
-			"AppleFarm": {
-				"TestFarmCompetetiveV3":{
-					"quantity": 9,
+			"RuleAppleFarm": {
+				"BasicItemProducer":{
+					"quantity": 6,
 					"settings": {
 						"itemId": "apple",
 						"startingProductionRate": 20,
@@ -18,9 +17,20 @@
 					}
 				}
 			},
-			"ButterFarm": {
-				"TestFarmCompetetiveV3":{
-					"quantity": 9,
+			"AIAppleFarm": {
+				"AIItemProducer":{
+					"quantity": 3,
+					"settings": {
+						"itemId": "apple",
+						"AIEnabled": false,
+						"startingProductionRate": 20,
+						"StartSkew": 9
+					}
+				}
+			},
+			"RuleButterFarm": {
+				"BasicItemProducer":{
+					"quantity": 6,
 					"settings": {
 						"itemId": "butter",
 						"startingProductionRate":6.68,
@@ -28,9 +38,20 @@
 					}
 				}
 			},
-			"PeaFarm": {
+			"AIButterFarm": {
+				"AIItemProducer":{
+					"quantity": 3,
+					"settings": {
+						"itemId": "butter",
+						"AIEnabled": false,
+						"startingProductionRate":6.68,
+						"StartSkew": 9
+					}
+				}
+			},
+			"RulePeaFarm": {
 				"BasicItemProducer":{
-					"quantity": 9,
+					"quantity": 6,
 					"settings": {
 						"itemId": "chickpea",
 						"startingProductionRate": 4,
@@ -38,9 +59,20 @@
 					}
 				}
 			},
-			"EggFarm": {
+			"AIPeaFarm": {
+				"AIItemProducer":{
+					"quantity": 3,
+					"settings": {
+						"itemId": "chickpea",
+						"AIEnabled": false,
+						"startingProductionRate": 4,
+						"StartSkew": 9
+					}
+				}
+			},
+			"RuleEggFarm": {
 				"BasicItemProducer":{
-					"quantity": 9,
+					"quantity": 6,
 					"settings": {
 						"itemId": "egg",
 						"startingProductionRate": 15.04,
@@ -48,11 +80,33 @@
 					}
 				}
 			},
-			"SpudFarm": {
+			"AIEggFarm": {
+				"AIItemProducer":{
+					"quantity": 3,
+					"settings": {
+						"itemId": "egg",
+						"AIEnabled": false,
+						"startingProductionRate": 15.04,
+						"StartSkew": 9
+					}
+				}
+			},
+			"RuleSpudFarm": {
 				"BasicItemProducer":{
-					"quantity": 9,
+					"quantity": 6,
 					"settings": {
 						"itemId": "potato",
+						"startingProductionRate": 23.32,
+						"StartSkew": 9
+					}
+				}
+			},
+			"AISpudFarm": {
+				"AIItemProducer":{
+					"quantity": 3,
+					"settings": {
+						"itemId": "potato",
+						"AIEnabled": false,
 						"startingProductionRate": 23.32,
 						"StartSkew": 9
 					}
@@ -72,6 +126,15 @@
 					"quantity": 480,
 					"settings": {
 						"StartSkew": 9
+					}
+				}
+			},
+			"Tracker": {
+				"AITracker":{
+					"quantity": 1,
+					"settings": {
+						"AIFilter": "AIItemProducer",
+						"ControlFilter": "BasicItemProducer"
 					}
 				}
 			}

@@ -44,6 +44,7 @@ import traceback
 from NetworkClasses import *
 from TestControllers import *
 from AgentControllers import *
+from OptimizationControllers import *
 from TradeClasses import *
 import utils
 
@@ -1031,6 +1032,12 @@ def getAgentController(agent, settings={}, logFile=True, fileLevel="INFO", outpu
 		return FrugalWorker(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
 	if (agentInfo.agentType == "BasicItemProducer"):
 		return BasicItemProducer(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
+	if (agentInfo.agentType == "AIItemProducer"):
+		return AIItemProducer(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
+
+	#Optimizers
+	if (agentInfo.agentType == "AITracker"):
+		return AITracker(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
 
 	#Test controllers
 	if (agentInfo.agentType == "PushoverController"):
@@ -1637,7 +1644,7 @@ class Agent:
 					responsePacket = NetworkPacket(senderId=self.agentId, destinationId=incommingPacket.senderId, msgType=PACKET_TYPE.ERROR_CONTROLLER_START, payload=warning)
 
 			
-			elif ((incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST)):
+			elif ((incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST) or (incommingPacket.msgType == PACKET_TYPE.INFO_RESP)):
 				#Foward packet to controller
 				if (self.controller):
 					self.logger.debug("Fowarding msg to controller {}".format(incommingPacket))
@@ -1718,10 +1725,9 @@ class Agent:
 
 			#Handle incoming information requests
 			elif ((incommingPacket.msgType == PACKET_TYPE.INFO_REQ) or (incommingPacket.msgType == PACKET_TYPE.INFO_REQ_BROADCAST)):
-				infoRequest = incommingPacket.payload
 				#infoThread =  threading.Thread(target=self.handleInfoRequest, args=(infoRequest, ))
 				#infoThread.start()
-				self.handleInfoRequest(infoRequest)
+				self.handleInfoRequest(incommingPacket)
 
 			#Handle incoming save checkpoint commands
 			elif ((incommingPacket.msgType == PACKET_TYPE.SAVE_CHECKPOINT) or (incommingPacket.msgType == PACKET_TYPE.SAVE_CHECKPOINT_BROADCAST)):
@@ -1975,6 +1981,17 @@ class Agent:
 		return self.prevStepCurrencyOutflow
 	def resetCurrencyOutflow(self):
 		self.totalCurrencyOutflow = 0
+
+	#Rest all accounting totals
+	def resetAccountingTotals(self):
+		self.resetLaborIncome()
+		self.resetLaborExpense()
+		self.resetTradeRevenue()
+		self.resetItemExpenses()
+		self.resetLandRevenue()
+		self.resetLandExpenses()
+		self.resetCurrencyInflow()
+		self.resetCurrencyOutflow()
 
 	def getAccountingStats(self):
 		'''
@@ -4030,7 +4047,8 @@ class Agent:
 	#########################
 	# Misc functions
 	#########################
-	def handleInfoRequest(self, infoRequest):
+	def handleInfoRequest(self, incommingPacket):
+		infoRequest = incommingPacket.payload
 		if (infoRequest.agentFilter in self.agentId) or (len(infoRequest.agentFilter) == 0):
 			infoKey = infoRequest.infoKey
 			if (infoKey == "currencyBalance"):
@@ -4044,7 +4062,7 @@ class Agent:
 			if (infoKey == "laborContracts"):
 				infoRequest.info = self.laborContracts
 			
-			infoRespPacket = NetworkPacket(senderId=self.agentId, destinationId=infoRequest.requesterId, msgType=PACKET_TYPE.INFO_RESP, payload=infoRequest)
+			infoRespPacket = NetworkPacket(senderId=self.agentId, destinationId=infoRequest.requesterId, msgType=PACKET_TYPE.INFO_RESP, payload=infoRequest, transactionId=incommingPacket.transactionId)
 			self.sendPacket(infoRespPacket)
 		else:
 			self.logger.warning("Received infoRequest for another agent {}. Ignoring it".format(infoRequest))

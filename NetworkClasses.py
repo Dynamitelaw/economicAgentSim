@@ -93,8 +93,11 @@ class PACKET_TYPE(Enum):
 	#########################
 	ADVANCE_STEP = 9001
 	STOP_TRADING = 9002
-	PROC_READY = 9003
-	PROC_ERROR = 9004
+	SIM_END = 9003
+	PROC_READY = 9004
+	PROC_ERROR = 9005
+
+	RESET_ACCOUNTING = 9010
 
 
 class NetworkPacket:

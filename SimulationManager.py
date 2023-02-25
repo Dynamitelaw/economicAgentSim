@@ -201,6 +201,17 @@ class SimulationManager:
 			self.logger.error("Error while sending STOP_TRADING command to agents")
 			self.logger.error(traceback.format_exc())
 
+		#Notify all controllers of simulation ending 
+		try:
+			self.logger.info("Ending simulation")
+			controllerMsg = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.SIM_END)
+			networkPacket = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.CONTROLLER_MSG_BROADCAST, payload=controllerMsg)
+			self.agent.sendPacket(networkPacket)
+			time.sleep(sleepTime)
+		except Exception as e:
+			self.logger.error("Error while sending SIM_END notification to agents")
+			self.logger.error(traceback.format_exc())
+
 		#Broadcast kill command
 		try:
 			self.logger.info("Killing all network connections")

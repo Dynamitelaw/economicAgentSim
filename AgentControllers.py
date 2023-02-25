@@ -92,6 +92,11 @@ class FrugalWorker:
 			if (controllerMsg.msgType == PACKET_TYPE.STOP_TRADING):
 				self.killThreads = True
 
+		#Handle incoming load checkpoint commands
+		elif ((incommingPacket.msgType == PACKET_TYPE.LOAD_CHECKPOINT) or (incommingPacket.msgType == PACKET_TYPE.LOAD_CHECKPOINT_BROADCAST)):
+			self.startStep = 0
+
+
 	def searchJobs(self):
 		if (self.agent.laborContractsTotal < 2):
 			self.logger.info("Searching for jobs")
@@ -335,10 +340,15 @@ class BasicItemProducer:
 			#Load controller checkpoint
 			filePath = incommingPacket.payload
 			self.loadCheckpoint(filePath=filePath)
+			self.startStep = 0
 
+		#Handle controller messages
 		if ((incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST)):
 			controllerMsg = incommingPacket.payload
 			self.logger.info("INBOUND {}".format(controllerMsg))
+
+			if (controllerMsg.msgType == PACKET_TYPE.RESET_ACCOUNTING):
+				self.agent.resetAccountingTotals()
 			
 			if (controllerMsg.msgType == PACKET_TYPE.STOP_TRADING):
 				self.killThreads = True
@@ -1212,10 +1222,14 @@ class AIItemProducer:
 			filePath = incommingPacket.payload
 			self.loadCheckpoint(filePath=filePath)
 
+		#Handle controller messages
 		if ((incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG) or (incommingPacket.msgType == PACKET_TYPE.CONTROLLER_MSG_BROADCAST)):
 			controllerMsg = incommingPacket.payload
 			self.logger.info("INBOUND {}".format(controllerMsg))
 			
+			if (controllerMsg.msgType == PACKET_TYPE.RESET_ACCOUNTING):
+				self.agent.resetAccountingTotals()
+
 			if (controllerMsg.msgType == PACKET_TYPE.STOP_TRADING):
 				self.killThreads = True
 
@@ -1895,7 +1909,7 @@ class AIItemProducer:
 		Saves current controller state into a checkpoint file. Will determine it's own filepath if filePath is not defined
 		'''
 		self.logger.info("saveCheckpoint() start")
-		checkpointObj = BasicItemProducer_Checkpoint(self)
+		checkpointObj = AIItemProducer_Checkpoint(self)
 
 		checkpointFileName = "{}.checkpoint.pickle".format(self.name)
 		outputPath = os.path.join(self.outputDir, "CHECKPOINT", checkpointFileName)
@@ -1935,7 +1949,7 @@ class AIItemProducer:
 				checkpointObj = pickle.load(pickleFile)
 
 			if (checkpointObj):
-				if (isinstance(checkpointObj, BasicItemProducer_Checkpoint)):
+				if (isinstance(checkpointObj, AIItemProducer_Checkpoint)):
 					checkpointObj.loadCheckpoint(self)
 				else:
 					raise ValueError("Loaded pickle was tpye \"{}\"".format(type(checkpointObj)))
