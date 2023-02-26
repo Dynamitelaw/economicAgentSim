@@ -229,7 +229,9 @@ The following are the current types and their intended usage.
 ADVANCE_STEP
 	#Sent by the ConnectionNetwork to the SimulationManager. Tells the manager that all agents are ready for the next simulation step
 STOP_TRADING:
-	#Tells the recipient controller that the simulation is ending, and to cease all trading activity
+	#Tells the recipient controller that the simulation is ending soon, and to cease all trading activity
+SIM_END:
+	#Tells the recipient controller that the simulation has ended
 TICK_GRANT:
 	#payload=<int> tickAmount
 	#Grants the recipient controller time ticks. Sent by the SimulationManager to synchronize sim time.
