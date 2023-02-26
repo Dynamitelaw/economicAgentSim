@@ -6,6 +6,7 @@
 			"SimulationSteps": 151,
 			"TicksPerStep": 16,
 			"InitialCheckpoint": "OUTPUT\\FeudalFarmingEconomy\\CHECKPOINT",
+			"CheckpointFrequency": 150,
 			"AgentSpawns":{
 				"RuleAppleFarm": {
 					"BasicItemProducer":{

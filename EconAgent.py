@@ -1157,8 +1157,8 @@ class AgentCheckpoint:
 		self.ticksPerStep = agentObj.ticksPerStep
 		
 		#Instantiate agent preferences (utility functions)
-		self.nutritionalDict = agentObj.nutritionalDict
-		self.utilityFunctions = agentObj.utilityFunctions
+		#self.nutritionalDict = agentObj.nutritionalDict
+		#self.utilityFunctions = agentObj.utilityFunctions
 		self.eating = agentObj.eating
 		self.autoEatFlag = agentObj.autoEatFlag
 
@@ -1227,7 +1227,14 @@ class AgentCheckpoint:
 		self.stepCurrencyOutflow = agentObj.stepCurrencyOutflow
 		self.prevStepCurrencyOutflow = agentObj.prevStepCurrencyOutflow
 		#Production functions
-		self.productionFunctions = agentObj.productionFunctions
+		self.productionStats = {}
+		for itemId in agentObj.productionFunctions:
+			productionFunction = agentObj.productionFunctions[itemId]
+
+			statsDict = {}
+			statsDict["efficiency"] = productionFunction.efficiency
+			statsDict["producedItems"] = productionFunction.producedItems
+			self.productionStats[itemId] = statsDict
 
 
 	def loadCheckpoint(self, agentObj):
@@ -1239,7 +1246,7 @@ class AgentCheckpoint:
 		agentObj.agentType = self.agentType
 		
 		agentObj.simManagerId = self.simManagerId
-		agentObj.outputDir = self.outputDir
+		#agentObj.outputDir = self.outputDir
 
 		#Keep track of other agents
 		agentObj.allAgentDict = self.allAgentDict
@@ -1282,8 +1289,8 @@ class AgentCheckpoint:
 		agentObj.ticksPerStep = self.ticksPerStep
 		
 		#Instantiate agent preferences (utility functions)
-		agentObj.nutritionalDict = self.nutritionalDict
-		agentObj.utilityFunctions = self.utilityFunctions
+		#agentObj.nutritionalDict = self.nutritionalDict
+		#agentObj.utilityFunctions = self.utilityFunctions
 		agentObj.eating = self.eating
 		agentObj.autoEatFlag = self.autoEatFlag
 
@@ -1352,8 +1359,13 @@ class AgentCheckpoint:
 		agentObj.stepCurrencyOutflow = self.stepCurrencyOutflow
 		agentObj.prevStepCurrencyOutflow = self.prevStepCurrencyOutflow
 		#Production functions
-		agentObj.productionFunctions = self.productionFunctions
+		for itemId in self.productionStats:
+			statsDict = self.productionStats[itemId]
 
+			productionFunction = agentObj.getProductionFunction(itemId)
+			productionFunction.efficiency = statsDict["efficiency"]
+			productionFunction.producedItems = statsDict["producedItems"]
+			productionFunction.updateCosts()
 
 	def __str__(self):
 		return "AgentCheckpoint({})".format(self.info)

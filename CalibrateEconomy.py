@@ -79,7 +79,8 @@ def calibrateEconomy(settingsFilePath):
 		simSettings = calibrationDict["Simulation"]["settings"]
 
 		#Copy initial item settings to calibration dir
-		itemOutputDirPath = "CALIBRATION"
+		calibrationDir = "CALIBRATION"
+		itemOutputDirPath = os.path.join(calibrationDir, "Items")
 		initialItemDir = "Items"
 		if (os.path.exists(itemOutputDirPath)):
 			shutil.rmtree(itemOutputDirPath)
@@ -120,7 +121,7 @@ def calibrateEconomy(settingsFilePath):
 		simSettings["Statistics"] = statisticsSettings
 
 		#Loop sim until calibration complete
-		simOutputPath = "CALIBRATION_OUTPUT"
+		simOutputPath = os.path.join(calibrationDir, "SIM_OUTPUT")
 		calibrationFinished = False
 		iterationCntr = 0
 		while (not calibrationFinished):
@@ -130,7 +131,7 @@ def calibrateEconomy(settingsFilePath):
 			allItemsDict = utils.loadItemDict(itemOutputDirPath)
 
 			#Run simulation
-			RunSimulation(simSettings, "ERROR", outputDir="CALIBRATION_OUTPUT")
+			RunSimulation(simSettings, "ERROR", outputDir=simOutputPath)
 
 			#Get metrtics
 			itemAdjustments = {}
@@ -180,6 +181,11 @@ def calibrateEconomy(settingsFilePath):
 			if (len(itemAdjustments) == 0) or (iterationCntr > 12):
 				calibrationFinished = True
 			iterationCntr += 1
+
+			#Overwrite initial checkpoint
+			newCheckpointDir = os.path.join(simOutputPath, "CHECKPOINT")
+			simSettings["InitialCheckpoint"] = newCheckpointDir
+			
 			
 		print("### Calibration complete!! ###")
 		

@@ -180,6 +180,7 @@ class SimulationManager:
 							self.logger.debug("Saving simulation checkpoint")
 							checkpointPacket = NetworkPacket(senderId=self.agentId, msgType=PACKET_TYPE.SAVE_CHECKPOINT_BROADCAST)
 							self.agent.sendPacket(checkpointPacket)
+							time.sleep(sleepTime)
 
 			#Calculate runtime
 			print("\n")

@@ -122,7 +122,7 @@ def loadItemDict(itemDir):
 	allItemsDict = {}
 	for fileName in os.listdir(itemDir):
 		try:
-			path = os.path.join("Items", fileName)
+			path = os.path.join(itemDir, fileName)
 			if (os.path.isfile(path)):
 				itemDictFile = open(path, "r")
 				itemDict = json.load(itemDictFile)
