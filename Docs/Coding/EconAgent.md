@@ -108,6 +108,7 @@ Agent.resetCurrencyOutflow()		#Resets the total currency outflow to 0.
 ```
 ```python
 Agent.getAccountingStats()	#Returns a dictionary of all accounting stats
+Agent.resetAccountingTotals()	#Resets all accounting totals to 0. Will not reset moving averages.
 ```
 
 #### Currency

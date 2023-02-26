@@ -239,6 +239,9 @@ PROC_READY
 	#Sent by child process to the SimulationManager. Tells the manager that all agents in the process have been instantiated
 PROC_ERROR
 	#Sent by child process to the SimulationManager. Tells the manager that there was an error during agent instantiation
+
+RESET_ACCOUNTING
+	#Tells the recipient controller to reset their accounting totals to 0. Will not reset running average stats.
 ```
 ```python
 #example)
