@@ -15,9 +15,9 @@ Agents send and receive [NetworkPackets](NetworkPackets.md) via this connection,
 
 For performance reasons, the Connection Network is also where the statistics gatherer and all marketplaces are instantiated.
 * **Statistics Gatherer** - Snoops on network traffic and sends info requests to agents, in order to keep track of economic statistics.
-* **Item Marketplace** - Acts a billboard where sellers can post listings for items that they're selling.
-* **Labor Marketplace** - Acts a billboard where employers can post job listings.
-* **Land Marketplace** - Acts a billboard where sellers can post listings for land they're selling.
+* **Item Marketplace** - Acts as a billboard where sellers can post listings for items that they're selling.
+* **Labor Marketplace** - Acts as a billboard where employers can post job listings.
+* **Land Marketplace** - Acts as a billboard where sellers can post listings for land they're selling.
 
 ## Simulation Manager
 This agent is responsible for:

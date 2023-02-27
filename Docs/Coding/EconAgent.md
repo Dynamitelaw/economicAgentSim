@@ -116,7 +116,7 @@ Agent.resetAccountingTotals()	#Resets all accounting totals to 0. Will not reset
 Agent.getCurrencyBalance()	#Returns the current cash balance
 ```
 ```python
-Agent.sendCurrency(centsm recipientId)	#Sends currency to another agent. Returns True is successful, False if not
+Agent.sendCurrency(cents, recipientId)	#Sends currency to another agent. Returns True is successful, False if not
 ```
 ```python
 #WARNING: This prints new currency when called directly. Should only be called directly during simulation setup.
@@ -162,7 +162,7 @@ Agent.receiveLand(itemId, stepProductionQuantity)	#Get a dictionary of input sur
 #### Labor
 ```python
 Agent.sendJobApplication(laborListing)	#Apply for a <LaborListing>. Returns True is application accepted, False if not
-Agent.cancelLaborContract(laborListing)	#Unilateraly cancel a <LaborContract>
+Agent.cancelLaborContract(laborContract)	#Unilateraly cancel a <LaborContract>
 ```
 ```python
 Agent.getNetContractedEmployeeLabor()	#Returns a dictionary of all current labor contracts in which this agent is the employer, organized by skill level

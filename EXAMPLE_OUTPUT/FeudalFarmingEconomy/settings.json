@@ -1,0 +1,217 @@
+{
+    "settings": {
+        "AgentNumProcesses": 7,
+        "SimulationSteps": 151,
+        "TicksPerStep": 16,
+        "CheckpointFrequency": 50,
+        "ItemSettings": "Items",
+        "AgentSpawns": {
+            "RuleAppleFarm": {
+                "BasicItemProducer": {
+                    "quantity": 6,
+                    "settings": {
+                        "itemId": "apple",
+                        "startingProductionRate": 20,
+                        "infiniteCapital": true,
+                        "StartSkew": 9
+                    }
+                }
+            },
+            "AIAppleFarm": {
+                "AIItemProducer": {
+                    "quantity": 3,
+                    "settings": {
+                        "itemId": "apple",
+                        "AIEnabled": false,
+                        "startingProductionRate": 20,
+                        "infiniteCapital": true,
+                        "StartSkew": 9
+                    }
+                }
+            },
+            "RuleButterFarm": {
+                "BasicItemProducer": {
+                    "quantity": 6,
+                    "settings": {
+                        "itemId": "butter",
+                        "startingProductionRate": 6.68,
+                        "infiniteCapital": true,
+                        "StartSkew": 9
+                    }
+                }
+            },
+            "AIButterFarm": {
+                "AIItemProducer": {
+                    "quantity": 3,
+                    "settings": {
+                        "itemId": "butter",
+                        "AIEnabled": false,
+                        "startingProductionRate": 6.68,
+                        "infiniteCapital": true,
+                        "StartSkew": 9
+                    }
+                }
+            },
+            "RulePeaFarm": {
+                "BasicItemProducer": {
+                    "quantity": 6,
+                    "settings": {
+                        "itemId": "chickpea",
+                        "startingProductionRate": 4,
+                        "infiniteCapital": true,
+                        "StartSkew": 9
+                    }
+                }
+            },
+            "AIPeaFarm": {
+                "AIItemProducer": {
+                    "quantity": 3,
+                    "settings": {
+                        "itemId": "chickpea",
+                        "AIEnabled": false,
+                        "startingProductionRate": 4,
+                        "infiniteCapital": true,
+                        "StartSkew": 9
+                    }
+                }
+            },
+            "RuleEggFarm": {
+                "BasicItemProducer": {
+                    "quantity": 6,
+                    "settings": {
+                        "itemId": "egg",
+                        "startingProductionRate": 15.04,
+                        "infiniteCapital": true,
+                        "StartSkew": 9
+                    }
+                }
+            },
+            "AIEggFarm": {
+                "AIItemProducer": {
+                    "quantity": 3,
+                    "settings": {
+                        "itemId": "egg",
+                        "AIEnabled": false,
+                        "startingProductionRate": 15.04,
+                        "infiniteCapital": true,
+                        "StartSkew": 9
+                    }
+                }
+            },
+            "RuleSpudFarm": {
+                "BasicItemProducer": {
+                    "quantity": 6,
+                    "settings": {
+                        "itemId": "potato",
+                        "startingProductionRate": 23.32,
+                        "infiniteCapital": true,
+                        "StartSkew": 9
+                    }
+                }
+            },
+            "AISpudFarm": {
+                "AIItemProducer": {
+                    "quantity": 3,
+                    "settings": {
+                        "itemId": "potato",
+                        "AIEnabled": false,
+                        "startingProductionRate": 23.32,
+                        "infiniteCapital": true,
+                        "StartSkew": 9
+                    }
+                }
+            },
+            "River": {
+                "TestSpawner": {
+                    "quantity": 1,
+                    "settings": {
+                        "itemId": "water",
+                        "spawnRate": 1440
+                    }
+                }
+            },
+            "Peasant": {
+                "FrugalWorker": {
+                    "quantity": 480,
+                    "settings": {
+                        "StartSkew": 9
+                    }
+                }
+            },
+            "Tracker": {
+                "AITracker": {
+                    "quantity": 1,
+                    "settings": {
+                        "AIFilter": "AIItemProducer",
+                        "ControlFilter": "BasicItemProducer"
+                    }
+                }
+            }
+        },
+        "Statistics": {
+            "AllLabor": {
+                "LaborContractTracker": {
+                    "OuputPath": "LaborStats/AllLabor.csv"
+                }
+            },
+            "PrivateConsumption": {
+                "ConsumptionTracker": {
+                    "ConsumerClasses": [
+                        "TestFarmWorker"
+                    ],
+                    "OuputPath": "ConsumptionStats/PrivateConsumption.csv"
+                }
+            },
+            "AppleMarket": {
+                "ItemPriceTracker": {
+                    "id": "apple",
+                    "OuputPath": "FoodMarket/apple/ApplePrice.csv"
+                },
+                "ProductionTracker": {
+                    "id": "apple",
+                    "OuputPath": "FoodMarket/apple/AppleProduction.csv"
+                }
+            },
+            "ButterMarket": {
+                "ItemPriceTracker": {
+                    "id": "butter",
+                    "OuputPath": "FoodMarket/butter/ButterPrice.csv"
+                },
+                "ProductionTracker": {
+                    "id": "butter",
+                    "OuputPath": "FoodMarket/butter/ButterProduction.csv"
+                }
+            },
+            "EggMarket": {
+                "ItemPriceTracker": {
+                    "id": "egg",
+                    "OuputPath": "FoodMarket/egg/EggPrice.csv"
+                },
+                "ProductionTracker": {
+                    "id": "egg",
+                    "OuputPath": "FoodMarket/egg/EggProduction.csv"
+                }
+            },
+            "SpudMarket": {
+                "ItemPriceTracker": {
+                    "id": "potato",
+                    "OuputPath": "FoodMarket/potato/PotatoPrice.csv"
+                },
+                "ProductionTracker": {
+                    "id": "potato",
+                    "OuputPath": "FoodMarket/potato/PotatoProduction.csv"
+                }
+            },
+            "PeaMarket": {
+                "ItemPriceTracker": {
+                    "id": "chickpea",
+                    "OuputPath": "FoodMarket/chickpea/ChickpeaPrice.csv"
+                },
+                "ProductionTracker": {
+                    "id": "chickpea",
+                    "OuputPath": "FoodMarket/chickpea/ChickpeaProduction.csv"
+                }
+            }
+        }
+    }
+}

@@ -1365,7 +1365,6 @@ class AIItemProducer:
 		if (self.sellItemId in self.agent.inventory):
 			productInventory = self.agent.inventory[self.sellItemId].quantity
 		self.logger.debug("productInventory = {}".format(productInventory))
-		self.logger.debug("Inventory ratio = {}".format(inventoryRatio))
 
 		#Get volume-adjusted mean market price
 		sampledListings = self.agent.sampleItemListings(ItemContainer(self.sellItemId, 0.01), sampleSize=30)
@@ -1430,7 +1429,7 @@ class AIItemProducer:
 		# Run AI
 		########
 		#TODO: Implement AI
-		self.targetProductionRate, self.sellPrice, self.workerWage = self.AI(avgRevenue, avgExpenses, profitMargin, self.currentSalesAvg, productInventory, meanMarketPrice, self.demandElasticity, self.elasticityCorrelationCoef, medianWage, requiredLaborTicks, workerDeficit, self.targetProductionRate, self.sellPrice, self.workerWage)
+		self.targetProductionRate, self.sellPrice, self.workerWage = self.AI(avgRevenue, avgExpenses, profitMargin, self.currentSalesAvg, productInventory, meanMarketPrice, self.demandElasticity, self.elasticityCorrelationCoef, medianWage, requiredLaborTicks, workerDeficit)
 
 	#########################
 	# Production Functions 

@@ -29,10 +29,10 @@ KILL_PIPE_NETWORK
 
 SNOOP_START
 	#payload = <dict> {msgType: <bool>, ...}
-	#If sent from the statistics gatherer, the network will set up a snoop protocol. Afterwards, all packets with the specified msgTypes (incommingPacket) will be fowarded to the statistics gatherer
+	#If sent from an agent, the network will set up a snoop protocol. Afterwards, all packets with the specified msgTypes (incommingPacket) will be fowarded to the agent
 
 ERROR
-	#If send to an agent, the agent will print out the packet in an error logger. Currently only used for network errors.
+	#If send to an agent, the agent will print out the packet in an error logger
 ```
 
 ### Trade Packets
