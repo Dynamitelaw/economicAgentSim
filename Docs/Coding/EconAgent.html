@@ -1,0 +1,582 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html><head><title>Python: module EconAgent</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+</head><body bgcolor="#f0f0f8">
+
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="heading">
+<tr bgcolor="#7799ee">
+<td valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial">&nbsp;<br><big><big><strong>EconAgent</strong></big></big></font></td
+><td align=right valign=bottom
+><font color="#ffffff" face="helvetica, arial"><a href=".">index</a><br><a href="file:c%3A%5Cusers%5Cjoeru%5Cdocuments%5Cgitrepos%5Ceconomicagentsim%5Ceconagent.py">c:\users\joeru\documents\gitrepos\economicagentsim\econagent.py</a></font></td></tr></table>
+    <p><tt>This&nbsp;file&nbsp;contains:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-<a href="#Agent">Agent</a>&nbsp;class<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The&nbsp;<a href="#Agent">Agent</a>&nbsp;class&nbsp;is&nbsp;a&nbsp;generic&nbsp;class&nbsp;used&nbsp;by&nbsp;all&nbsp;agents&nbsp;running&nbsp;in&nbsp;a&nbsp;simulation.<br>
+&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The&nbsp;behavior&nbsp;and&nbsp;actions&nbsp;of&nbsp;any&nbsp;given&nbsp;agent&nbsp;instance&nbsp;is&nbsp;decided&nbsp;by&nbsp;it's&nbsp;controller,&nbsp;which&nbsp;handles&nbsp;all&nbsp;decision&nbsp;making.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The&nbsp;<a href="#Agent">Agent</a>&nbsp;class&nbsp;is&nbsp;instead&nbsp;responsible&nbsp;for&nbsp;the&nbsp;controller's&nbsp;interface&nbsp;to&nbsp;the&nbsp;rest&nbsp;of&nbsp;the&nbsp;simulation.<br>
+&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The&nbsp;<a href="#Agent">Agent</a>&nbsp;class&nbsp;handles:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-item&nbsp;transfers<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-item&nbsp;consumption<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-item&nbsp;production<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-currency&nbsp;transfers<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-trade&nbsp;execution<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-land&nbsp;holdings<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-land&nbsp;transfers<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-currency&nbsp;balance&nbsp;management<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-item&nbsp;inventory&nbsp;management<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-ConnectionNetwork&nbsp;interactions<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-item&nbsp;utility&nbsp;calculations<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-marketplace&nbsp;updates&nbsp;and&nbsp;polling<br>
+&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-<a href="#UtilityFunction">UtilityFunction</a>&nbsp;class<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Determines&nbsp;the&nbsp;utility&nbsp;of&nbsp;an&nbsp;<a href="builtins.html#object">object</a>&nbsp;for&nbsp;a&nbsp;given&nbsp;agent<br>
+&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-<a href="#ProductionFunction">ProductionFunction</a>&nbsp;class<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Used&nbsp;to&nbsp;calculate&nbsp;production&nbsp;costs&nbsp;for&nbsp;a&nbsp;given&nbsp;item</tt></p>
+<p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#aa55cc">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Modules</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#aa55cc"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><table width="100%" summary="list"><tr><td width="25%" valign=top><a href="copy.html">copy</a><br>
+<a href="hashlib.html">hashlib</a><br>
+<a href="logging.html">logging</a><br>
+<a href="math.html">math</a><br>
+</td><td width="25%" valign=top><a href="multiprocessing.html">multiprocessing</a><br>
+<a href="numpy.html">numpy</a><br>
+<a href="os.html">os</a><br>
+<a href="pickle.html">pickle</a><br>
+</td><td width="25%" valign=top><a href="queue.html">queue</a><br>
+<a href="random.html">random</a><br>
+<a href="threading.html">threading</a><br>
+<a href="time.html">time</a><br>
+</td><td width="25%" valign=top><a href="traceback.html">traceback</a><br>
+<a href="utils.html">utils</a><br>
+</td></tr></table></td></tr></table><p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ee77aa">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Classes</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#ee77aa"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><dl>
+<dt><font face="helvetica, arial"><a href="builtins.html#object">builtins.object</a>
+</font></dt><dd>
+<dl>
+<dt><font face="helvetica, arial"><a href="EconAgent.html#Agent">Agent</a>
+</font></dt><dt><font face="helvetica, arial"><a href="EconAgent.html#AgentCheckpoint">AgentCheckpoint</a>
+</font></dt><dt><font face="helvetica, arial"><a href="EconAgent.html#AgentInfo">AgentInfo</a>
+</font></dt><dt><font face="helvetica, arial"><a href="EconAgent.html#AgentSeed">AgentSeed</a>
+</font></dt><dt><font face="helvetica, arial"><a href="EconAgent.html#LandAllocationQueue">LandAllocationQueue</a>
+</font></dt><dt><font face="helvetica, arial"><a href="EconAgent.html#NutritionTracker">NutritionTracker</a>
+</font></dt><dt><font face="helvetica, arial"><a href="EconAgent.html#ProductionFunction">ProductionFunction</a>
+</font></dt><dt><font face="helvetica, arial"><a href="EconAgent.html#UtilityFunction">UtilityFunction</a>
+</font></dt></dl>
+</dd>
+</dl>
+ <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="Agent">class <strong>Agent</strong></a>(<a href="builtins.html#object">builtins.object</a>)</font></td></tr>
+    
+<tr bgcolor="#ffc8d8"><td rowspan=2><tt>&nbsp;&nbsp;&nbsp;</tt></td>
+<td colspan=2><tt><a href="#Agent">Agent</a>(agentInfo,&nbsp;simManagerId=None,&nbsp;ticksPerStep=24,&nbsp;settings={},&nbsp;itemDict=None,&nbsp;allAgentDict=None,&nbsp;networkLink=None,&nbsp;logFile=True,&nbsp;fileLevel='INFO',&nbsp;outputDir='OUTPUT',&nbsp;controller=None)<br>
+&nbsp;<br>
+The&nbsp;<a href="#Agent">Agent</a>&nbsp;class&nbsp;is&nbsp;a&nbsp;generic&nbsp;class&nbsp;used&nbsp;by&nbsp;all&nbsp;agents&nbsp;running&nbsp;in&nbsp;a&nbsp;simulation.<br>
+&nbsp;<br>
+The&nbsp;behavior&nbsp;of&nbsp;any&nbsp;given&nbsp;agent&nbsp;instance&nbsp;is&nbsp;determined&nbsp;by&nbsp;it's&nbsp;controller,&nbsp;which&nbsp;handles&nbsp;all&nbsp;decision&nbsp;making.<br>
+The&nbsp;<a href="#Agent">Agent</a>&nbsp;class&nbsp;is&nbsp;instead&nbsp;responsible&nbsp;for&nbsp;the&nbsp;controller's&nbsp;interface&nbsp;to&nbsp;the&nbsp;rest&nbsp;of&nbsp;the&nbsp;simulation.<br>
+&nbsp;<br>
+The&nbsp;<a href="#Agent">Agent</a>&nbsp;class&nbsp;handles:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-item&nbsp;transfers<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-item&nbsp;consumption<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-item&nbsp;production<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-currency&nbsp;transfers<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-trade&nbsp;execution<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-currency&nbsp;balance<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-item&nbsp;inventory<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-land&nbsp;holdings<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-land&nbsp;transfers<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-ConnectionNetwork&nbsp;interactions<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-item&nbsp;utility&nbsp;calculations<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-marketplace&nbsp;updates&nbsp;and&nbsp;polling<br>&nbsp;</tt></td></tr>
+<tr><td>&nbsp;</td>
+<td width="100%">Methods defined here:<br>
+<dl><dt><a name="Agent-__init__"><strong>__init__</strong></a>(self, agentInfo, simManagerId=None, ticksPerStep=24, settings={}, itemDict=None, allAgentDict=None, networkLink=None, logFile=True, fileLevel='INFO', outputDir='OUTPUT', controller=None)</dt><dd><tt>Initialize&nbsp;self.&nbsp;&nbsp;See&nbsp;help(type(self))&nbsp;for&nbsp;accurate&nbsp;signature.</tt></dd></dl>
+
+<dl><dt><a name="Agent-__str__"><strong>__str__</strong></a>(self)</dt><dd><tt>Return&nbsp;str(self).</tt></dd></dl>
+
+<dl><dt><a name="Agent-acquireItem"><strong>acquireItem</strong></a>(self, itemContainer, sampleSize=5)</dt><dd><tt>Will&nbsp;sample&nbsp;the&nbsp;market&nbsp;and&nbsp;acquire&nbsp;the&nbsp;item&nbsp;at&nbsp;the&nbsp;lowest&nbsp;price,&nbsp;if&nbsp;we&nbsp;have&nbsp;enough&nbsp;money.<br>
+Returns&nbsp;the&nbsp;amount&nbsp;of&nbsp;the&nbsp;item&nbsp;that&nbsp;is&nbsp;acquired</tt></dd></dl>
+
+<dl><dt><a name="Agent-allocateLand"><strong>allocateLand</strong></a>(self, allocationType, hectares)</dt><dd><tt>Changes&nbsp;"UNALLOCATED"&nbsp;land&nbsp;into&nbsp;allocated&nbsp;land.<br>
+Transition&nbsp;does&nbsp;not&nbsp;happen&nbsp;instantly;&nbsp;the&nbsp;allocation&nbsp;is&nbsp;delayed&nbsp;by&nbsp;"AllocationTime",&nbsp;which&nbsp;is&nbsp;a&nbsp;field&nbsp;in&nbsp;the&nbsp;ProductionInputs&nbsp;for&nbsp;a&nbsp;given&nbsp;item.<br>
+During&nbsp;this&nbsp;transition&nbsp;time,&nbsp;the&nbsp;land&nbsp;is&nbsp;counted&nbsp;as&nbsp;"ALLOCATING",&nbsp;and&nbsp;cannot&nbsp;be&nbsp;used&nbsp;for&nbsp;anything.<br>
+&nbsp;<br>
+Returns&nbsp;True&nbsp;if&nbsp;successful,&nbsp;False&nbsp;if&nbsp;not</tt></dd></dl>
+
+<dl><dt><a name="Agent-autoEat"><strong>autoEat</strong></a>(self)</dt><dd><tt>Will&nbsp;create&nbsp;a&nbsp;meal&nbsp;plan,&nbsp;acquire&nbsp;the&nbsp;needed&nbsp;food,&nbsp;then&nbsp;consume&nbsp;the&nbsp;food.<br>
+Returns&nbsp;True&nbsp;if&nbsp;successful,&nbsp;False&nbsp;if&nbsp;not</tt></dd></dl>
+
+<dl><dt><a name="Agent-cancelLaborContract"><strong>cancelLaborContract</strong></a>(self, laborContract)</dt><dd><tt>Cancels&nbsp;an&nbsp;existing&nbsp;labor&nbsp;contract.&nbsp;Returns&nbsp;True&nbsp;if&nbsp;successful,&nbsp;false&nbsp;if&nbsp;not</tt></dd></dl>
+
+<dl><dt><a name="Agent-commitSuicide"><strong>commitSuicide</strong></a>(self)</dt><dd><tt><a href="#Agent">Agent</a>&nbsp;will&nbsp;send&nbsp;a&nbsp;KILL_AGENT&nbsp;packet&nbsp;to&nbsp;itself&nbsp;and&nbsp;it's&nbsp;controller</tt></dd></dl>
+
+<dl><dt><a name="Agent-consumeItem"><strong>consumeItem</strong></a>(self, itemContainer)</dt><dd><tt>Consumes&nbsp;an&nbsp;item.&nbsp;Returns&nbsp;True&nbsp;if&nbsp;successful,&nbsp;False&nbsp;if&nbsp;not</tt></dd></dl>
+
+<dl><dt><a name="Agent-deallocateLand"><strong>deallocateLand</strong></a>(self, allocationType, hectares)</dt><dd><tt>Returns&nbsp;True&nbsp;if&nbsp;successful,&nbsp;False&nbsp;if&nbsp;not</tt></dd></dl>
+
+<dl><dt><a name="Agent-enableCurrencyInflowTracking"><strong>enableCurrencyInflowTracking</strong></a>(self)</dt><dd><tt>#Currency&nbsp;inflows</tt></dd></dl>
+
+<dl><dt><a name="Agent-enableCurrencyOutflowTracking"><strong>enableCurrencyOutflowTracking</strong></a>(self)</dt><dd><tt>#Currency&nbsp;outflows</tt></dd></dl>
+
+<dl><dt><a name="Agent-enableHunger"><strong>enableHunger</strong></a>(self, autoEat=True)</dt><dd><tt>Sets&nbsp;the&nbsp;enableNutrition&nbsp;flag&nbsp;to&nbsp;True,&nbsp;which&nbsp;means&nbsp;this&nbsp;agent&nbsp;now&nbsp;has&nbsp;to&nbsp;consume&nbsp;food.<br>
+&nbsp;<br>
+If&nbsp;autoEat&nbsp;is&nbsp;set&nbsp;to&nbsp;True,&nbsp;agent&nbsp;will&nbsp;automatically&nbsp;feed&nbsp;itself&nbsp;at&nbsp;the&nbsp;beginning&nbsp;of&nbsp;each&nbsp;step</tt></dd></dl>
+
+<dl><dt><a name="Agent-enableItemExpensesTracking"><strong>enableItemExpensesTracking</strong></a>(self)</dt><dd><tt>#Item&nbsp;expenses</tt></dd></dl>
+
+<dl><dt><a name="Agent-enableLaborExpenseTracking"><strong>enableLaborExpenseTracking</strong></a>(self)</dt><dd><tt>#Labor&nbsp;expenses</tt></dd></dl>
+
+<dl><dt><a name="Agent-enableLaborIncomeTracking"><strong>enableLaborIncomeTracking</strong></a>(self)</dt><dd><tt>#Labor&nbsp;income</tt></dd></dl>
+
+<dl><dt><a name="Agent-enableLandExpensesTracking"><strong>enableLandExpensesTracking</strong></a>(self)</dt><dd><tt>#Land&nbsp;expenses</tt></dd></dl>
+
+<dl><dt><a name="Agent-enableLandRevenueTracking"><strong>enableLandRevenueTracking</strong></a>(self)</dt><dd><tt>#Land&nbsp;revenue</tt></dd></dl>
+
+<dl><dt><a name="Agent-enableTradeRevenueTracking"><strong>enableTradeRevenueTracking</strong></a>(self)</dt><dd><tt>#Trading&nbsp;revenue</tt></dd></dl>
+
+<dl><dt><a name="Agent-executeLandTrade"><strong>executeLandTrade</strong></a>(self, request)</dt><dd><tt>Execute&nbsp;a&nbsp;land&nbsp;trade&nbsp;request.<br>
+Returns&nbsp;True&nbsp;if&nbsp;trade&nbsp;is&nbsp;completed,&nbsp;False&nbsp;if&nbsp;not</tt></dd></dl>
+
+<dl><dt><a name="Agent-executeTrade"><strong>executeTrade</strong></a>(self, request)</dt><dd><tt>Execute&nbsp;a&nbsp;trade&nbsp;request.<br>
+Returns&nbsp;True&nbsp;if&nbsp;trade&nbsp;is&nbsp;completed,&nbsp;False&nbsp;if&nbsp;not</tt></dd></dl>
+
+<dl><dt><a name="Agent-fulfillAllLaborContracts"><strong>fulfillAllLaborContracts</strong></a>(self)</dt><dd><tt>Fulfills&nbsp;all&nbsp;non-expired&nbsp;labor&nbsp;contracts</tt></dd></dl>
+
+<dl><dt><a name="Agent-fulfillLaborContract"><strong>fulfillLaborContract</strong></a>(self, laborContract)</dt><dd><tt>Fulfills&nbsp;an&nbsp;existing&nbsp;laborContract</tt></dd></dl>
+
+<dl><dt><a name="Agent-getAccountingStats"><strong>getAccountingStats</strong></a>(self)</dt><dd><tt>Returns&nbsp;a&nbsp;dictionary&nbsp;of&nbsp;accounting&nbsp;stats&nbsp;for&nbsp;the&nbsp;previous&nbsp;step</tt></dd></dl>
+
+<dl><dt><a name="Agent-getAllLaborContracts"><strong>getAllLaborContracts</strong></a>(self)</dt><dd><tt>Returns&nbsp;a&nbsp;list&nbsp;of&nbsp;all&nbsp;labor&nbsp;contracts</tt></dd></dl>
+
+<dl><dt><a name="Agent-getAvgCurrencyInflow"><strong>getAvgCurrencyInflow</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="Agent-getAvgCurrencyOutflow"><strong>getAvgCurrencyOutflow</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="Agent-getAvgItemExpenses"><strong>getAvgItemExpenses</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="Agent-getAvgLaborExpense"><strong>getAvgLaborExpense</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="Agent-getAvgLaborIncome"><strong>getAvgLaborIncome</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="Agent-getAvgTradeRevenue"><strong>getAvgTradeRevenue</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="Agent-getCurrencyBalance"><strong>getCurrencyBalance</strong></a>(self)</dt><dd><tt>#########################<br>
+#&nbsp;Currency&nbsp;transfer&nbsp;functions<br>
+#########################</tt></dd></dl>
+
+<dl><dt><a name="Agent-getMarginalUtility"><strong>getMarginalUtility</strong></a>(self, itemId)</dt><dd><tt>Returns&nbsp;the&nbsp;current&nbsp;marginal&nbsp;utility&nbsp;of&nbsp;an&nbsp;itemId</tt></dd></dl>
+
+<dl><dt><a name="Agent-getMaxProduction"><strong>getMaxProduction</strong></a>(self, itemId)</dt><dd><tt>Returns&nbsp;the&nbsp;max&nbsp;amount&nbsp;of&nbsp;itemId&nbsp;this&nbsp;agent&nbsp;can&nbsp;produce&nbsp;at&nbsp;this&nbsp;time</tt></dd></dl>
+
+<dl><dt><a name="Agent-getNetContractedEmployeeLabor"><strong>getNetContractedEmployeeLabor</strong></a>(self)</dt><dd><tt>Returns&nbsp;a&nbsp;dictionary&nbsp;of&nbsp;all&nbsp;current&nbsp;labor&nbsp;contracts&nbsp;in&nbsp;which&nbsp;this&nbsp;agent&nbsp;is&nbsp;the&nbsp;employer,&nbsp;organized&nbsp;by&nbsp;skill&nbsp;level</tt></dd></dl>
+
+<dl><dt><a name="Agent-getProductionFunction"><strong>getProductionFunction</strong></a>(self, itemId)</dt></dl>
+
+<dl><dt><a name="Agent-getProductionInputDeficit"><strong>getProductionInputDeficit</strong></a>(self, itemId, stepProductionQuantity)</dt><dd><tt>Returns&nbsp;a&nbsp;dictionary&nbsp;of&nbsp;what&nbsp;this&nbsp;agent&nbsp;is&nbsp;missing&nbsp;to&nbsp;produce&nbsp;this&nbsp;item&nbsp;at&nbsp;the&nbsp;specified&nbsp;quantity</tt></dd></dl>
+
+<dl><dt><a name="Agent-getProductionInputDeltas"><strong>getProductionInputDeltas</strong></a>(self, itemId, stepProductionQuantity)</dt></dl>
+
+<dl><dt><a name="Agent-getProductionInputSurplus"><strong>getProductionInputSurplus</strong></a>(self, itemId, stepProductionQuantity)</dt><dd><tt>Returns&nbsp;a&nbsp;dictionary&nbsp;of&nbsp;what&nbsp;this&nbsp;agent&nbsp;has&nbsp;but&nbsp;does&nbsp;not&nbsp;need&nbsp;to&nbsp;produce&nbsp;this&nbsp;item&nbsp;at&nbsp;the&nbsp;specified&nbsp;quantity</tt></dd></dl>
+
+<dl><dt><a name="Agent-getStepCurrencyInflow"><strong>getStepCurrencyInflow</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="Agent-getStepCurrencyOutflow"><strong>getStepCurrencyOutflow</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="Agent-getTotalCurrencyInflow"><strong>getTotalCurrencyInflow</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="Agent-getTotalCurrencyOutflow"><strong>getTotalCurrencyOutflow</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="Agent-getTotalItemExpenses"><strong>getTotalItemExpenses</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="Agent-getTotalLaborExpense"><strong>getTotalLaborExpense</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="Agent-getTotalLaborIncome"><strong>getTotalLaborIncome</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="Agent-getTotalLandExpenses"><strong>getTotalLandExpenses</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="Agent-getTotalLandRevenue"><strong>getTotalLandRevenue</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="Agent-getTotalTradeRevenue"><strong>getTotalTradeRevenue</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="Agent-handleInfoRequest"><strong>handleInfoRequest</strong></a>(self, incommingPacket)</dt><dd><tt>#########################<br>
+#&nbsp;Misc&nbsp;functions<br>
+#########################</tt></dd></dl>
+
+<dl><dt><a name="Agent-loadCheckpoint"><strong>loadCheckpoint</strong></a>(self, filePath=None)</dt><dd><tt>Attempts&nbsp;to&nbsp;load&nbsp;agent&nbsp;state&nbsp;from&nbsp;checkpoint&nbsp;file.&nbsp;Returns&nbsp;true&nbsp;if&nbsp;successful,&nbsp;False&nbsp;if&nbsp;not<br>
+Will&nbsp;try&nbsp;to&nbsp;find&nbsp;the&nbsp;checkpoint&nbsp;file&nbsp;if&nbsp;filePath&nbsp;is&nbsp;not&nbsp;specified.</tt></dd></dl>
+
+<dl><dt><a name="Agent-monitorNetworkLink"><strong>monitorNetworkLink</strong></a>(self)</dt><dd><tt>Monitor/handle&nbsp;incoming&nbsp;packets&nbsp;on&nbsp;the&nbsp;pipe&nbsp;link&nbsp;to&nbsp;the&nbsp;ConnectionNetork</tt></dd></dl>
+
+<dl><dt><a name="Agent-produceItem"><strong>produceItem</strong></a>(self, itemContainer)</dt><dd><tt>Returns&nbsp;an&nbsp;item&nbsp;container&nbsp;of&nbsp;produced&nbsp;items&nbsp;if&nbsp;successful,&nbsp;False&nbsp;if&nbsp;not.</tt></dd></dl>
+
+<dl><dt><a name="Agent-receiveCurrency"><strong>receiveCurrency</strong></a>(self, cents, incommingPacket=None)</dt><dd><tt>Returns&nbsp;True&nbsp;if&nbsp;transfer&nbsp;was&nbsp;succesful,&nbsp;False&nbsp;if&nbsp;not</tt></dd></dl>
+
+<dl><dt><a name="Agent-receiveItem"><strong>receiveItem</strong></a>(self, itemPackage, incommingPacket=None)</dt><dd><tt>Add&nbsp;an&nbsp;item&nbsp;to&nbsp;agent&nbsp;inventory.<br>
+Returns&nbsp;True&nbsp;if&nbsp;item&nbsp;was&nbsp;successfully&nbsp;added,&nbsp;False&nbsp;if&nbsp;not</tt></dd></dl>
+
+<dl><dt><a name="Agent-receiveJobApplication"><strong>receiveJobApplication</strong></a>(self, applicationPayload, senderId)</dt><dd><tt>Will&nbsp;pass&nbsp;along&nbsp;job&nbsp;application&nbsp;to&nbsp;agent&nbsp;controller&nbsp;for&nbsp;approval.&nbsp;Will&nbsp;finalizae&nbsp;labor&nbsp;contract&nbsp;if&nbsp;approved.<br>
+Returns&nbsp;True&nbsp;if&nbsp;contract&nbsp;is&nbsp;completed,&nbsp;False&nbsp;if&nbsp;not</tt></dd></dl>
+
+<dl><dt><a name="Agent-receiveLand"><strong>receiveLand</strong></a>(self, allocation, hectares, incommingPacket=None)</dt><dd><tt>Add&nbsp;land&nbsp;to&nbsp;agent&nbsp;land&nbsp;holdings.<br>
+Returns&nbsp;True&nbsp;if&nbsp;land&nbsp;was&nbsp;successfully&nbsp;added,&nbsp;False&nbsp;if&nbsp;not</tt></dd></dl>
+
+<dl><dt><a name="Agent-receiveLandTradeRequest"><strong>receiveLandTradeRequest</strong></a>(self, request, senderId)</dt><dd><tt>Will&nbsp;pass&nbsp;along&nbsp;land&nbsp;trade&nbsp;request&nbsp;to&nbsp;agent&nbsp;controller&nbsp;for&nbsp;approval.&nbsp;Will&nbsp;execute&nbsp;land&nbsp;trade&nbsp;if&nbsp;approved.<br>
+Returns&nbsp;True&nbsp;if&nbsp;trade&nbsp;is&nbsp;completed,&nbsp;False&nbsp;if&nbsp;not</tt></dd></dl>
+
+<dl><dt><a name="Agent-receiveTradeRequest"><strong>receiveTradeRequest</strong></a>(self, request, senderId)</dt><dd><tt>Will&nbsp;pass&nbsp;along&nbsp;trade&nbsp;request&nbsp;to&nbsp;agent&nbsp;controller&nbsp;for&nbsp;approval.&nbsp;Will&nbsp;execute&nbsp;trade&nbsp;if&nbsp;approved.<br>
+Returns&nbsp;True&nbsp;if&nbsp;trade&nbsp;is&nbsp;completed,&nbsp;False&nbsp;if&nbsp;not</tt></dd></dl>
+
+<dl><dt><a name="Agent-relinquishTimeTicks"><strong>relinquishTimeTicks</strong></a>(self)</dt><dd><tt>Relinquish&nbsp;all&nbsp;time&nbsp;ticks&nbsp;for&nbsp;this&nbsp;sim&nbsp;step.<br>
+Returns&nbsp;True&nbsp;if&nbsp;successful,&nbsp;False&nbsp;if&nbsp;not</tt></dd></dl>
+
+<dl><dt><a name="Agent-removeItemListing"><strong>removeItemListing</strong></a>(self, itemListing)</dt><dd><tt>Remove&nbsp;a&nbsp;listing&nbsp;from&nbsp;the&nbsp;item&nbsp;marketplace<br>
+Returns&nbsp;True&nbsp;if&nbsp;succesful,&nbsp;False&nbsp;otherwise</tt></dd></dl>
+
+<dl><dt><a name="Agent-removeLaborContract"><strong>removeLaborContract</strong></a>(self, laborContract, incommingPacket=None)</dt><dd><tt>Remove&nbsp;an&nbsp;existing&nbsp;labor&nbsp;contract</tt></dd></dl>
+
+<dl><dt><a name="Agent-removeLaborListing"><strong>removeLaborListing</strong></a>(self, laborListing)</dt><dd><tt>Remove&nbsp;a&nbsp;listing&nbsp;from&nbsp;the&nbsp;labor&nbsp;marketplace<br>
+Returns&nbsp;True&nbsp;if&nbsp;succesful,&nbsp;False&nbsp;otherwise</tt></dd></dl>
+
+<dl><dt><a name="Agent-removeLandListing"><strong>removeLandListing</strong></a>(self, landListing)</dt><dd><tt>Remove&nbsp;a&nbsp;listing&nbsp;from&nbsp;the&nbsp;land&nbsp;marketplace<br>
+Returns&nbsp;True&nbsp;if&nbsp;succesful,&nbsp;False&nbsp;otherwise</tt></dd></dl>
+
+<dl><dt><a name="Agent-resetAccountingTotals"><strong>resetAccountingTotals</strong></a>(self)</dt><dd><tt>#Rest&nbsp;all&nbsp;accounting&nbsp;totals</tt></dd></dl>
+
+<dl><dt><a name="Agent-resetCurrencyInflow"><strong>resetCurrencyInflow</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="Agent-resetCurrencyOutflow"><strong>resetCurrencyOutflow</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="Agent-resetItemExpenses"><strong>resetItemExpenses</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="Agent-resetLaborExpense"><strong>resetLaborExpense</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="Agent-resetLaborIncome"><strong>resetLaborIncome</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="Agent-resetLandExpenses"><strong>resetLandExpenses</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="Agent-resetLandRevenue"><strong>resetLandRevenue</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="Agent-resetTradeRevenue"><strong>resetTradeRevenue</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="Agent-sampleItemListings"><strong>sampleItemListings</strong></a>(self, itemContainer, sampleSize=3, delResponse=True)</dt><dd><tt>Returns&nbsp;a&nbsp;list&nbsp;of&nbsp;randomly&nbsp;sampled&nbsp;item&nbsp;listings&nbsp;that&nbsp;match&nbsp;itemContainer<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ItemListing.itemId&nbsp;==&nbsp;itemContainer.id<br>
+&nbsp;<br>
+List&nbsp;length&nbsp;can&nbsp;be&nbsp;0&nbsp;if&nbsp;none&nbsp;are&nbsp;found,&nbsp;or&nbsp;up&nbsp;to&nbsp;sampleSize.<br>
+Returns&nbsp;False&nbsp;if&nbsp;there&nbsp;was&nbsp;an&nbsp;error</tt></dd></dl>
+
+<dl><dt><a name="Agent-sampleLaborListings"><strong>sampleLaborListings</strong></a>(self, sampleSize=3, maxSkillLevel=-1, minSkillLevel=0, delResponse=True)</dt><dd><tt>Returns&nbsp;a&nbsp;list&nbsp;of&nbsp;sampled&nbsp;labor&nbsp;listings&nbsp;that&nbsp;agent&nbsp;qualifies&nbsp;for&nbsp;(listing.minSkillLevel&nbsp;&lt;=&nbsp;agent.skillLevel).<br>
+Will&nbsp;sample&nbsp;listings&nbsp;in&nbsp;order&nbsp;of&nbsp;decreasing&nbsp;skill&nbsp;level,&nbsp;returning&nbsp;the&nbsp;highest&nbsp;possible&nbsp;skill-level&nbsp;listings.&nbsp;Samples&nbsp;are&nbsp;randomized&nbsp;within&nbsp;skill&nbsp;levels.</tt></dd></dl>
+
+<dl><dt><a name="Agent-sampleLandListings"><strong>sampleLandListings</strong></a>(self, allocation, hectares, sampleSize=3, delResponse=True)</dt><dd><tt>Returns&nbsp;a&nbsp;list&nbsp;of&nbsp;randomly&nbsp;sampled&nbsp;item&nbsp;listings&nbsp;where<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;LandListing.allocation&nbsp;==&nbsp;allocation<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;LandListing.hectares&nbsp;&gt;=&nbsp;hectares<br>
+&nbsp;<br>
+List&nbsp;length&nbsp;can&nbsp;be&nbsp;0&nbsp;if&nbsp;none&nbsp;are&nbsp;found,&nbsp;or&nbsp;up&nbsp;to&nbsp;sampleSize.<br>
+Returns&nbsp;False&nbsp;if&nbsp;there&nbsp;was&nbsp;an&nbsp;error</tt></dd></dl>
+
+<dl><dt><a name="Agent-saveCheckpoint"><strong>saveCheckpoint</strong></a>(self, filePath=None)</dt><dd><tt>Saves&nbsp;current&nbsp;agent&nbsp;state&nbsp;into&nbsp;a&nbsp;checkpoint&nbsp;file.&nbsp;Will&nbsp;determine&nbsp;it's&nbsp;own&nbsp;filepath&nbsp;if&nbsp;filePath&nbsp;is&nbsp;not&nbsp;defined</tt></dd></dl>
+
+<dl><dt><a name="Agent-sendCurrency"><strong>sendCurrency</strong></a>(self, cents, recipientId, transactionId=None, delResponse=True)</dt><dd><tt>Send&nbsp;currency&nbsp;to&nbsp;another&nbsp;agent.&nbsp;<br>
+Returns&nbsp;True&nbsp;if&nbsp;transfer&nbsp;was&nbsp;succesful,&nbsp;False&nbsp;if&nbsp;not</tt></dd></dl>
+
+<dl><dt><a name="Agent-sendItem"><strong>sendItem</strong></a>(self, itemPackage, recipientId, transactionId=None, delResponse=True)</dt><dd><tt>Send&nbsp;an&nbsp;item&nbsp;to&nbsp;another&nbsp;agent.<br>
+Returns&nbsp;True&nbsp;if&nbsp;item&nbsp;was&nbsp;successfully&nbsp;sent,&nbsp;False&nbsp;if&nbsp;not</tt></dd></dl>
+
+<dl><dt><a name="Agent-sendJobApplication"><strong>sendJobApplication</strong></a>(self, laborListing)</dt><dd><tt>Send&nbsp;a&nbsp;job&nbsp;application&nbsp;to&nbsp;an&nbsp;employer.<br>
+Returns&nbsp;True&nbsp;if&nbsp;the&nbsp;application&nbsp;accepted.&nbsp;Returns&nbsp;False&nbsp;if&nbsp;not</tt></dd></dl>
+
+<dl><dt><a name="Agent-sendLand"><strong>sendLand</strong></a>(self, allocation, hectares, recipientId, transactionId=None, delResponse=True)</dt><dd><tt>Send&nbsp;land&nbsp;to&nbsp;another&nbsp;agent.<br>
+Returns&nbsp;True&nbsp;if&nbsp;land&nbsp;was&nbsp;successfully&nbsp;sent,&nbsp;False&nbsp;if&nbsp;not</tt></dd></dl>
+
+<dl><dt><a name="Agent-sendLandTradeRequest"><strong>sendLandTradeRequest</strong></a>(self, request, recipientId)</dt><dd><tt>Send&nbsp;a&nbsp;land&nbsp;trade&nbsp;request&nbsp;to&nbsp;another&nbsp;agent.&nbsp;Will&nbsp;execute&nbsp;trade&nbsp;if&nbsp;accepted&nbsp;by&nbsp;recipient.<br>
+Returns&nbsp;True&nbsp;if&nbsp;the&nbsp;trade&nbsp;completed.&nbsp;Returns&nbsp;False&nbsp;if&nbsp;not</tt></dd></dl>
+
+<dl><dt><a name="Agent-sendPacket"><strong>sendPacket</strong></a>(self, packet)</dt></dl>
+
+<dl><dt><a name="Agent-sendTradeRequest"><strong>sendTradeRequest</strong></a>(self, request, recipientId)</dt><dd><tt>Send&nbsp;a&nbsp;trade&nbsp;request&nbsp;to&nbsp;another&nbsp;agent.&nbsp;Will&nbsp;execute&nbsp;trade&nbsp;if&nbsp;accepted&nbsp;by&nbsp;recipient.<br>
+Returns&nbsp;True&nbsp;if&nbsp;the&nbsp;trade&nbsp;completed.&nbsp;Returns&nbsp;False&nbsp;if&nbsp;not</tt></dd></dl>
+
+<dl><dt><a name="Agent-startController"><strong>startController</strong></a>(self)</dt><dd><tt><a href="#Agent">Agent</a>&nbsp;will&nbsp;send&nbsp;a&nbsp;CONTROLLER_START&nbsp;packet&nbsp;to&nbsp;it's&nbsp;controller</tt></dd></dl>
+
+<dl><dt><a name="Agent-subcribeTickBlocking"><strong>subcribeTickBlocking</strong></a>(self)</dt><dd><tt>Subscribes&nbsp;this&nbsp;agent&nbsp;as&nbsp;a&nbsp;tick&nbsp;blocker&nbsp;with&nbsp;the&nbsp;sim&nbsp;manager</tt></dd></dl>
+
+<dl><dt><a name="Agent-updateAcountingAverages"><strong>updateAcountingAverages</strong></a>(self)</dt><dd><tt>#########################<br>
+#&nbsp;Accounting&nbsp;Methods<br>
+#########################</tt></dd></dl>
+
+<dl><dt><a name="Agent-updateItemListing"><strong>updateItemListing</strong></a>(self, itemListing)</dt><dd><tt>Update&nbsp;the&nbsp;item&nbsp;marketplace.<br>
+Returns&nbsp;True&nbsp;if&nbsp;succesful,&nbsp;False&nbsp;otherwise</tt></dd></dl>
+
+<dl><dt><a name="Agent-updateLaborListing"><strong>updateLaborListing</strong></a>(self, laborListing)</dt><dd><tt>Update&nbsp;the&nbsp;labor&nbsp;marketplace.<br>
+Returns&nbsp;True&nbsp;if&nbsp;succesful,&nbsp;False&nbsp;otherwise</tt></dd></dl>
+
+<dl><dt><a name="Agent-updateLandListing"><strong>updateLandListing</strong></a>(self, landListing)</dt><dd><tt>Update&nbsp;the&nbsp;land&nbsp;marketplace.<br>
+Returns&nbsp;True&nbsp;if&nbsp;succesful,&nbsp;False&nbsp;otherwise</tt></dd></dl>
+
+<dl><dt><a name="Agent-updatePriceMemory"><strong>updatePriceMemory</strong></a>(self, itemId, unitPrice)</dt></dl>
+
+<dl><dt><a name="Agent-useTimeTicks"><strong>useTimeTicks</strong></a>(self, amount)</dt><dd><tt>Consume&nbsp;the&nbsp;specified&nbsp;amount&nbsp;of&nbsp;time&nbsp;ticks.&nbsp;<br>
+If&nbsp;we&nbsp;run&nbsp;out&nbsp;in&nbsp;the&nbsp;process,&nbsp;set&nbsp;the&nbsp;tickBlocked&nbsp;flag&nbsp;and&nbsp;send&nbsp;a&nbsp;TICK_BLOCKED&nbsp;packet&nbsp;to&nbsp;sim&nbsp;manager.<br>
+&nbsp;<br>
+Returns&nbsp;True&nbsp;if&nbsp;successful,&nbsp;False&nbsp;if&nbsp;not</tt></dd></dl>
+
+<hr>
+Data descriptors defined here:<br>
+<dl><dt><strong>__dict__</strong></dt>
+<dd><tt>dictionary&nbsp;for&nbsp;instance&nbsp;variables&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+<dl><dt><strong>__weakref__</strong></dt>
+<dd><tt>list&nbsp;of&nbsp;weak&nbsp;references&nbsp;to&nbsp;the&nbsp;object&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+</td></tr></table> <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="AgentCheckpoint">class <strong>AgentCheckpoint</strong></a>(<a href="builtins.html#object">builtins.object</a>)</font></td></tr>
+    
+<tr bgcolor="#ffc8d8"><td rowspan=2><tt>&nbsp;&nbsp;&nbsp;</tt></td>
+<td colspan=2><tt><a href="#AgentCheckpoint">AgentCheckpoint</a>(agentObj)<br>
+&nbsp;<br>
+This&nbsp;class&nbsp;stores&nbsp;information&nbsp;on&nbsp;current&nbsp;agent&nbsp;state&nbsp;for&nbsp;saving&nbsp;to&nbsp;and&nbsp;loading&nbsp;from&nbsp;simulation&nbsp;checkpoints.<br>
+All&nbsp;class&nbsp;variables&nbsp;must&nbsp;be&nbsp;pickle-safe&nbsp;(that&nbsp;means&nbsp;no&nbsp;thread&nbsp;locks).<br>&nbsp;</tt></td></tr>
+<tr><td>&nbsp;</td>
+<td width="100%">Methods defined here:<br>
+<dl><dt><a name="AgentCheckpoint-__init__"><strong>__init__</strong></a>(self, agentObj)</dt><dd><tt>Stores&nbsp;the&nbsp;class&nbsp;variables&nbsp;of&nbsp;agentObj&nbsp;in&nbsp;this&nbsp;checkpoint&nbsp;obj</tt></dd></dl>
+
+<dl><dt><a name="AgentCheckpoint-__str__"><strong>__str__</strong></a>(self)</dt><dd><tt>Return&nbsp;str(self).</tt></dd></dl>
+
+<dl><dt><a name="AgentCheckpoint-loadCheckpoint"><strong>loadCheckpoint</strong></a>(self, agentObj)</dt><dd><tt>Overwrites&nbsp;the&nbsp;class&nbsp;variables&nbsp;of&nbsp;agentObj&nbsp;with&nbsp;the&nbsp;values&nbsp;stored&nbsp;in&nbsp;this&nbsp;checkpoint&nbsp;obj</tt></dd></dl>
+
+<hr>
+Data descriptors defined here:<br>
+<dl><dt><strong>__dict__</strong></dt>
+<dd><tt>dictionary&nbsp;for&nbsp;instance&nbsp;variables&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+<dl><dt><strong>__weakref__</strong></dt>
+<dd><tt>list&nbsp;of&nbsp;weak&nbsp;references&nbsp;to&nbsp;the&nbsp;object&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+</td></tr></table> <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="AgentInfo">class <strong>AgentInfo</strong></a>(<a href="builtins.html#object">builtins.object</a>)</font></td></tr>
+    
+<tr bgcolor="#ffc8d8"><td rowspan=2><tt>&nbsp;&nbsp;&nbsp;</tt></td>
+<td colspan=2><tt><a href="#AgentInfo">AgentInfo</a>(agentId,&nbsp;agentType)<br>
+&nbsp;<br>
+<br>&nbsp;</tt></td></tr>
+<tr><td>&nbsp;</td>
+<td width="100%">Methods defined here:<br>
+<dl><dt><a name="AgentInfo-__init__"><strong>__init__</strong></a>(self, agentId, agentType)</dt><dd><tt>Initialize&nbsp;self.&nbsp;&nbsp;See&nbsp;help(type(self))&nbsp;for&nbsp;accurate&nbsp;signature.</tt></dd></dl>
+
+<dl><dt><a name="AgentInfo-__str__"><strong>__str__</strong></a>(self)</dt><dd><tt>Return&nbsp;str(self).</tt></dd></dl>
+
+<hr>
+Data descriptors defined here:<br>
+<dl><dt><strong>__dict__</strong></dt>
+<dd><tt>dictionary&nbsp;for&nbsp;instance&nbsp;variables&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+<dl><dt><strong>__weakref__</strong></dt>
+<dd><tt>list&nbsp;of&nbsp;weak&nbsp;references&nbsp;to&nbsp;the&nbsp;object&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+</td></tr></table> <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="AgentSeed">class <strong>AgentSeed</strong></a>(<a href="builtins.html#object">builtins.object</a>)</font></td></tr>
+    
+<tr bgcolor="#ffc8d8"><td rowspan=2><tt>&nbsp;&nbsp;&nbsp;</tt></td>
+<td colspan=2><tt><a href="#AgentSeed">AgentSeed</a>(agentId,&nbsp;agentType=None,&nbsp;ticksPerStep=24,&nbsp;settings={},&nbsp;simManagerId=None,&nbsp;itemDict=None,&nbsp;allAgentDict=None,&nbsp;logFile=True,&nbsp;fileLevel='INFO',&nbsp;outputDir='OUTPUT',&nbsp;disableNetworkLink=False)<br>
+&nbsp;<br>
+Because&nbsp;thread&nbsp;locks&nbsp;cannot&nbsp;be&nbsp;pickled,&nbsp;you&nbsp;can't&nbsp;pass&nbsp;<a href="#Agent">Agent</a>&nbsp;instances&nbsp;to&nbsp;other&nbsp;processes.<br>
+&nbsp;<br>
+So&nbsp;the&nbsp;<a href="#AgentSeed">AgentSeed</a>&nbsp;class&nbsp;is&nbsp;a&nbsp;pickle-safe&nbsp;info&nbsp;container&nbsp;that&nbsp;can&nbsp;be&nbsp;passed&nbsp;to&nbsp;child&nbsp;processes.<br>
+The&nbsp;process&nbsp;can&nbsp;then&nbsp;call&nbsp;<a href="#AgentSeed">AgentSeed</a>.<a href="#AgentSeed-spawnAgent">spawnAgent</a>()&nbsp;to&nbsp;instantiate&nbsp;an&nbsp;<a href="#Agent">Agent</a>&nbsp;obj.<br>&nbsp;</tt></td></tr>
+<tr><td>&nbsp;</td>
+<td width="100%">Methods defined here:<br>
+<dl><dt><a name="AgentSeed-__init__"><strong>__init__</strong></a>(self, agentId, agentType=None, ticksPerStep=24, settings={}, simManagerId=None, itemDict=None, allAgentDict=None, logFile=True, fileLevel='INFO', outputDir='OUTPUT', disableNetworkLink=False)</dt><dd><tt>Initialize&nbsp;self.&nbsp;&nbsp;See&nbsp;help(type(self))&nbsp;for&nbsp;accurate&nbsp;signature.</tt></dd></dl>
+
+<dl><dt><a name="AgentSeed-__str__"><strong>__str__</strong></a>(self)</dt><dd><tt>Return&nbsp;str(self).</tt></dd></dl>
+
+<dl><dt><a name="AgentSeed-spawnAgent"><strong>spawnAgent</strong></a>(self)</dt></dl>
+
+<hr>
+Data descriptors defined here:<br>
+<dl><dt><strong>__dict__</strong></dt>
+<dd><tt>dictionary&nbsp;for&nbsp;instance&nbsp;variables&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+<dl><dt><strong>__weakref__</strong></dt>
+<dd><tt>list&nbsp;of&nbsp;weak&nbsp;references&nbsp;to&nbsp;the&nbsp;object&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+</td></tr></table> <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="LandAllocationQueue">class <strong>LandAllocationQueue</strong></a>(<a href="builtins.html#object">builtins.object</a>)</font></td></tr>
+    
+<tr bgcolor="#ffc8d8"><td rowspan=2><tt>&nbsp;&nbsp;&nbsp;</tt></td>
+<td colspan=2><tt><a href="#LandAllocationQueue">LandAllocationQueue</a>(agent)<br>
+&nbsp;<br>
+Keeps&nbsp;track&nbsp;of&nbsp;land&nbsp;that&nbsp;is&nbsp;currently&nbsp;being&nbsp;allocated<br>&nbsp;</tt></td></tr>
+<tr><td>&nbsp;</td>
+<td width="100%">Methods defined here:<br>
+<dl><dt><a name="LandAllocationQueue-__init__"><strong>__init__</strong></a>(self, agent)</dt><dd><tt>Initialize&nbsp;self.&nbsp;&nbsp;See&nbsp;help(type(self))&nbsp;for&nbsp;accurate&nbsp;signature.</tt></dd></dl>
+
+<dl><dt><a name="LandAllocationQueue-startAllocation"><strong>startAllocation</strong></a>(self, allocationType, hectares)</dt><dd><tt>Returns&nbsp;True&nbsp;if&nbsp;successful,&nbsp;False&nbsp;if&nbsp;not</tt></dd></dl>
+
+<dl><dt><a name="LandAllocationQueue-useTimeTicks"><strong>useTimeTicks</strong></a>(self, ticks)</dt><dd><tt>Will&nbsp;decrement&nbsp;the&nbsp;waiting&nbsp;time&nbsp;for&nbsp;each&nbsp;allocation&nbsp;entry.<br>
+When&nbsp;an&nbsp;entry&nbsp;is&nbsp;done,&nbsp;it&nbsp;will&nbsp;be&nbsp;removed&nbsp;from&nbsp;the&nbsp;queue&nbsp;and&nbsp;allocated&nbsp;in&nbsp;the&nbsp;agent's&nbsp;land&nbsp;holdings</tt></dd></dl>
+
+<hr>
+Data descriptors defined here:<br>
+<dl><dt><strong>__dict__</strong></dt>
+<dd><tt>dictionary&nbsp;for&nbsp;instance&nbsp;variables&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+<dl><dt><strong>__weakref__</strong></dt>
+<dd><tt>list&nbsp;of&nbsp;weak&nbsp;references&nbsp;to&nbsp;the&nbsp;object&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+</td></tr></table> <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="NutritionTracker">class <strong>NutritionTracker</strong></a>(<a href="builtins.html#object">builtins.object</a>)</font></td></tr>
+    
+<tr bgcolor="#ffc8d8"><td rowspan=2><tt>&nbsp;&nbsp;&nbsp;</tt></td>
+<td colspan=2><tt><a href="#NutritionTracker">NutritionTracker</a>(agent)<br>
+&nbsp;<br>
+Keeps&nbsp;track&nbsp;of&nbsp;an&nbsp;agent's&nbsp;nutritional&nbsp;levels,&nbsp;as&nbsp;well&nbsp;as&nbsp;food&nbsp;consumption<br>&nbsp;</tt></td></tr>
+<tr><td>&nbsp;</td>
+<td width="100%">Methods defined here:<br>
+<dl><dt><a name="NutritionTracker-__init__"><strong>__init__</strong></a>(self, agent)</dt><dd><tt>Initialize&nbsp;self.&nbsp;&nbsp;See&nbsp;help(type(self))&nbsp;for&nbsp;accurate&nbsp;signature.</tt></dd></dl>
+
+<dl><dt><a name="NutritionTracker-advanceStep"><strong>advanceStep</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="NutritionTracker-consumeFood"><strong>consumeFood</strong></a>(self, foodId, quantity)</dt></dl>
+
+<dl><dt><a name="NutritionTracker-getAutoMeal"><strong>getAutoMeal</strong></a>(self)</dt><dd><tt>Automatically&nbsp;calculates&nbsp;a&nbsp;meal&nbsp;plan&nbsp;for&nbsp;this&nbsp;step&nbsp;based&nbsp;on&nbsp;agent&nbsp;preference&nbsp;and&nbsp;nutrition.<br>
+Will&nbsp;attempt&nbsp;to&nbsp;maximize&nbsp;agent&nbsp;net&nbsp;agent&nbsp;utility&nbsp;for&nbsp;the&nbsp;meal.<br>
+&nbsp;<br>
+Returns&nbsp;a&nbsp;dictionary</tt></dd></dl>
+
+<dl><dt><a name="NutritionTracker-getQuantityConsumed"><strong>getQuantityConsumed</strong></a>(self, agent, foodId)</dt></dl>
+
+<hr>
+Data descriptors defined here:<br>
+<dl><dt><strong>__dict__</strong></dt>
+<dd><tt>dictionary&nbsp;for&nbsp;instance&nbsp;variables&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+<dl><dt><strong>__weakref__</strong></dt>
+<dd><tt>list&nbsp;of&nbsp;weak&nbsp;references&nbsp;to&nbsp;the&nbsp;object&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+</td></tr></table> <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="ProductionFunction">class <strong>ProductionFunction</strong></a>(<a href="builtins.html#object">builtins.object</a>)</font></td></tr>
+    
+<tr bgcolor="#ffc8d8"><td rowspan=2><tt>&nbsp;&nbsp;&nbsp;</tt></td>
+<td colspan=2><tt><a href="#ProductionFunction">ProductionFunction</a>(itemDict)<br>
+&nbsp;<br>
+Used&nbsp;to&nbsp;calculate&nbsp;production&nbsp;costs&nbsp;for&nbsp;a&nbsp;given&nbsp;item,&nbsp;as&nbsp;well&nbsp;as&nbsp;handling&nbsp;item&nbsp;production<br>&nbsp;</tt></td></tr>
+<tr><td>&nbsp;</td>
+<td width="100%">Methods defined here:<br>
+<dl><dt><a name="ProductionFunction-__init__"><strong>__init__</strong></a>(self, itemDict)</dt><dd><tt>Initialize&nbsp;self.&nbsp;&nbsp;See&nbsp;help(type(self))&nbsp;for&nbsp;accurate&nbsp;signature.</tt></dd></dl>
+
+<dl><dt><a name="ProductionFunction-__str__"><strong>__str__</strong></a>(self)</dt><dd><tt>Return&nbsp;str(self).</tt></dd></dl>
+
+<dl><dt><a name="ProductionFunction-getMaxProduction"><strong>getMaxProduction</strong></a>(self, agent)</dt><dd><tt>Returns&nbsp;the&nbsp;maximum&nbsp;amount&nbsp;of&nbsp;this&nbsp;item&nbsp;that&nbsp;can&nbsp;be&nbsp;produced&nbsp;at&nbsp;this&nbsp;time</tt></dd></dl>
+
+<dl><dt><a name="ProductionFunction-getProductionInputDeltas"><strong>getProductionInputDeltas</strong></a>(self, agent, maxStepProduction)</dt><dd><tt>Returns&nbsp;a&nbsp;dictionary&nbsp;containing&nbsp;the&nbsp;difference&nbsp;between&nbsp;what&nbsp;is&nbsp;needed&nbsp;to&nbsp;support&nbsp;maxStepProduction&nbsp;and&nbsp;what&nbsp;the&nbsp;agent&nbsp;currently&nbsp;possesses</tt></dd></dl>
+
+<dl><dt><a name="ProductionFunction-produceItem"><strong>produceItem</strong></a>(self, agent, productionAmount)</dt><dd><tt>Returns&nbsp;an&nbsp;item&nbsp;container&nbsp;if&nbsp;successful.&nbsp;Returns&nbsp;false&nbsp;if&nbsp;not</tt></dd></dl>
+
+<dl><dt><a name="ProductionFunction-updateCosts"><strong>updateCosts</strong></a>(self)</dt></dl>
+
+<hr>
+Data descriptors defined here:<br>
+<dl><dt><strong>__dict__</strong></dt>
+<dd><tt>dictionary&nbsp;for&nbsp;instance&nbsp;variables&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+<dl><dt><strong>__weakref__</strong></dt>
+<dd><tt>list&nbsp;of&nbsp;weak&nbsp;references&nbsp;to&nbsp;the&nbsp;object&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+</td></tr></table> <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="UtilityFunction">class <strong>UtilityFunction</strong></a>(<a href="builtins.html#object">builtins.object</a>)</font></td></tr>
+    
+<tr bgcolor="#ffc8d8"><td rowspan=2><tt>&nbsp;&nbsp;&nbsp;</tt></td>
+<td colspan=2><tt><a href="#UtilityFunction">UtilityFunction</a>(baseUtility,&nbsp;baseStdDev,&nbsp;diminishingFactor,&nbsp;diminStdDev)<br>
+&nbsp;<br>
+Determines&nbsp;the&nbsp;utility&nbsp;for&nbsp;an&nbsp;<a href="builtins.html#object">object</a><br>&nbsp;</tt></td></tr>
+<tr><td>&nbsp;</td>
+<td width="100%">Methods defined here:<br>
+<dl><dt><a name="UtilityFunction-__init__"><strong>__init__</strong></a>(self, baseUtility, baseStdDev, diminishingFactor, diminStdDev)</dt><dd><tt>Initialize&nbsp;self.&nbsp;&nbsp;See&nbsp;help(type(self))&nbsp;for&nbsp;accurate&nbsp;signature.</tt></dd></dl>
+
+<dl><dt><a name="UtilityFunction-__repr__"><strong>__repr__</strong></a>(self)</dt><dd><tt>Return&nbsp;repr(self).</tt></dd></dl>
+
+<dl><dt><a name="UtilityFunction-__str__"><strong>__str__</strong></a>(self)</dt><dd><tt>Return&nbsp;str(self).</tt></dd></dl>
+
+<dl><dt><a name="UtilityFunction-getMarginalUtility"><strong>getMarginalUtility</strong></a>(self, quantity)</dt><dd><tt>Marginal&nbsp;utility&nbsp;can&nbsp;be&nbsp;modeled&nbsp;by&nbsp;the&nbsp;function&nbsp;U'&nbsp;=&nbsp;B/((N+1)^D),&nbsp;where<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;N&nbsp;is&nbsp;the&nbsp;current&nbsp;quantity&nbsp;of&nbsp;items.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;B&nbsp;is&nbsp;the&nbsp;base&nbsp;utility&nbsp;of&nbsp;a&nbsp;single&nbsp;item.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;D&nbsp;is&nbsp;the&nbsp;diminishing&nbsp;utility&nbsp;factor.&nbsp;The&nbsp;higher&nbsp;D&nbsp;is,&nbsp;the&nbsp;faster&nbsp;the&nbsp;utility&nbsp;of&nbsp;more&nbsp;items&nbsp;diminishes.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;U'&nbsp;is&nbsp;the&nbsp;marginal&nbsp;utility&nbsp;of&nbsp;1&nbsp;additional&nbsp;item<br>
+&nbsp;<br>
+The&nbsp;marginal&nbsp;utility&nbsp;curve&nbsp;for&nbsp;any&nbsp;given&nbsp;agent&nbsp;can&nbsp;be&nbsp;represented&nbsp;by&nbsp;B&nbsp;and&nbsp;D.</tt></dd></dl>
+
+<dl><dt><a name="UtilityFunction-getTotalUtility"><strong>getTotalUtility</strong></a>(self, quantity)</dt><dd><tt>Getting&nbsp;the&nbsp;discrete&nbsp;utility&nbsp;with&nbsp;a&nbsp;for&nbsp;loop&nbsp;is&nbsp;too&nbsp;inefficient,&nbsp;so&nbsp;this&nbsp;uses&nbsp;the&nbsp;continuous&nbsp;integral&nbsp;of&nbsp;marginal&nbsp;utility&nbsp;instead.<br>
+Integral[B/(N^D)]&nbsp;=&nbsp;U(N)&nbsp;=&nbsp;(&nbsp;B*(x^(1-D))&nbsp;)&nbsp;/&nbsp;(1-D)&nbsp;,&nbsp;if&nbsp;D&nbsp;!=&nbsp;1.<br>
+Integral[B/(N^D)]&nbsp;=&nbsp;U(N)&nbsp;=&nbsp;B*ln(N)&nbsp;,&nbsp;if&nbsp;D&nbsp;==&nbsp;1<br>
+&nbsp;<br>
+totalUtiliy&nbsp;=&nbsp;U(quantity)&nbsp;-&nbsp;U(1)&nbsp;+&nbsp;U'(0)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;totalUtiliy&nbsp;=&nbsp;U(quantity)&nbsp;-&nbsp;U(1)&nbsp;+&nbsp;U'(0)&nbsp;=&nbsp;B*ln(quantity)&nbsp;-&nbsp;0&nbsp;+&nbsp;B&nbsp;&nbsp;,&nbsp;&nbsp;if&nbsp;D&nbsp;==&nbsp;1<br>
+&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;totalUtiliy&nbsp;=&nbsp;U(quantity)&nbsp;-&nbsp;U(1)&nbsp;+&nbsp;U'(0)&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;=&nbsp;U(quantity)&nbsp;-&nbsp;(B/(1-D))&nbsp;+&nbsp;B&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;=&nbsp;(&nbsp;(B*(x^(1-D))&nbsp;-&nbsp;B)&nbsp;/&nbsp;(1-D)&nbsp;)&nbsp;+&nbsp;B<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;=&nbsp;(&nbsp;(B*(x^(1-D)&nbsp;-&nbsp;1))&nbsp;/&nbsp;(1-D)&nbsp;)&nbsp;+&nbsp;B&nbsp;&nbsp;,&nbsp;&nbsp;if&nbsp;D&nbsp;!=&nbsp;1</tt></dd></dl>
+
+<hr>
+Data descriptors defined here:<br>
+<dl><dt><strong>__dict__</strong></dt>
+<dd><tt>dictionary&nbsp;for&nbsp;instance&nbsp;variables&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+<dl><dt><strong>__weakref__</strong></dt>
+<dd><tt>list&nbsp;of&nbsp;weak&nbsp;references&nbsp;to&nbsp;the&nbsp;object&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+</td></tr></table></td></tr></table><p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#eeaa77">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Functions</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#eeaa77"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><dl><dt><a name="-getAgentController"><strong>getAgentController</strong></a>(agent, settings={}, logFile=True, fileLevel='INFO', outputDir='OUTPUT')</dt><dd><tt>Instantiates&nbsp;an&nbsp;agent&nbsp;controller,&nbsp;dependant&nbsp;on&nbsp;the&nbsp;agentType</tt></dd></dl>
+</td></tr></table><p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#55aa55">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Data</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#55aa55"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><strong>g_ItemQuantityPercision</strong> = 6</td></tr></table>
+</body></html>
