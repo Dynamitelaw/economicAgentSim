@@ -1,0 +1,32 @@
+{
+	"id": "lithium",
+	"unit": "kg",
+	"Quantized": false,
+	"category": "metal",
+	"ProductionLearningCurve": {
+		"StartingEfficiency": 1,
+		"HalfLifeQuant": 1
+	},
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {
+				"MaxYield": 0.143,
+				"MinQuantity": 1,
+				"Quantized": true,
+				"AllocationTime": 24
+			},
+			"FixedItemCosts": {}
+			},
+			"FixedLaborCosts": {}
+		},
+		"VariableCosts": {
+			"VariableItemCosts": {
+				"lithium salt": 822,
+				"industrial chemical": 1000
+			},
+			"VariableLaborCosts": {
+				"0": 2.49
+			}
+		}
+	}
+}

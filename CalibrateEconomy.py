@@ -12,6 +12,52 @@ from SimulationRunner import RunSimulation
 import utils
 
 
+class ItemNode:
+	def __init__(self, itemDict, itemTree, targetPrice=None, targetQuant=None):
+		self.id = itemDict["id"]
+		self.dict = itemDict
+		self.itemTree = itemTree
+
+		self.targetPrice = targetPrice
+		self.targetQuant = targetQuant
+		self.variableItemInputs = itemDict["ProductionInputs"]["VariableCosts"]["VariableItemCosts"]
+		self.variableLaborInputs = itemDict["ProductionInputs"]["VariableCosts"]["VariableLaborCosts"]
+
+		self.priceNudges = []
+
+	def nudgePrice(self, ratio, priceDict, wageDict, nudgeHistory=[]):
+		#Do not process this nudge if it's circular
+		if self.id in nudgeHistory:
+			return
+
+		#Calculate how much each input makes up our total marginal cost
+		totalLaborCost = 0
+		for skillLevel in self.variableLaborInputs:
+			averageWage = wageDict[skillLevel]
+			totalLaborCost += averageWage*self.variableLaborInputs[skillLevel]
+
+		totalItemCost = 0
+		itemCostTotals = {}
+		for itemId in self.variableItemInputs:
+			quantityNeeded = self.variableItemInputs[itemId]
+			itemCost = priceDict[itemId]*quantityNeeded
+			itemCostTotals[itemId] = itemCost
+			totalItemCost += itemCost
+
+		totalMarginalCost = totalLaborCost + totalItemCost
+		laborCostRatio = totalLaborCost/totalMarginalCost
+		itemCostRatios = {}
+		for itemId in itemCostTotals:
+			itemCostRatios[itemId] = itemCostTotals[itemId]/totalMarginalCost
+
+		#Propogate nudges based on cost ratios
+		newNudgeHistory = nudgeHistory.copy()
+		newNudgeHistory.append(self.id)
+		for itemId in itemCostRatios:
+			inputNudgeRatio = ratio*itemCostRatios[itemId]
+			inputNode = self.itemTree.getNode(itemId)
+			inputNode.nudgePrice(inputNudgeRatio, priceDict, wageDict, nudgeHistory=newNudgeHistory)
+
 def getItemAverages(csvPath):
 	try:
 		#Trim dataframe to most recent sample

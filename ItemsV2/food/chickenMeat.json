@@ -1,0 +1,53 @@
+{
+	"id": "chicken meat",
+	"unit": "kg",
+	"Quantized": false,
+	"category": "food",
+	"ProductionLearningCurve": {
+		"StartingEfficiency": 1,
+		"HalfLifeQuant": 1
+	},
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {
+				"MaxYield": 0.143,
+				"MinQuantity": 1,
+				"Quantized": true,
+				"AllocationTime": 24
+			},
+			"FixedItemCosts": {
+				"hand tool": {
+					"MaxYield": 0.625,
+					"MinQuantity": 1,
+					"Quantized": true
+				}
+			},
+			"FixedLaborCosts": {}
+		},
+		"VariableCosts": {
+			"VariableItemCosts": {
+				"chicken": 0.44
+			},
+			"VariableLaborCosts": {
+				"0": 1.6
+			}
+		}
+	},
+	"UtilityFunctions": {
+		"BaseUtility": {
+			"mean": 476,
+			"stdDev": 1
+		},
+		"DiminishingFactor": {
+			"mean": 1.5,
+			"stdDev": 0.2
+		}
+	},
+	"NutritionalFacts": {
+		"kcalories": 1877,
+		"carbohydrates(g)": 0,
+		"protein(g)": 280,
+		"fat(g)": 83,
+		"water(L)": 0.75
+	}
+}

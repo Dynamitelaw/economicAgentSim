@@ -1,0 +1,30 @@
+{
+	"id": "wheat",
+	"unit": "kg",
+	"Quantized": false,
+	"category": "food",
+	"ProductionLearningCurve": {
+		"StartingEfficiency": 1,
+		"HalfLifeQuant": 1
+	},
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {
+				"MaxYield": 4.92,
+				"MinQuantity": 0.5,
+				"Quantized": true,
+				"AllocationTime": 24
+			},
+			"FixedItemCosts": {},
+			"FixedLaborCosts": {}
+		},
+		"VariableCosts": {
+			"VariableItemCosts": {
+				"water": 4204
+			},
+			"VariableLaborCosts":  {
+				"0": 11
+			}
+		}
+	}
+}

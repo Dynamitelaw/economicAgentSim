@@ -1,0 +1,43 @@
+{
+	"id": "manufacturing equipment",
+	"unit": "machine",
+	"Quantized": true,
+	"category": "industrial",
+	"ProductionLearningCurve": {
+		"StartingEfficiency": 1,
+		"HalfLifeQuant": 1
+	},
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {
+				"MaxYield": 0.143,
+				"MinQuantity": 1,
+				"Quantized": true,
+				"AllocationTime": 24
+			},
+			"FixedItemCosts": {
+				"hand tool": {
+					"MaxYield": 0.625,
+					"MinQuantity": 10,
+					"Quantized": true
+				}
+			},
+			"FixedLaborCosts": {
+				"0.9": 8
+			}
+		},
+		"VariableCosts": {
+			"VariableItemCosts": {
+				"printed circuit board": 1,
+				"plastic": 2,
+				"metal part": 100,
+				"steel": 25,
+				"passive electrical component": 20,
+				"microchip": 1
+			},
+			"VariableLaborCosts": {
+				"0": 10
+			}
+		}
+	}
+}

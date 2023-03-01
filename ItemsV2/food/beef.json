@@ -1,0 +1,53 @@
+{
+	"id": "beef",
+	"unit": "kg",
+	"Quantized": false,
+	"category": "food",
+	"ProductionLearningCurve": {
+		"StartingEfficiency": 1,
+		"HalfLifeQuant": 1
+	},
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {
+				"MaxYield": 0.143,
+				"MinQuantity": 1,
+				"Quantized": true,
+				"AllocationTime": 24
+			},
+			"FixedItemCosts": {
+				"hand tool": {
+					"MaxYield": 0.625,
+					"MinQuantity": 1,
+					"Quantized": true
+				}
+			},
+			"FixedLaborCosts": {}
+		},
+		"VariableCosts": {
+			"VariableItemCosts": {
+				"cow": 0.005
+			},
+			"VariableLaborCosts": {
+				"0": 1.6
+			}
+		}
+	},
+	"UtilityFunctions": {
+		"BaseUtility": {
+			"mean": 476,
+			"stdDev": 1
+		},
+		"DiminishingFactor": {
+			"mean": 1.5,
+			"stdDev": 0.2
+		}
+	},
+	"NutritionalFacts": {
+		"kcalories": 2500,
+		"carbohydrates(g)": 0,
+		"protein(g)": 260,
+		"fat(g)": 150,
+		"water(L)": 0.75
+	}
+}

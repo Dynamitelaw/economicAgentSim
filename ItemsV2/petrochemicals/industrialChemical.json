@@ -1,0 +1,37 @@
+{
+	"id": "industrial chemical",
+	"unit": "L",
+	"Quantized": false,
+	"category": "textile",
+	"ProductionLearningCurve": {
+		"StartingEfficiency": 1,
+		"HalfLifeQuant": 1
+	},
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {
+				"MaxYield": 4.92,
+				"MinQuantity": 0.5,
+				"Quantized": true,
+				"AllocationTime": 24
+			},
+			"FixedItemCosts": {
+				"manufacturing equipment": {
+					"MaxYield": 0.625,
+					"MinQuantity": 10,
+					"Quantized": true
+				}
+			},
+			"FixedLaborCosts": {}
+		},
+		"VariableCosts": {
+			"VariableItemCosts": {
+				"crude oil": 0.3,
+				"water": 100
+			},
+			"VariableLaborCosts":  {
+				"0": 11
+			}
+		}
+	}
+}

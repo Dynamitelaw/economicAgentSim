@@ -1,0 +1,47 @@
+{
+	"id": "bread",
+	"unit": "kg",
+	"Quantized": false,
+	"category": "food",
+	"ProductionLearningCurve": {
+		"StartingEfficiency": 1,
+		"HalfLifeQuant": 1
+	},
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {
+				"MaxYield": 4.92,
+				"MinQuantity": 0.5,
+				"Quantized": true,
+				"AllocationTime": 24
+			},
+			"FixedItemCosts": {},
+			"FixedLaborCosts": {}
+		},
+		"VariableCosts": {
+			"VariableItemCosts": {
+				"wheat flour": 0.8
+			},
+			"VariableLaborCosts":  {
+				"0": 11
+			}
+		}
+	},
+	"UtilityFunctions": {
+		"BaseUtility": {
+			"mean": 80,
+			"stdDev": 0.5
+		},
+		"DiminishingFactor": {
+			"mean": 0.5,
+			"stdDev": 0.1
+		}
+	},
+	"NutritionalFacts": {
+		"kcalories": 2650,
+		"carbohydrates(g)": 490,
+		"protein(g)": 90,
+		"fat(g)": 32,
+		"water(L)": 0
+	}
+}

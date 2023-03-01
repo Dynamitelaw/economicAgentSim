@@ -1,0 +1,50 @@
+{
+	"id": "egg",
+	"unit": "egg",
+	"Quantized": true,
+	"category": "food",
+	"ProductionLearningCurve": {
+		"StartingEfficiency": 1,
+		"HalfLifeQuant": 1
+	},
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {
+				"MaxYield": 4.92,
+				"MinQuantity": 0.5,
+				"Quantized": true,
+				"AllocationTime": 24
+			},
+			"FixedItemCosts": {
+				"chicken": {
+					"MaxYield": 0.07,
+					"MinQuantity": 1,
+					"Quantized": true
+				}
+			},
+			"FixedLaborCosts": {}
+		},
+		"VariableCosts": {
+			"VariableLaborCosts":  {
+				"0": 1.7
+			}
+		}
+	},
+	"UtilityFunctions": {
+		"BaseUtility": {
+			"mean": 17,
+			"stdDev": 0.5
+		},
+		"DiminishingFactor": {
+			"mean": 0.5,
+			"stdDev": 0.1
+		}
+	},
+	"NutritionalFacts": {
+		"kcalories": 78,
+		"carbohydrates(g)": 0.6,
+		"protein(g)": 6,
+		"fat(g)": 5,
+		"water(L)": 0.038
+	}
+}

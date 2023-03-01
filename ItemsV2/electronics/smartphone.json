@@ -1,0 +1,53 @@
+{
+	"id": "smartphone",
+	"unit": "phone",
+	"Quantized": true,
+	"category": "electronics",
+	"ProductionLearningCurve": {
+		"StartingEfficiency": 1,
+		"HalfLifeQuant": 1
+	},
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {
+				"MaxYield": 0.143,
+				"MinQuantity": 1,
+				"Quantized": true,
+				"AllocationTime": 24
+			},
+			"FixedItemCosts": {
+				"manufacturing equipment": {
+					"MaxYield": 0.625,
+					"MinQuantity": 10,
+					"Quantized": true
+				}
+			},
+			"FixedLaborCosts": {
+				"0.9": 8
+			}
+		},
+		"VariableCosts": {
+			"VariableItemCosts": {
+				"printed circuit board": 1,
+				"aluminium": 0.001,
+				"glass": 0.01,
+				"plastic": 0.001,
+				"passive electrical component": 30,
+				"microchip": 2
+			},
+			"VariableLaborCosts": {
+				"0": 10
+			}
+		}
+	},
+	"UtilityFunctions": {
+		"BaseUtility": {
+			"mean": 100000,
+			"stdDev": 1
+		},
+		"DiminishingFactor": {
+			"mean": 100,
+			"stdDev": 0.2
+		}
+	}
+}

@@ -1,0 +1,48 @@
+{
+	"id": "cheese",
+	"unit": "kg",
+	"Quantized": false,
+	"category": "food",
+	"ProductionLearningCurve": {
+		"StartingEfficiency": 1,
+		"HalfLifeQuant": 1
+	},
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {},
+			"FixedItemCosts": {
+				"hand tool": {
+					"MaxYield": 0.625,
+					"MinQuantity": 1,
+					"Quantized": true
+				}
+			},
+			"FixedLaborCosts": {}
+		},
+		"VariableCosts": {
+			"VariableItemCosts": {
+				"milk": 10
+			},
+			"VariableLaborCosts":  {
+				"0": 4.5
+			}
+		}
+	},
+	"UtilityFunctions": {
+		"BaseUtility": {
+			"mean": 1083,
+			"stdDev": 0.5
+		},
+		"DiminishingFactor": {
+			"mean": 0.5,
+			"stdDev": 0.1
+		}
+	},
+	"NutritionalFacts": {
+		"kcalories": 4020,
+		"carbohydrates(g)": 13,
+		"protein(g)": 250,
+		"fat(g)": 330,
+		"water(L)": 0.4
+	}
+}

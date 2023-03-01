@@ -1,0 +1,53 @@
+{
+	"id": "fish meat",
+	"unit": "kg",
+	"Quantized": false,
+	"category": "food",
+	"ProductionLearningCurve": {
+		"StartingEfficiency": 1,
+		"HalfLifeQuant": 1
+	},
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {
+				"MaxYield": 0.143,
+				"MinQuantity": 1,
+				"Quantized": true,
+				"AllocationTime": 24
+			},
+			"FixedItemCosts": {
+				"hand tool": {
+					"MaxYield": 0.625,
+					"MinQuantity": 1,
+					"Quantized": true
+				}
+			},
+			"FixedLaborCosts": {}
+		},
+		"VariableCosts": {
+			"VariableItemCosts": {
+				"fish": 0.19
+			},
+			"VariableLaborCosts": {
+				"0": 1.6
+			}
+		}
+	},
+	"UtilityFunctions": {
+		"BaseUtility": {
+			"mean": 476,
+			"stdDev": 1
+		},
+		"DiminishingFactor": {
+			"mean": 1.5,
+			"stdDev": 0.2
+		}
+	},
+	"NutritionalFacts": {
+		"kcalories": 2080,
+		"carbohydrates(g)": 0,
+		"protein(g)": 200,
+		"fat(g)": 130,
+		"water(L)": 0.75
+	}
+}

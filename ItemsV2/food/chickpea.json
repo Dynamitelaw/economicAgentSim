@@ -1,0 +1,47 @@
+{
+	"id": "chickpea",
+	"unit": "kg",
+	"Quantized": false,
+	"category": "food",
+	"ProductionLearningCurve": {
+		"StartingEfficiency": 1,
+		"HalfLifeQuant": 1
+	},
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {
+				"MaxYield": 4.92,
+				"MinQuantity": 0.5,
+				"Quantized": true,
+				"AllocationTime": 24
+			},
+			"FixedItemCosts": {},
+			"FixedLaborCosts": {}
+		},
+		"VariableCosts": {
+			"VariableItemCosts": {
+				"water": 4204
+			},
+			"VariableLaborCosts":  {
+				"0": 11
+			}
+		}
+	},
+	"UtilityFunctions": {
+		"BaseUtility": {
+			"mean": 80,
+			"stdDev": 0.5
+		},
+		"DiminishingFactor": {
+			"mean": 0.5,
+			"stdDev": 0.1
+		}
+	},
+	"NutritionalFacts": {
+		"kcalories": 3640,
+		"carbohydrates(g)": 610,
+		"protein(g)": 190,
+		"fat(g)": 60,
+		"water(L)": 0.14
+	}
+}

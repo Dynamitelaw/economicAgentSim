@@ -1,0 +1,36 @@
+{
+	"id": "wood",
+	"unit": "kg",
+	"Quantized": false,
+	"category": "commodity",
+	"ProductionLearningCurve": {
+		"StartingEfficiency": 1,
+		"HalfLifeQuant": 1
+	},
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {
+				"MaxYield": 4.92,
+				"MinQuantity": 0.5,
+				"Quantized": true,
+				"AllocationTime": 24
+			},
+			"FixedItemCosts": {
+				"manufacturing equipment": {
+					"MaxYield": 0.625,
+					"MinQuantity": 10,
+					"Quantized": true
+				}
+			},
+			"FixedLaborCosts": {}
+		},
+		"VariableCosts": {
+			"VariableItemCosts": {
+				"tree": 0.05
+			},
+			"VariableLaborCosts":  {
+				"0": 11
+			}
+		}
+	}
+}

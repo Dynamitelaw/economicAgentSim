@@ -1,0 +1,42 @@
+{
+	"id": "butter",
+	"unit": "kg",
+	"Quantized": false,
+	"category": "food",
+	"ProductionLearningCurve": {
+		"StartingEfficiency": 1,
+		"HalfLifeQuant": 1
+	},
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {},
+			"FixedItemCosts": {},
+			"FixedLaborCosts": {}
+		},
+		"VariableCosts": {
+			"VariableItemCosts": {
+				"milk": 287
+			},
+			"VariableLaborCosts":  {
+				"0": 4.5
+			}
+		}
+	},
+	"UtilityFunctions": {
+		"BaseUtility": {
+			"mean": 1083,
+			"stdDev": 0.5
+		},
+		"DiminishingFactor": {
+			"mean": 0.5,
+			"stdDev": 0.1
+		}
+	},
+	"NutritionalFacts": {
+		"kcalories": 7170,
+		"carbohydrates(g)": 1,
+		"protein(g)": 9,
+		"fat(g)": 810,
+		"water(L)": 0.17
+	}
+}

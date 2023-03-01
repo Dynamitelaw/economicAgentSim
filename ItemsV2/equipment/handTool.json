@@ -1,0 +1,33 @@
+{
+	"id": "hand tool",
+	"unit": "tool",
+	"Quantized": true,
+	"category": "industrial",
+	"ProductionLearningCurve": {
+		"StartingEfficiency": 1,
+		"HalfLifeQuant": 1
+	},
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {
+				"MaxYield": 0.143,
+				"MinQuantity": 1,
+				"Quantized": true,
+				"AllocationTime": 24
+			},
+			"FixedItemCosts": {},
+			"FixedLaborCosts": {
+				"0.9": 8
+			}
+		},
+		"VariableCosts": {
+			"VariableItemCosts": {
+				"steel": 0.1,
+				"wood": 0.7
+			},
+			"VariableLaborCosts": {
+				"0": 10
+			}
+		}
+	}
+}

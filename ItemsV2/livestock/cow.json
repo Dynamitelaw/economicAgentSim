@@ -1,0 +1,36 @@
+{
+	"id": "cow",
+	"unit": "cow",
+	"Quantized": true,
+	"category": "livestock",
+	"ProductionLearningCurve": {
+		"StartingEfficiency": 1,
+		"HalfLifeQuant": 1
+	},
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {
+				"MaxYield": 0.143,
+				"MinQuantity": 1,
+				"Quantized": true,
+				"AllocationTime": 24
+			},
+			"FixedItemCosts": {
+				"cow": {
+					"MaxYield": 0.625,
+					"MinQuantity": 2,
+					"Quantized": true
+				}
+			},
+			"FixedLaborCosts": {}
+		},
+		"VariableCosts": {
+			"VariableItemCosts": {
+				"corn": 600
+			},
+			"VariableLaborCosts": {
+				"0": 1.6
+			}
+		}
+	}
+}

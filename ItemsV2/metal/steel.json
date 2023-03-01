@@ -1,0 +1,37 @@
+{
+	"id": "steel",
+	"unit": "kg",
+	"Quantized": false,
+	"category": "metal",
+	"ProductionLearningCurve": {
+		"StartingEfficiency": 1,
+		"HalfLifeQuant": 1
+	},
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {
+				"MaxYield": 0.143,
+				"MinQuantity": 1,
+				"Quantized": true,
+				"AllocationTime": 24
+			},
+			"FixedItemCosts": {
+				"smelting furnace": {
+					"MaxYield": 0.07,
+					"MinQuantity": 1,
+					"Quantized": true
+				}
+			},
+			"FixedLaborCosts": {}
+		},
+		"VariableCosts": {
+			"VariableItemCosts": {
+				"iron ore": 822,
+				"coal": 10
+			},
+			"VariableLaborCosts": {
+				"0": 2.49
+			}
+		}
+	}
+}

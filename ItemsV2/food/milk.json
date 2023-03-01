@@ -1,0 +1,43 @@
+{
+	"id": "milk",
+	"unit": "L",
+	"Quantized": false,
+	"category": "food",
+	"ProductionLearningCurve": {
+		"StartingEfficiency": 1,
+		"HalfLifeQuant": 1
+	},
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {},
+			"FixedItemCosts": {
+				"cow": {
+					"MaxYield": 3.785,
+					"MinQuantity": 1,
+					"Quantized": true
+				}
+			},
+			"FixedLaborCosts": {}
+		},
+		"VariableCosts": {
+			"0": 0.264
+		}
+	},
+	"UtilityFunctions": {
+		"BaseUtility": {
+			"mean": 100,
+			"stdDev": 0.5
+		},
+		"DiminishingFactor": {
+			"mean": 0.5,
+			"stdDev": 0.1
+		}
+	},
+	"NutritionalFacts": {
+		"kcalories": 610,
+		"carbohydrates(g)": 48,
+		"protein(g)": 31.5,
+		"fat(g)": 32.5,
+		"water(L)": 0.87
+	}
+}

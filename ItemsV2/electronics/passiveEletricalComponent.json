@@ -1,0 +1,39 @@
+{
+	"id": "passive electrical component",
+	"unit": "component",
+	"Quantized": true,
+	"category": "electronics",
+	"ProductionLearningCurve": {
+		"StartingEfficiency": 1,
+		"HalfLifeQuant": 1
+	},
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {
+				"MaxYield": 0.143,
+				"MinQuantity": 1,
+				"Quantized": true,
+				"AllocationTime": 24
+			},
+			"FixedItemCosts": {
+				"manufacturing equipment": {
+					"MaxYield": 0.625,
+					"MinQuantity": 1,
+					"Quantized": true
+				}
+			},
+			"FixedLaborCosts": {}
+		},
+		"VariableCosts": {
+			"VariableItemCosts": {
+				"copper": 0.001,
+				"gold": 0.0001,
+				"aluminium": 0.001,
+				"plastic": 0.001
+			},
+			"VariableLaborCosts": {
+				"0": 1.6
+			}
+		}
+	}
+}

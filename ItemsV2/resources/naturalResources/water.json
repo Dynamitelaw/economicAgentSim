@@ -1,0 +1,23 @@
+{
+	"id": "water",
+	"unit": "L",
+	"Quantized": false,
+	"category": "natural resource",
+	"UtilityFunctions": {
+		"BaseUtility": {
+			"mean": 1,
+			"stdDev": 0.5
+		},
+		"DiminishingFactor": {
+			"mean": 0.5,
+			"stdDev": 0.1
+		}
+	},
+	"NutritionalFacts": {
+		"kcalories": 0,
+		"carbohydrates(g)": 0,
+		"protein(g)": 0,
+		"fat(g)": 0,
+		"water(L)": 1
+	}
+}

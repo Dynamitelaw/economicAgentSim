@@ -1,0 +1,47 @@
+{
+	"id": "apple",
+	"unit": "kg",
+	"Quantized": false,
+	"category": "food",
+	"ProductionLearningCurve": {
+		"StartingEfficiency": 1,
+		"HalfLifeQuant": 1
+	},
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {
+				"MaxYield": 0.143,
+				"MinQuantity": 1,
+				"Quantized": true,
+				"AllocationTime": 24
+			},
+			"FixedItemCosts": {},
+			"FixedLaborCosts": {}
+		},
+		"VariableCosts": {
+			"VariableItemCosts": {
+				"water": 822
+			},
+			"VariableLaborCosts": {
+				"0": 2.49
+			}
+		}
+	},
+	"UtilityFunctions": {
+		"BaseUtility": {
+			"mean": 476,
+			"stdDev": 1
+		},
+		"DiminishingFactor": {
+			"mean": 1.5,
+			"stdDev": 0.2
+		}
+	},
+	"NutritionalFacts": {
+		"kcalories": 522,
+		"carbohydrates(g)": 137.5,
+		"protein(g)": 2.75,
+		"fat(g)": 1.65,
+		"water(L)": 0.86
+	}
+}

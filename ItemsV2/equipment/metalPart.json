@@ -1,0 +1,38 @@
+{
+	"id": "metal part",
+	"unit": "part",
+	"Quantized": true,
+	"category": "industrial",
+	"ProductionLearningCurve": {
+		"StartingEfficiency": 1,
+		"HalfLifeQuant": 1
+	},
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {
+				"MaxYield": 0.143,
+				"MinQuantity": 1,
+				"Quantized": true,
+				"AllocationTime": 24
+			},
+			"FixedItemCosts": {
+				"hand tool": {
+					"MaxYield": 0.625,
+					"MinQuantity": 10,
+					"Quantized": true
+				}
+			},
+			"FixedLaborCosts": {
+				"0.9": 8
+			}
+		},
+		"VariableCosts": {
+			"VariableItemCosts": {
+				"steel": 0.1
+			},
+			"VariableLaborCosts": {
+				"0": 10
+			}
+		}
+	}
+}

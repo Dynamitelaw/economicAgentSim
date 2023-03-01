@@ -1,0 +1,41 @@
+{
+	"id": "printed circuit board",
+	"unit": "PCB",
+	"Quantized": true,
+	"category": "electronics",
+	"ProductionLearningCurve": {
+		"StartingEfficiency": 1,
+		"HalfLifeQuant": 1
+	},
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {
+				"MaxYield": 0.143,
+				"MinQuantity": 1,
+				"Quantized": true,
+				"AllocationTime": 24
+			},
+			"FixedItemCosts": {
+				"manufacturing equipment": {
+					"MaxYield": 0.625,
+					"MinQuantity": 10,
+					"Quantized": true
+				}
+			},
+			"FixedLaborCosts": {
+				"0.9": 8
+			}
+		},
+		"VariableCosts": {
+			"VariableItemCosts": {
+				"copper": 0.001,
+				"gold": 0.0001,
+				"industrial chemical": 1,
+				"plastic": 0.001
+			},
+			"VariableLaborCosts": {
+				"0": 10
+			}
+		}
+	}
+}

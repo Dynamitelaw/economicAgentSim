@@ -1,0 +1,53 @@
+{
+	"id": "pants",
+	"unit": "pants",
+	"Quantized": true,
+	"category": "clothing",
+	"ProductionLearningCurve": {
+		"StartingEfficiency": 1,
+		"HalfLifeQuant": 1
+	},
+	"ProductionInputs": {
+		"FixedCosts": {
+			"FixedLandCosts": {
+				"MaxYield": 0.143,
+				"MinQuantity": 1,
+				"Quantized": true,
+				"AllocationTime": 24
+			},
+			"FixedItemCosts": {
+				"manufacturing equipment": {
+					"MaxYield": 0.625,
+					"MinQuantity": 1,
+					"Quantized": true
+				},
+				"hand tool": {
+					"MaxYield": 0.625,
+					"MinQuantity": 1,
+					"Quantized": true
+				}
+			},
+			"FixedLaborCosts": {
+				"0.9": 8
+			}
+		},
+		"VariableCosts": {
+			"VariableItemCosts": {
+				"cotton fabric": 2
+			},
+			"VariableLaborCosts": {
+				"0": 10
+			}
+		}
+	},
+	"UtilityFunctions": {
+		"BaseUtility": {
+			"mean": 3000,
+			"stdDev": 1
+		},
+		"DiminishingFactor": {
+			"mean": 5,
+			"stdDev": 0.2
+		}
+	}
+}
