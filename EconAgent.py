@@ -1074,6 +1074,8 @@ def getAgentController(agent, settings={}, logFile=True, fileLevel="INFO", outpu
 		return TestFarmCompetetiveV3(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
 	if (agentInfo.agentType == "DoNothingBlocker"):
 		return DoNothingBlocker(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
+	if (agentInfo.agentType == "TestFarmCompetetiveV4"):
+		return TestFarmCompetetiveV4(agent, settings=settings, logFile=logFile, fileLevel=fileLevel, outputDir=outputDir)
 
 	#Unhandled agent type. Return default controller
 	return None

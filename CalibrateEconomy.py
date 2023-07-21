@@ -24,12 +24,50 @@ class ItemNode:
 		self.variableLaborInputs = itemDict["ProductionInputs"]["VariableCosts"]["VariableLaborCosts"]
 
 		self.priceNudges = []
+		self.nudgeSpeed = 0.2
 
-	def nudgePrice(self, ratio, priceDict, wageDict, nudgeHistory=[]):
+	def nudgePrice(self, ratio, averagePrices, wageDict, nudgeHistory=[]):
 		#Do not process this nudge if it's circular
-		if self.id in nudgeHistory:
+		if (self.id in nudgeHistory):
 			return
 
+		#Do not process if this nudge has been propogated by another item and we have a set target price
+		if ((self.targetPrice) and (len(nudgeHistory) > 0)):
+			return
+
+		#Add ratio to running nudge list
+		self.priceNudges.append(ratio)
+
+		#Calculate how much each input makes up our total marginal cost
+		totalLaborCost = 0
+		for skillLevel in self.variableLaborInputs:
+			averageWage = wageDict[skillLevel]
+			totalLaborCost += averageWage*self.variableLaborInputs[skillLevel]
+
+		totalItemCost = 0
+		itemCostTotals = {}
+		for itemId in self.variableItemInputs:
+			quantityNeeded = self.variableItemInputs[itemId]
+			itemCost = averagePrices[itemId]*quantityNeeded
+			itemCostTotals[itemId] = itemCost
+			totalItemCost += itemCost
+
+		totalMarginalCost = totalLaborCost + totalItemCost
+		laborCostRatio = totalLaborCost/totalMarginalCost
+		itemCostRatios = {}
+		for itemId in itemCostTotals:
+			itemCostRatios[itemId] = itemCostTotals[itemId]/totalMarginalCost
+
+		#Propogate nudges based on cost ratios
+		newNudgeHistory = nudgeHistory.copy()
+		newNudgeHistory.append(self.id)
+		for itemId in itemCostRatios:
+			inputNudgeRatio = ratio*itemCostRatios[itemId]*len(itemCostRatios)
+			inputNode = self.itemTree.getNode(itemId)
+			inputNode.nudgePrice(inputNudgeRatio, averagePrices, wageDict, nudgeHistory=newNudgeHistory)
+
+
+	def updateItemDict(self):
 		#Calculate how much each input makes up our total marginal cost
 		totalLaborCost = 0
 		for skillLevel in self.variableLaborInputs:
@@ -50,13 +88,44 @@ class ItemNode:
 		for itemId in itemCostTotals:
 			itemCostRatios[itemId] = itemCostTotals[itemId]/totalMarginalCost
 
-		#Propogate nudges based on cost ratios
-		newNudgeHistory = nudgeHistory.copy()
-		newNudgeHistory.append(self.id)
-		for itemId in itemCostRatios:
-			inputNudgeRatio = ratio*itemCostRatios[itemId]
-			inputNode = self.itemTree.getNode(itemId)
-			inputNode.nudgePrice(inputNudgeRatio, priceDict, wageDict, nudgeHistory=newNudgeHistory)
+		#Get average price nudge for this iteration
+		averageNudgeRatio = sum(self.priceNudges)/len(self.priceNudges)
+		self.priceNudges.clear()
+		finalRatio = averageNudgeRatio*self.nudgeSpeed
+
+		#Nudge marginal production input quantities
+		for itemId in self.variableItemInputs:
+			self.variableItemInputs[itemId] = self.variableItemInputs[itemId]*(1-(finalRatio*itemCostRatios[itemId]))
+
+		for skillLevel in self.variableLaborInputs:
+			self.variableLaborInputs[skillLevel] = self.variableLaborInputs[skillLevel]*(1-(finalRatio*laborCostRatio))
+
+
+class ItemTree:
+	def __init__(self, allItemsDict, allTargets):
+		self.allItemsDict = allItemsDict
+		self.allTargets = allTargets
+
+		self.itemNodes = {}
+		self.itemTargets = self.allTargets["ItemTargets"]
+		for itemId in self.allItemsDict:
+			targetPrice = None
+			targetQuant = None
+			if (itemId in self.allTargets["ItemTargets"]):
+				targetPrice = self.allTargets["ItemTargets"][itemId]["UnitPrice"]
+				targetQuant = self.allTargets["ItemTargets"][itemId]["YearlyConsumptionPerCapita"]
+
+			self.itemNodes[itemId] = ItemNode(self.allItemsDict[itemId], self, targetPrice, targetQuant)
+
+	def adjustSettings(self, averagePrices):
+		for itemId in self.itemTargets:
+			avgPrice = averagePrices[itemId]
+			targetPrice = self.itemTargets[itemId]["UnitPrice"]
+			if (targetPrice):
+				priceRatio = targetPrice/avgPrice
+				itemNode = self.getNode(itemId)
+				itemNode.nudgePrice(priceRatio, averagePrices, {"0": 80})
+
 
 def getItemAverages(csvPath):
 	try:
@@ -137,6 +206,7 @@ def calibrateEconomy(settingsFilePath):
 		#Parse targets and add required statistics gathers
 		allTargets = {}
 		statisticsSettings = {}
+		consumerPopulation = 480
 		if ("ItemTargets" in calibrationDict["targets"]):
 			try:
 				#Read in item targets csv
@@ -149,10 +219,21 @@ def calibrateEconomy(settingsFilePath):
 						raise ValueError("\"{}\" does not exist".format(targetPath))
 				
 				targetsDf = pd.read_csv(targetPath)
-				allTargets["ItemTargets"] = targetsDf
+				allTargets["ItemTargets"] = {}
 
 				for index, row in targetsDf.iterrows():
 					itemId = str(row["ItemId"])
+
+					itemTargetDict = {"UnitPrice": None, "YearlyConsumptionPerCapita": None}
+					targetPrice = row["UnitPrice"]
+					if (targetPrice > 0):
+						itemTargetDict["UnitPrice"] = targetPrice
+						allTargets["ItemTargets"][itemId] = itemTargetDict
+
+					targetQuant = row["YearlyConsumptionPerCapita"]
+					if (targetQuant > 0):
+						itemTargetDict["YearlyConsumptionPerCapita"] = targetQuant
+						allTargets["ItemTargets"][itemId] = itemTargetDict
 
 					trackerType = "ItemPriceTracker"
 					trackerName = "{}{}".format(itemId, trackerType)
